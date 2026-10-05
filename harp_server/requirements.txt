@@ -1,0 +1,3 @@
+fastapi>=0.110
+uvicorn>=0.27
+tapipy>=1.4.0

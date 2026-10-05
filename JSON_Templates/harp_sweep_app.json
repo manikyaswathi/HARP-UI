@@ -1,0 +1,18 @@
+{
+  "id": "$app_id",
+  "version": "1.0.0",
+  "description": "HARP sweep job: runs a list of parameter combinations of the target application and writes harp_profile.csv",
+  "runtime": "SINGULARITY",
+  "runtimeOptions": ["SINGULARITY_RUN"],
+  "jobType": "BATCH",
+  "containerImage": "docker://$container_image",
+  "jobAttributes": {
+    "parameterSet": {
+      "archiveFilter": { "includeLaunchFiles": false }
+    },
+    "nodeCount": 1,
+    "coresPerNode": 1,
+    "memoryMB": 4000,
+    "maxMinutes": 30
+  }
+}

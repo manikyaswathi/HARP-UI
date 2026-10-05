@@ -1,0 +1,24 @@
+# Container for one HARP sweep job on TAPIS.
+# The HARP server sends each TAPIS job a list of parameter combinations; the
+# job runner executes them, measures walltime and writes harp_profile.csv to
+# the TAPIS output directory, which TAPIS archives to your storage location.
+#
+# Build from the repository root:
+#   docker build -f DockerFiles/Dockerfile_App_Template_Sweep -t <hub>/harp-sweep-<app>:1.0.0 .
+
+FROM python:3.10-slim
+
+# 1. Add the libraries / tools your application needs.
+RUN pip3 install --no-cache-dir psutil
+
+# 2. HARP job runner (do not modify)
+ADD job_runner /app/HARP/job_runner
+
+# 3. Target application work folder. The "Work folder in container" field in the
+#    HARP UI must point at /app/$APP_NAME.
+ENV APP_PATH="<path-to-target-application>/<target-application-work-folder>"
+ENV APP_NAME="<target-application-work-folder>"
+ADD $APP_PATH /app/$APP_NAME
+ENV APP_HOME="/app/$APP_NAME"
+
+ENTRYPOINT ["python3", "/app/HARP/job_runner/harp_job_runner.py"]

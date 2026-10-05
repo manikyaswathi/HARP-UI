@@ -1,0 +1,14 @@
+# Euler Number example for HARP sweeps on TAPIS (see Dockerfile_App_Template_Sweep).
+#   docker build -f DockerFiles/Dockerfile_App_EulerNumber_Sweep -t <hub>/harp-sweep-eulernumber:1.0.0 .
+
+FROM python:3.10-slim
+
+RUN pip3 install --no-cache-dir psutil
+
+ADD job_runner /app/HARP/job_runner
+
+ENV APP_NAME="01-eulers_number"
+ADD examples/01-eulers_number /app/01-eulers_number
+ENV APP_HOME="/app/01-eulers_number"
+
+ENTRYPOINT ["python3", "/app/HARP/job_runner/harp_job_runner.py"]
