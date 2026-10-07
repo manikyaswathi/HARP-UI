@@ -1,0 +1,478 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>About HARP</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --navy:#11293F; --teal:#2E8FA6; --teal-700:#236F82; --teal-50:#E6F1F4;
+  --orange:#D4842F; --orange-50:#FBEFE0; --orange-700:#9A5A1C;
+  --red:#A23A3A; --red-50:#FBE9E9; --ok:#2E7D5B; --ok-50:#E5F2EC;
+  --ink:#19222B; --muted:#5B6670; --paper:#FBFAF7; --line:#E4E7E9; --card:#fff; --r:12px;
+  --grid:rgba(46,143,166,.05);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+[hidden]{display:none!important}
+html{scroll-behavior:smooth}
+body{font-family:"Inter",system-ui,sans-serif;color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased;
+  background:linear-gradient(var(--grid) 1px,transparent 1px) 0 0/34px 34px,
+             linear-gradient(90deg,var(--grid) 1px,transparent 1px) 0 0/34px 34px,var(--paper)}
+h1,h2,h3,h4{font-family:"Space Grotesk",sans-serif;letter-spacing:-.015em;color:var(--navy);line-height:1.2}
+code,.mono{font-family:"JetBrains Mono",monospace}
+code{font-size:.86em;background:#EEF2F3;padding:1px 6px;border-radius:5px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+@media(max-width:600px){.wrap{padding:0 16px}}
+.eyebrow{display:inline-flex;align-items:center;gap:9px;font-family:"JetBrains Mono",monospace;font-size:12px;font-weight:500;
+  letter-spacing:.08em;text-transform:uppercase;color:var(--teal-700)}
+.eyebrow:before{content:"";width:22px;height:2px;background:var(--orange)}
+
+/* top */
+.hero{background:var(--navy);color:#fff;padding:56px 0 48px;position:relative;overflow:hidden}
+.hero:after{content:"";position:absolute;right:-180px;top:-180px;width:520px;height:520px;border-radius:50%;
+  background:radial-gradient(circle,rgba(70,169,191,.28),transparent 65%)}
+.hero .eyebrow{color:#8CD0DE}
+.hero h1{color:#fff;font-size:clamp(34px,6vw,56px);margin:14px 0 10px}
+.hero h1 span{color:#8CD0DE}
+.hero p{max-width:720px;font-size:18px;color:#CBD8E4}
+.hero .tags{display:flex;flex-wrap:wrap;gap:8px;margin-top:22px}
+.hero .tags span{font-family:"JetBrains Mono",monospace;font-size:12px;border:1px solid #2C4A66;border-radius:20px;padding:4px 12px;color:#CBD8E4}
+.toc{position:sticky;top:0;z-index:10;background:rgba(251,250,247,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.toc .wrap{display:flex;gap:4px;overflow-x:auto;padding-top:8px;padding-bottom:8px}
+.toc a{font-size:13.5px;font-weight:500;color:var(--muted);text-decoration:none;padding:6px 12px;border-radius:8px;white-space:nowrap}
+.toc a:hover,.toc a.on{color:var(--navy);background:#EEF2F3}
+
+section{padding:56px 0 8px}
+section h2{font-size:clamp(26px,4vw,34px);margin:10px 0 8px}
+.lead{font-size:17px;color:var(--muted);max-width:760px;margin-bottom:22px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:20px 22px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}
+@media(max-width:820px){.grid2,.grid3{grid-template-columns:1fr}}
+
+/* 1. problem slider */
+.prob{display:grid;grid-template-columns:1.2fr 1fr;gap:20px;align-items:center}
+@media(max-width:820px){.prob{grid-template-columns:1fr}}
+.track{position:relative;height:56px;margin:18px 0 6px}
+.bar{position:absolute;left:0;height:22px;border-radius:6px}
+.bar.actual{top:0;background:var(--teal)}
+.bar.req{top:30px;background:#D7DEE2}
+.bar.req.short{background:var(--red)}
+.bar.req.waste{background:var(--orange)}
+.bar.req.good{background:var(--ok)}
+.track .lbl{position:absolute;left:8px;font-size:12px;font-weight:600;color:#fff;line-height:22px;white-space:nowrap}
+.track .lbl.t2{top:30px}
+input[type=range]{width:100%;accent-color:var(--navy)}
+.verdict{border-radius:var(--r);padding:18px 20px;border:1px solid var(--line)}
+.verdict b{display:block;font-family:"Space Grotesk",sans-serif;font-size:20px;margin-bottom:4px}
+.verdict.short{background:var(--red-50);border-color:#F0C9C4;color:var(--red)}
+.verdict.waste{background:var(--orange-50);border-color:#F1DCC2;color:var(--orange-700)}
+.verdict.good{background:var(--ok-50);border-color:#BFDCCB;color:var(--ok)}
+.verdict p{color:var(--ink);font-size:14.5px}
+
+/* 2. phases */
+.phases{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:14px}
+@media(max-width:700px){.phases{grid-template-columns:1fr}}
+.ph{text-align:left;font:inherit;cursor:pointer;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;position:relative}
+.ph .n{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--teal-700)}
+.ph h3{font-size:21px;margin:4px 0 4px}
+.ph p{font-size:13.5px;color:var(--muted)}
+.ph[aria-selected="true"]{background:var(--navy);border-color:var(--navy)}
+.ph[aria-selected="true"] h3{color:#fff}.ph[aria-selected="true"] p{color:#CBD8E4}.ph[aria-selected="true"] .n{color:#8CD0DE}
+.ph:not(:last-child):after{content:"→";position:absolute;right:-12px;top:50%;transform:translateY(-50%);font-size:18px;color:var(--teal);z-index:1}
+@media(max-width:700px){.ph:not(:last-child):after{content:"↓";right:50%;top:auto;bottom:-16px;transform:none}}
+.flow{display:grid;grid-template-columns:1fr 1.3fr 1fr;gap:12px}
+@media(max-width:820px){.flow{grid-template-columns:1fr}}
+.flow .card h4{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--teal-700);margin-bottom:8px}
+.flow ul{list-style:none;display:flex;flex-direction:column;gap:7px;font-size:14px}
+.flow li:before{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--orange);margin-right:9px;vertical-align:2px}
+.flow .mid{background:#F3F8F9;border-color:#CFE3E8}
+.where{margin-top:12px;font-size:13.5px;color:var(--muted)}
+.where b{color:var(--navy)}
+
+/* 3. words */
+.words{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+details.w{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px}
+details.w summary{cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;gap:10px}
+details.w summary::-webkit-details-marker{display:none}
+details.w summary b{font-family:"Space Grotesk",sans-serif;font-size:17px;color:var(--navy)}
+details.w summary span{font-size:12.5px;color:var(--muted)}
+details.w summary:after{content:"+";font-size:18px;color:var(--teal)}
+details.w[open] summary:after{content:"−"}
+details.w p{font-size:14px;margin-top:10px}
+details.w[open]{border-color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal)}
+
+/* 4. versions */
+.switch{display:inline-flex;background:#EEF2F3;border-radius:10px;padding:4px;gap:4px;margin-bottom:16px}
+.switch button{font:inherit;font-weight:600;font-size:14px;border:0;background:transparent;color:var(--muted);padding:8px 18px;border-radius:7px;cursor:pointer}
+.switch button[aria-pressed="true"]{background:var(--navy);color:#fff}
+.vsum{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:820px){.vsum{grid-template-columns:1fr}}
+.vsum .card{transition:opacity .2s,border-color .2s}
+.vsum .card.dim{opacity:.45}
+.vsum .card.on{border-color:var(--teal);box-shadow:inset 0 0 0 1px var(--teal)}
+.vsum h3{font-size:20px;margin-bottom:2px}
+.vsum .kind{font-family:"JetBrains Mono",monospace;font-size:12px;color:var(--teal-700);margin-bottom:8px}
+.vsum p{font-size:14.5px}
+.diagram{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:12px;overflow-x:auto}
+.diagram svg{display:block;width:100%;min-width:640px;height:auto}
+.diagram svg text{font-family:"Inter",sans-serif}
+.diagram .cap{font-size:13px;color:var(--muted);padding:6px 6px 2px}
+table.cmp{width:100%;border-collapse:collapse;font-size:14px;margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.cmpwrap{overflow-x:auto}
+table.cmp th,table.cmp td{text-align:left;padding:11px 14px;border-bottom:1px solid #EEF1F2;vertical-align:top}
+table.cmp th{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);background:#FCFCFB}
+table.cmp td:first-child{font-weight:600;color:var(--navy);white-space:nowrap}
+table.cmp td.hl{background:var(--teal-50)}
+table.cmp tr:last-child td{border-bottom:0}
+
+/* 5. try it */
+.calc{display:grid;grid-template-columns:320px 1fr;gap:20px}
+@media(max-width:820px){.calc{grid-template-columns:1fr}}
+.ctl{display:flex;flex-direction:column;gap:14px}
+.ctl label{display:flex;justify-content:space-between;font-size:13.5px;font-weight:600;color:var(--navy)}
+.ctl label output{font-family:"JetBrains Mono",monospace;color:var(--teal-700)}
+.ctl small{display:block;font-size:12px;color:var(--muted);font-weight:400}
+.total{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px}
+.total div{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.total b{display:block;font-family:"Space Grotesk",sans-serif;font-size:26px;color:var(--navy);line-height:1.1}
+.total span{font-size:12px;color:var(--muted)}
+.jobs{display:flex;flex-wrap:wrap;gap:5px}
+.job{width:30px;height:30px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-family:"JetBrains Mono",monospace;font-size:10px;color:#fff}
+.legend{display:flex;flex-wrap:wrap;gap:12px;font-size:12.5px;color:var(--muted);margin-top:10px}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.more{font-size:13px;color:var(--muted);margin-top:8px}
+
+.now{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+@media(max-width:820px){.now{grid-template-columns:1fr}}
+.now ul{list-style:none;display:flex;flex-direction:column;gap:8px;font-size:14.5px}
+.now li{padding-left:24px;position:relative}
+.now li:before{position:absolute;left:0;top:0;font-weight:700}
+.now .done li:before{content:"✓";color:var(--ok)}
+.now .next li:before{content:"→";color:var(--orange)}
+footer{padding:48px 0 60px;color:var(--muted);font-size:13.5px}
+footer a{color:var(--teal-700);font-weight:600}
+</style>
+</head>
+<body>
+
+<header class="hero"><div class="wrap">
+  <div class="eyebrow">ICICLE · HPC scheduling</div>
+  <h1>HARP <span>· HPC Application Runtime Predictor</span></h1>
+  <p>Before you submit a job to a supercomputer you have to say how long it will run. HARP learns that from your own
+     application: it runs it many small ways, trains models on the timings, and predicts the time for the run you
+     actually want.</p>
+  <div class="tags"><span>profile</span><span>learn</span><span>predict</span><span>OSC · TACC</span><span>TAPIS</span></div>
+</div></header>
+
+<nav class="toc" aria-label="Sections"><div class="wrap">
+  <a href="#problem">The problem</a><a href="#phases">Three phases</a><a href="#words">Words</a>
+  <a href="#versions">Version 1 vs 2</a><a href="#try">How a sweep becomes jobs</a><a href="#now">Where we are</a>
+</div></nav>
+
+<main class="wrap">
+
+<!-- 1 ------------------------------------------------------------------ -->
+<section id="problem">
+  <div class="eyebrow">1 · The problem</div>
+  <h2>How long should you ask for?</h2>
+  <p class="lead">Every HPC job request includes a time limit. Ask for too little and the scheduler stops your job
+    before it finishes. Ask for far too much and you wait longer in the queue, and the hours you reserve sit idle while
+    others wait. Move the slider: the run really takes <b>3 hours</b>.</p>
+  <div class="prob">
+    <div class="card">
+      <div class="track" aria-hidden="true">
+        <div class="bar actual" id="barA"><span class="lbl">actual run · 3 h</span></div>
+        <div class="bar req" id="barR"><span class="lbl t2" id="barRl"></span></div>
+      </div>
+      <label for="reqH" style="font-size:13.5px;font-weight:600;color:var(--navy)">You request <output id="reqOut" class="mono">2.0 h</output></label>
+      <input type="range" id="reqH" min="1" max="12" step="0.25" value="2">
+    </div>
+    <div class="verdict" id="verdict" role="status"></div>
+  </div>
+</section>
+
+<!-- 2 ------------------------------------------------------------------ -->
+<section id="phases">
+  <div class="eyebrow">2 · How HARP works</div>
+  <h2>Three phases: Generate, Build, Estimate</h2>
+  <p class="lead">Click a phase to see what goes in, what HARP does, and what comes out.</p>
+  <div class="phases" role="tablist" aria-label="HARP phases">
+    <button class="ph" role="tab" data-ph="0" aria-selected="true"><div class="n">Phase 1</div><h3>Generate</h3><p>Run the app many small ways and time every run</p></button>
+    <button class="ph" role="tab" data-ph="1" aria-selected="false"><div class="n">Phase 2</div><h3>Build</h3><p>Train models that predict the time from the inputs</p></button>
+    <button class="ph" role="tab" data-ph="2" aria-selected="false"><div class="n">Phase 3</div><h3>Estimate</h3><p>Pick the best model and predict a new run</p></button>
+  </div>
+  <div class="flow" role="tabpanel" id="flow" aria-live="polite"></div>
+  <p class="where" id="where"></p>
+</section>
+
+<!-- 3 ------------------------------------------------------------------ -->
+<section id="words">
+  <div class="eyebrow">3 · Words you will hear</div>
+  <h2>A small vocabulary</h2>
+  <p class="lead">Open a card for the meaning.</p>
+  <div class="words">
+    <details class="w"><summary><div><b>SD run</b><br><span>scaled-down</span></div></summary>
+      <p>A small, quick version of the problem: small inputs, few iterations. Cheap to run many of, so the models learn mostly from these.</p></details>
+    <details class="w"><summary><div><b>FS run</b><br><span>full-scale</span></div></summary>
+      <p>The real sizes you care about. Expensive, so only a few. Some are mixed into training (25, 50 or 75%) and some check the models while they train.</p></details>
+    <details class="w"><summary><div><b>test_data run</b><br><span>held out</span></div></summary>
+      <p>Runs kept aside and never trained on. They score the finished models honestly.</p></details>
+    <details class="w"><summary><div><b>Sweep</b><br><span>what you set up</span></div></summary>
+      <p>One app, one run type (SD, FS or test_data), and the parameter values to try, for example <code>n = 10, 100, 1000</code>, run on the queues you tick.</p></details>
+    <details class="w"><summary><div><b>Campaign</b><br><span>a submitted sweep</span></div></summary>
+      <p>The record of a sweep once submitted: its TAPIS jobs, their status, and one results folder. The word comes from Cheetah, which version 1 uses to run sweeps. In version 2, one sweep is one campaign.</p></details>
+    <details class="w"><summary><div><b>Hardware configuration</b><br><span>where a run happens</span></div></summary>
+      <p>A system, queue, number of cores and memory, e.g. Pitzer <code>serial</code> with 8 cores. Profiling the same run on several configurations teaches the models how hardware changes the time.</p></details>
+    <details class="w"><summary><div><b>TAPIS</b><br><span>the door to the clusters</span></div></summary>
+      <p>An API (from TACC) for running containers as jobs on HPC systems and moving files, using your own accounts. HARP talks to OSC and TACC only through TAPIS.</p></details>
+    <details class="w"><summary><div><b>Models</b><br><span>LR · NN · DTR</span></div></summary>
+      <p>Linear regression, a small neural network and a decision tree. Each is trained on several mixes of SD and FS data, with and without <b>padding</b> (predictions scaled up so they are too low less often).</p></details>
+    <details class="w"><summary><div><b>Allocation account</b><br><span>who pays for compute</span></div></summary>
+      <p>The project a job is charged to, e.g. <code>-A PAS2271</code>. Needed to run jobs, not to move files.</p></details>
+  </div>
+</section>
+
+<!-- 4 ------------------------------------------------------------------ -->
+<section id="versions">
+  <div class="eyebrow">4 · Version 1 and version 2</div>
+  <h2>From a modular toolkit to a service</h2>
+  <p class="lead">Same three phases, same models. What changes is who drives them and how much of the cluster they can use.</p>
+  <div class="switch" role="group" aria-label="Show version">
+    <button type="button" data-v="1" aria-pressed="true">Version 1</button>
+    <button type="button" data-v="2" aria-pressed="false">Version 2</button>
+  </div>
+  <div class="vsum">
+    <div class="card on" id="v1card">
+      <h3>Version 1 · modular</h3><div class="kind">a toolkit you run yourself, per user, per session</div>
+      <p>HARP is a pipeline you install as a module (OSC) or bake into a container together with your app. You drive it
+        from a notebook: log in to TAPIS in that session, register the app, submit <b>one job</b>. Inside that one
+        container, Cheetah runs every SD, FS and test sweep on <b>one machine</b>, then the same job builds the models
+        and picks one.</p>
+    </div>
+    <div class="card dim" id="v2card">
+      <h3>Version 2 · service</h3><div class="kind">a web page and a backend that run HARP for you</div>
+      <p>A web page (HARP Generate, Build, Estimate) and a HARP server. You log in once; the server keeps your TAPIS
+        session, splits each sweep into <b>many TAPIS jobs</b> across systems, queues and hardware configurations,
+        follows them live, merges the results, runs the build as its own TAPIS app, and lets you pick a model to estimate with.</p>
+    </div>
+  </div>
+  <div class="diagram">
+    <svg id="svg1" viewBox="0 0 920 250" role="img" aria-label="Version 1: a notebook submits one TAPIS job that runs the whole pipeline in one container on one system">
+      <defs><marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#2E8FA6"/></marker></defs>
+      <rect x="10" y="80" width="170" height="80" rx="10" fill="#FBEFE0" stroke="#D4842F"/>
+      <text x="95" y="112" text-anchor="middle" font-size="15" font-weight="600" fill="#11293F">You, in a notebook</text>
+      <text x="95" y="134" text-anchor="middle" font-size="12" fill="#5B6670">login · register app · submit</text>
+      <line x1="180" y1="120" x2="240" y2="120" stroke="#2E8FA6" stroke-width="2" marker-end="url(#ar)"/>
+      <rect x="240" y="90" width="110" height="60" rx="10" fill="#E6F1F4" stroke="#2E8FA6"/>
+      <text x="295" y="125" text-anchor="middle" font-size="15" font-weight="600" fill="#11293F">TAPIS</text>
+      <line x1="350" y1="120" x2="410" y2="120" stroke="#2E8FA6" stroke-width="2" marker-end="url(#ar)"/>
+      <rect x="410" y="20" width="380" height="210" rx="12" fill="#fff" stroke="#11293F" stroke-width="1.5"/>
+      <text x="425" y="45" font-size="13" font-weight="600" fill="#11293F">1 TAPIS job · 1 container · 1 machine (e.g. Pitzer)</text>
+      <rect x="425" y="60" width="350" height="44" rx="8" fill="#F3F8F9" stroke="#CFE3E8"/>
+      <text x="440" y="87" font-size="13" fill="#19222B"><tspan font-weight="600">Generate</tspan> · Cheetah runs the sweeps, one after another</text>
+      <rect x="425" y="114" width="350" height="44" rx="8" fill="#F3F8F9" stroke="#CFE3E8"/>
+      <text x="440" y="141" font-size="13" fill="#19222B"><tspan font-weight="600">Build</tspan> · scale, PCA, train LR / NN / DTR</text>
+      <rect x="425" y="168" width="350" height="44" rx="8" fill="#F3F8F9" stroke="#CFE3E8"/>
+      <text x="440" y="195" font-size="13" fill="#19222B"><tspan font-weight="600">Predict</tspan> · pick a model by policy</text>
+      <line x1="790" y1="125" x2="830" y2="125" stroke="#2E8FA6" stroke-width="2" marker-end="url(#ar)"/>
+      <text x="875" y="120" text-anchor="middle" font-size="13" font-weight="600" fill="#11293F">results</text>
+      <text x="875" y="138" text-anchor="middle" font-size="12" fill="#5B6670">in the job folder</text>
+    </svg>
+    <svg id="svg2" viewBox="0 0 920 330" hidden role="img" aria-label="Version 2: the web page talks to the HARP server, which submits many TAPIS jobs across systems, merges results, runs a build job and offers models for estimates">
+      <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0L10,5L0,10z" fill="#2E8FA6"/></marker></defs>
+      <rect x="10" y="110" width="150" height="100" rx="10" fill="#FBEFE0" stroke="#D4842F"/>
+      <text x="85" y="140" text-anchor="middle" font-size="15" font-weight="600" fill="#11293F">Web page</text>
+      <text x="85" y="162" text-anchor="middle" font-size="12" fill="#5B6670">Generate · Build</text>
+      <text x="85" y="180" text-anchor="middle" font-size="12" fill="#5B6670">Estimate</text>
+      <line x1="160" y1="160" x2="200" y2="160" stroke="#2E8FA6" stroke-width="2" marker-end="url(#ar2)"/>
+      <rect x="200" y="70" width="200" height="180" rx="12" fill="#11293F"/>
+      <text x="300" y="98" text-anchor="middle" font-size="15" font-weight="600" fill="#fff">HARP server</text>
+      <text x="300" y="122" text-anchor="middle" font-size="12" fill="#CBD8E4">keeps your TAPIS session</text>
+      <text x="300" y="142" text-anchor="middle" font-size="12" fill="#CBD8E4">splits sweeps into jobs</text>
+      <text x="300" y="162" text-anchor="middle" font-size="12" fill="#CBD8E4">checks queue limits</text>
+      <text x="300" y="182" text-anchor="middle" font-size="12" fill="#CBD8E4">throttles, follows live</text>
+      <text x="300" y="202" text-anchor="middle" font-size="12" fill="#CBD8E4">merges results</text>
+      <text x="300" y="222" text-anchor="middle" font-size="12" fill="#CBD8E4">one user ≠ another</text>
+      <line x1="400" y1="160" x2="440" y2="160" stroke="#2E8FA6" stroke-width="2" marker-end="url(#ar2)"/>
+      <rect x="440" y="130" width="80" height="60" rx="10" fill="#E6F1F4" stroke="#2E8FA6"/>
+      <text x="480" y="165" text-anchor="middle" font-size="14" font-weight="600" fill="#11293F">TAPIS</text>
+      <g font-size="12" fill="#19222B">
+        <line x1="520" y1="160" x2="560" y2="45" stroke="#2E8FA6" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <line x1="520" y1="160" x2="560" y2="105" stroke="#2E8FA6" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <line x1="520" y1="160" x2="560" y2="165" stroke="#2E8FA6" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <line x1="520" y1="160" x2="560" y2="225" stroke="#2E8FA6" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <rect x="560" y="22" width="190" height="44" rx="8" fill="#fff" stroke="#CFE3E8"/><text x="572" y="49">Pitzer serial · 40 cores · ×6 jobs</text>
+        <rect x="560" y="82" width="190" height="44" rx="8" fill="#fff" stroke="#CFE3E8"/><text x="572" y="109">Pitzer serial · 8 cores · ×6 jobs</text>
+        <rect x="560" y="142" width="190" height="44" rx="8" fill="#fff" stroke="#CFE3E8"/><text x="572" y="169">Stampede3 skx · ×6 jobs</text>
+        <rect x="560" y="202" width="190" height="44" rx="8" fill="#FBEFE0" stroke="#D4842F"/><text x="572" y="229">Build job (HARP build app)</text>
+      </g>
+      <line x1="750" y1="135" x2="790" y2="135" stroke="#2E8FA6" stroke-width="2" marker-end="url(#ar2)"/>
+      <rect x="790" y="70" width="120" height="130" rx="10" fill="#fff" stroke="#11293F"/>
+      <text x="850" y="98" text-anchor="middle" font-size="13" font-weight="600" fill="#11293F">Your folder</text>
+      <text x="850" y="122" text-anchor="middle" font-size="12" fill="#5B6670">merged CSV</text>
+      <text x="850" y="142" text-anchor="middle" font-size="12" fill="#5B6670">models + scores</text>
+      <text x="850" y="162" text-anchor="middle" font-size="12" fill="#5B6670">copy elsewhere</text>
+      <text x="850" y="182" text-anchor="middle" font-size="12" fill="#5B6670">(optional)</text>
+      <path d="M850 200 V 290 H 85 V 210" fill="none" stroke="#D4842F" stroke-width="1.5" stroke-dasharray="5 4" marker-end="url(#ar2)"/>
+      <text x="470" y="310" text-anchor="middle" font-size="12" fill="#9A5A1C">profiled data and trained models flow back to the page: build, then pick a model to estimate</text>
+    </svg>
+    <div class="cap" id="cap"></div>
+  </div>
+  <div class="cmpwrap"><table class="cmp" id="cmp">
+    <thead><tr><th></th><th>Version 1 · modular</th><th>Version 2 · service</th></tr></thead>
+    <tbody>
+      <tr><td>You use it through</td><td>Notebooks (Colab or Jupyter) and a JSON config</td><td>A web page with three tabs: Generate, Build, Estimate</td></tr>
+      <tr><td>TAPIS</td><td>Per user, per notebook session: you log in, register the app and systems, submit and poll yourself</td><td>Log in once on the page; the server holds the token (never the browser), submits and follows every job</td></tr>
+      <tr><td>Where it runs</td><td>One TAPIS job, one container, one machine</td><td>Many TAPIS jobs at once, across systems (OSC, TACC), queues and hardware configurations</td></tr>
+      <tr><td>Generate</td><td>Cheetah runs all sweeps sequentially inside the job</td><td>Each parameter combination is its own job; jobs per queue are throttled to its user limit</td></tr>
+      <tr><td>Hardware as a feature</td><td>Only the one machine it ran on</td><td>Cores and memory per configuration are recorded, so models learn how hardware changes time</td></tr>
+      <tr><td>Progress</td><td>Wait for the job to end</td><td>Live: jobs, runs done per job, failures, cancel</td></tr>
+      <tr><td>Results</td><td>Inside the job's output folder</td><td>Merged CSV in a folder you choose on any TAPIS system, optional copy elsewhere</td></tr>
+      <tr><td>Build</td><td>Same container, right after generate</td><td>Its own TAPIS app (or on the server), from any sweeps you pick, with the models you pick</td></tr>
+      <tr><td>Estimate</td><td>Predictor module with a selection policy</td><td>Estimate tab: runs to estimate, pick a trained model per app; computing the estimates is next</td></tr>
+      <tr><td>Many users</td><td>Each user runs their own copy</td><td>One service; each user (per TAPIS tenant) sees only their own sweeps, jobs, data and models</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 5 ------------------------------------------------------------------ -->
+<section id="try">
+  <div class="eyebrow">5 · Try it</div>
+  <h2>How a sweep becomes TAPIS jobs (version 2)</h2>
+  <p class="lead">Every combination of parameter values runs on every hardware configuration you tick. Each of those is
+    one TAPIS job, which repeats its run as many times as you ask.</p>
+  <div class="calc">
+    <div class="card ctl">
+      <div><label for="pA">Values of parameter A <output id="oA">3</output></label><small>e.g. n = 10, 100, 1000</small><input type="range" id="pA" min="1" max="8" value="3"></div>
+      <div><label for="pB">Values of parameter B <output id="oB">2</output></label><small>e.g. method = pow, factorial</small><input type="range" id="pB" min="1" max="6" value="2"></div>
+      <div><label for="cfg">Hardware configurations <output id="oC">3</output></label><small>e.g. Pitzer 40 cores, Pitzer 8 cores, Stampede3</small><input type="range" id="cfg" min="1" max="6" value="3"></div>
+      <div><label for="reps">Repetitions per job <output id="oR">3</output></label><small>to average out noise</small><input type="range" id="reps" min="1" max="5" value="3"></div>
+    </div>
+    <div>
+      <div class="total">
+        <div><b id="tC">6</b><span>combinations</span></div>
+        <div><b id="tJ">18</b><span>TAPIS jobs</span></div>
+        <div><b id="tR">54</b><span>timed runs</span></div>
+      </div>
+      <div class="card"><div class="jobs" id="jobs" aria-label="TAPIS jobs, coloured by hardware configuration"></div>
+        <div class="legend" id="legend"></div><p class="more" id="more"></p></div>
+    </div>
+  </div>
+</section>
+
+<!-- 6 ------------------------------------------------------------------ -->
+<section id="now">
+  <div class="eyebrow">6 · Where we are</div>
+  <h2>Status of version 2</h2>
+  <div class="now">
+    <div class="card done"><h3 style="font-size:18px;margin-bottom:10px">Working</h3><ul>
+      <li>Log in with TAPIS; apps, systems and queue limits come from TAPIS</li>
+      <li>Generate: sweeps with hardware configurations and accounts per system, checked against queue limits</li>
+      <li>Many jobs across OSC and TACC, live progress, merged results, optional copy</li>
+      <li>Build as its own TAPIS app (Docker image built by CI), pick models and training sets</li>
+      <li>Estimate: list runs to estimate, pick a trained model</li>
+      <li>Each user sees only their own work</li></ul></div>
+    <div class="card next"><h3 style="font-size:18px;margin-bottom:10px">Next</h3><ul>
+      <li>Compute the estimates with the chosen model and show them</li>
+      <li>First real runs on OSC and TACC through TAPIS</li>
+      <li>Keep system specs (queue limits) in TAPIS up to date</li>
+      <li>Feed estimates into job requests (time limit, queue choice)</li></ul></div>
+  </div>
+</section>
+</main>
+
+<footer><div class="wrap">HARP · HPC Application Runtime Predictor. See the version 2 page in action: <a href="profiling.html">open the demo</a> (sample data, no login needed).</div></footer>
+
+<script>
+const $ = id => document.getElementById(id);
+
+/* 1. requested vs actual time */
+const ACTUAL = 3, MAXH = 12;
+function problem(){
+  const req = +$('reqH').value, pct = h => (100 * h / MAXH) + '%';
+  $('reqOut').textContent = req.toFixed(req % 1 ? 2 : 1).replace(/0$/, '') + ' h';
+  $('barA').style.width = pct(ACTUAL);
+  const r = $('barR'); r.style.width = pct(req);
+  const kind = req < ACTUAL ? 'short' : req <= ACTUAL * 1.35 ? 'good' : 'waste';
+  r.className = 'bar req ' + kind; $('barRl').textContent = 'requested · ' + $('reqOut').textContent;
+  const v = $('verdict'); v.className = 'verdict ' + kind;
+  v.innerHTML = kind === 'short'
+    ? `<b>Job killed</b><p>The scheduler stops it at ${$('reqOut').textContent}. All ${req} hours are spent and you get no result; you resubmit and wait again.</p>`
+    : kind === 'good'
+    ? `<b>Just right</b><p>A small margin over the real 3 hours. The job finishes, starts sooner, and leaves the rest of the machine to others. This is what HARP's estimates aim for.</p>`
+    : `<b>Finishes, but costly</b><p>You reserved ${req} hours for a 3-hour run. Bigger requests usually wait longer in the queue, and the scheduler cannot fit other jobs into the ${(req - ACTUAL).toFixed(1)} hours you blocked.</p>`;
+}
+$('reqH').addEventListener('input', problem); problem();
+
+/* 2. phases */
+const PH = [
+  {in: ['Your app in a container', 'Its parameters and the values to try', 'Run types: SD, FS, test_data', 'Systems, queues and hardware'],
+   does: ['Runs every combination of values, on every hardware configuration', 'Times each run and records the hardware it had', 'Collects every run into one table per app'],
+   out: ['Profiling data: one row per run', 'parameters + hardware + walltime', '<code>&lt;app&gt;_&lt;timestamp&gt;.csv</code>'],
+   where: '<b>Version 2:</b> HARP Generate tab. Configure, Review & submit, Profiled data, Jobs. Each combination × configuration is one TAPIS job.'},
+  {in: ['Profiling data from one or more sweeps', 'Which models to train', 'Which mixes of SD and FS to train on'],
+   does: ['Cleans the data: drops gaps, removes outliers', 'Scales the features and reduces them with PCA', 'Trains linear regression, a neural network and a decision tree', 'Scores each on the held-out test_data runs'],
+   out: ['Trained models (.pkl, .h5)', 'Scores: average error, how often too low', '<code>model_commons.csv</code>'],
+   where: '<b>Version 2:</b> HARP Build tab. Training data, Models & where, Trained models. Runs as its own TAPIS job (HARP build app) or on the server.'},
+  {in: ['A run you want to submit: one value per parameter', 'The queue and cores it would get', 'A trained model for that app'],
+   does: ['Prepares the run the same way the training data was prepared', 'Asks the chosen model for the time', 'Optionally pads it so it is too low less often'],
+   out: ['A predicted run time per queue', 'A safer time limit to request', 'Which queue looks fastest'],
+   where: '<b>Version 2:</b> HARP Estimate tab. Configure the runs, Select model, Estimates. Picking the model works today; computing the estimates is the next step.'},
+];
+function phase(i){
+  document.querySelectorAll('.ph').forEach(b => b.setAttribute('aria-selected', +b.dataset.ph === i));
+  const p = PH[i], li = xs => xs.map(x => `<li>${x}</li>`).join('');
+  $('flow').innerHTML = `<div class="card"><h4>Goes in</h4><ul>${li(p.in)}</ul></div>
+    <div class="card mid"><h4>HARP does</h4><ul>${li(p.does)}</ul></div><div class="card"><h4>Comes out</h4><ul>${li(p.out)}</ul></div>`;
+  $('where').innerHTML = p.where;
+}
+document.querySelectorAll('.ph').forEach(b => b.addEventListener('click', () => phase(+b.dataset.ph)));
+document.querySelector('.phases').addEventListener('keydown', ev => {
+  if (!['ArrowLeft', 'ArrowRight'].includes(ev.key)) return;
+  const tabs = [...document.querySelectorAll('.ph')], i = tabs.indexOf(document.activeElement);
+  const n = tabs[(i + (ev.key === 'ArrowRight' ? 1 : 2)) % 3]; n.click(); n.focus();
+});
+phase(0);
+
+/* 4. versions */
+const CAPS = {1: 'Version 1: everything happens in one job you start from a notebook.',
+              2: 'Version 2: the server spreads the work over many jobs and systems, then builds and offers models back on the page.'};
+function version(v){
+  document.querySelectorAll('.switch button').forEach(b => b.setAttribute('aria-pressed', b.dataset.v === String(v)));
+  $('svg1').toggleAttribute('hidden', v !== 1); $('svg2').toggleAttribute('hidden', v !== 2);   // SVG has no .hidden property
+  $('v1card').className = 'card ' + (v === 1 ? 'on' : 'dim'); $('v2card').className = 'card ' + (v === 2 ? 'on' : 'dim');
+  $('cap').textContent = CAPS[v];
+  document.querySelectorAll('#cmp tbody tr').forEach(tr => tr.querySelectorAll('td').forEach((td, j) => td.classList.toggle('hl', j === v)));
+}
+document.querySelectorAll('.switch button').forEach(b => b.addEventListener('click', () => version(+b.dataset.v)));
+version(1);
+
+/* 5. sweep -> jobs */
+const COLORS = ['#2E8FA6', '#11293F', '#D4842F', '#2E7D5B', '#7A5BA6', '#A23A3A'];
+const NAMES = ['Pitzer serial · 40 cores', 'Pitzer serial · 8 cores', 'Stampede3 skx', 'Cardinal cpu', 'Pitzer GPU', 'Stampede3 icx'];
+function calc(){
+  const a = +$('pA').value, b = +$('pB').value, c = +$('cfg').value, r = +$('reps').value;
+  $('oA').value = a; $('oB').value = b; $('oC').value = c; $('oR').value = r;
+  const combos = a * b, jobs = combos * c;
+  $('tC').textContent = combos; $('tJ').textContent = jobs; $('tR').textContent = jobs * r;
+  const shown = Math.min(jobs, 120), out = [];
+  for (let k = 0; k < shown; k++) { const cfg = k % c, combo = Math.floor(k / c);
+    out.push(`<div class="job" style="background:${COLORS[cfg]}" title="combination ${combo + 1} on ${NAMES[cfg]}, ${r} run${r > 1 ? 's' : ''}">${r}×</div>`); }
+  $('jobs').innerHTML = out.join('');
+  $('legend').innerHTML = NAMES.slice(0, c).map((n, i) => `<span><i style="background:${COLORS[i]}"></i>${n}</span>`).join('');
+  $('more').textContent = (jobs > shown ? `Showing ${shown} of ${jobs} jobs. ` : '') + `Each square is one TAPIS job running its combination ${r} time${r > 1 ? 's' : ''}.`;
+}
+['pA', 'pB', 'cfg', 'reps'].forEach(id => $(id).addEventListener('input', calc)); calc();
+
+/* contents highlight */
+const links = [...document.querySelectorAll('.toc a')];
+const obs = new IntersectionObserver(es => es.forEach(e => { if (e.isIntersecting)
+  links.forEach(l => l.classList.toggle('on', l.getAttribute('href') === '#' + e.target.id)); }), {rootMargin: '-45% 0px -50% 0px'});
+document.querySelectorAll('main section').forEach(s => obs.observe(s));
+</script>
+</body>
+</html>
