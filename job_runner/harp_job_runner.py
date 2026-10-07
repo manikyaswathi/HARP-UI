@@ -36,6 +36,7 @@ import time
 PROFILE_FILE_NAME = "harp_profile.csv"
 FAILURES_FILE_NAME = "harp_failures.csv"
 SUMMARY_FILE_NAME = "harp_job_summary.json"
+PROGRESS_FILE_NAME = "harp_progress.json"  # read by the HARP server through TAPIS Files while the job runs
 
 
 def decode_spec(arg):
@@ -138,6 +139,15 @@ def append_rows(path, rows):
         writer.writerows(rows)
 
 
+def write_progress(out_dir, progress):
+    """Replace the progress file atomically so a reader never sees half of it."""
+    progress["updated_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    tmp = os.path.join(out_dir, "." + PROGRESS_FILE_NAME + ".tmp")
+    with open(tmp, "w") as f:
+        json.dump(progress, f)
+    os.replace(tmp, os.path.join(out_dir, PROGRESS_FILE_NAME))
+
+
 def run_job(spec, out_dir):
     job_name = spec["job_name"]
     command_template = spec["command"]
@@ -148,12 +158,17 @@ def run_job(spec, out_dir):
     sys_details.update(gpu_details())
 
     profile_rows, failure_rows = [], []
+    progress = {"job_name": job_name, "runs_total": len(spec["combinations"]) * repetitions,
+                "runs_done": 0, "runs_failed": 0, "current": None}
+    write_progress(out_dir, progress)
     for combo in spec["combinations"]:
         params = combo["parameters"]
         command = build_command(command_template, params)
         for rep in range(repetitions):
             run_config = f"{job_name}.run-{combo['index']}.iteration-{rep}"
             print(f"[HARP] {run_config}: {' '.join(command)}", flush=True)
+            progress["current"] = run_config
+            write_progress(out_dir, progress)
             status, walltime, stderr = run_once(command, workdir, timeout)
             if status == 0:
                 row = {"run_config": run_config, "run_type": combo["run_type"]}
@@ -166,9 +181,14 @@ def run_job(spec, out_dir):
                 failure_rows.append({"run_config": run_config, "run_type": combo["run_type"],
                                      "status": status, "parameters": json.dumps(params),
                                      "stderr": stderr})
+                progress["runs_failed"] += 1
+            progress["runs_done"] += 1
+            # keep the CSV current too, so finished runs survive a job that hits its time limit
+            append_rows(os.path.join(out_dir, PROFILE_FILE_NAME), profile_rows)
 
-    append_rows(os.path.join(out_dir, PROFILE_FILE_NAME), profile_rows)
     append_rows(os.path.join(out_dir, FAILURES_FILE_NAME), failure_rows)
+    progress["current"] = None
+    write_progress(out_dir, progress)
     summary = {"job_name": job_name, "succeeded_runs": len(profile_rows),
                "failed_runs": len(failure_rows), "host": platform.node(),
                "tapis_job_uuid": os.environ.get("_tapisJobUUID", "")}

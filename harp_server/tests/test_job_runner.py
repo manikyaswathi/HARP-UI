@@ -22,6 +22,9 @@ def _spec(**over):
 def test_runner_profiles_successful_runs_and_records_failures(tmp_path):
     summary = harp_job_runner.run_job(_spec(), str(tmp_path))
     assert summary["succeeded_runs"] == 2 and summary["failed_runs"] == 2
+    with open(tmp_path / "harp_progress.json") as f:
+        progress = json.load(f)
+    assert (progress["runs_done"], progress["runs_failed"], progress["runs_total"], progress["current"]) == (4, 2, 4, None)
 
     with open(tmp_path / "harp_profile.csv") as f:
         rows = list(csv.DictReader(f))

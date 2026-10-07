@@ -1,3 +1,4 @@
+import json
 import pytest
 from fastapi.testclient import TestClient
 
@@ -284,3 +285,35 @@ def test_all_jobs_lists_every_job_with_app_and_queue(ctx):
     assert len(jobs) == 8 and {j["sweep"] for j in jobs} == {"a", "b"}
     j = next(j for j in jobs if j["system_id"] == "pitzer")
     assert j["app_id"] == "harp-sweep-euler" and j["queue"] == "serial" and j["status"] == "NOT_SUBMITTED"
+
+
+def test_jobs_show_runs_done_while_running_and_after(ctx):
+    client, manager, gateways = ctx
+    _login(client)
+    spec = euler_spec(name="prog")
+    spec["targets"] = spec["targets"][:1]
+    client.post("/api/campaigns", json=spec)
+    gw = gateways["alice"]
+    cid = list(manager.campaigns)[0]
+    manager.tick()
+    uuid = gw.submitted[0]
+    gw.jobs[uuid]["status"] = "RUNNING"
+    # nothing written yet: no progress, no error
+    manager.tick()
+    job = next(j for j in client.get("/api/jobs").json() if j["uuid"] == uuid)
+    assert job["progress"] is None and job["runs_total"] == job["combinations"] * spec["repetitions"]
+    # the runner writes its progress file in the output folder on the execution system
+    gw.files[("pitzer", f"/exec/{uuid}/harp_progress.json")] = json.dumps(
+        {"runs_done": 2, "runs_failed": 1, "runs_total": job["runs_total"], "current": "x.run-0.iteration-2"}).encode()
+    manager.tick()
+    job = next(j for j in client.get("/api/jobs").json() if j["uuid"] == uuid)
+    assert (job["progress"]["runs_done"], job["progress"]["runs_failed"]) == (2, 1)
+    # once archived, the job summary gives the final count
+    req = gw.jobs[uuid]["request"]
+    gw.files[(req["archiveSystemId"], req["archiveSystemDir"] + "/harp_job_summary.json")] = json.dumps(
+        {"succeeded_runs": job["runs_total"], "failed_runs": 0}).encode()
+    gw.finish(uuid, b"run_config,run_type,walltime\n")
+    manager.tick()
+    view = client.get(f"/api/campaigns/{cid}").json()
+    j = next(x for x in view["jobs"] if x["uuid"] == uuid)
+    assert j["progress"]["runs_done"] == j["runs_total"] and j["progress"]["runs_failed"] == 0

@@ -79,8 +79,14 @@ which is the name the existing **build** phase looks for. Runs that fail go to
 |---|---|
 | 1 Configure | Pick a TAPIS app, set up a sweep (run type, repetitions, timeout, single or list values per parameter), tick TAPIS systems and queues (queue limits come from the system's `batchLogicalQueues`), open each queue to set its hardware configurations, and add it to the plan. A configuration is cores per job (default: the queue's max), memory (default 4 GB per core) and max minutes (default: runs per job × timeout + 10), all capped at the queue's limits, always on 1 node. Add several configurations to profile one queue with different hardware; each becomes its own TAPIS target, and the profiled data has a `hardware` column naming it. Repeat for more sweeps or apps. The plan is kept in the browser until it is submitted. |
 | 2 Review & submit | Every sweep x queue in the plan, checked by the server; results folder, allocation, confirm, submit. Nothing is submitted unless every sweep is valid. |
-| 3 Jobs | All sweeps with progress, cancel and resubmit; every TAPIS job, sortable and filterable. Refreshes while jobs run. |
-| 4 Profiled data | Per app: every execution with its parameters, system and time; median time by run type, system and parameter value; CSV export. |
+| 3 Jobs | All sweeps with progress and cancel; every TAPIS job with its runs done (e.g. `2 / 5`), sortable and filterable. Refreshes while jobs run. |
+| 4 Profiled data | Pick an app from the dropdown: every execution with its parameters, system and time; median time by run type, system and parameter value; CSV export. |
+
+**Runs done while a job runs.** The job runner rewrites `harp_progress.json` (runs done, failed, total,
+current run) in the job's output folder after every run. While a job is RUNNING, the server asks TAPIS for the
+job's `execSystemOutputDir` (`getJob`) and reads that file through TAPIS Files on the execution system. When the
+job ends it reads the archived `harp_job_summary.json` for the final count. The runner also rewrites
+`harp_profile.csv` after every run, so runs that finished are kept even if the job hits its time limit.
 
 `/runs` and `/profile-data` redirect to the Jobs and Profiled data tabs.
 

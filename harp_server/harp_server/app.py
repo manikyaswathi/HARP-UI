@@ -232,6 +232,8 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
                              "queue": t.get("queue"), "cores_per_node": t.get("cores_per_node"),
                              "memory_mb": t.get("memory_mb"), "run_type": j["run_type"],
                              "combinations": len(j["combinations"]), "status": j["status"],
+                             "runs_total": len(j["combinations"]) * c["spec"]["repetitions"],
+                             "progress": j.get("progress"),
                              "uuid": j["uuid"], "error": j["error"],
                              "submitted_at": j["submitted_at"], "ended_at": j["ended_at"]})
         return rows

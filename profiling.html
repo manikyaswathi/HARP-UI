@@ -751,7 +751,9 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     <div class="panel4" id="p-data" role="tabpanel" aria-labelledby="tab-data" hidden>
       <div class="card2">
         <div class="chead"><h3>App</h3><span class="am">apps with profiling data</span></div>
-        <div class="chips" id="dataApps"></div>
+        <label class="lbl" for="dataApps">Select an app to see its profiled data</label>
+        <select id="dataApps" class="appsel"></select>
+        <div class="appmeta" id="dataAppMeta"></div>
       </div>
       <div id="dataBody" hidden>
         <div class="metrics4">
@@ -1213,18 +1215,19 @@ function renderJobs(){
   setBadge((g.active || 0) + (g.waiting || 0));
 
   // sweeps
+  const sweepRuns = id => { const js = JOBS.filter(j => j.sweep_id === id), tot = js.reduce((n, j) => n + (j.runs_total || 0), 0);
+    return tot ? `${js.reduce((n, j) => n + runsDone(j), 0).toLocaleString()} / ${tot.toLocaleString()}` : '–'; };
   const camps = [...CAMPS].sort((a, b) => (ACTIVE.includes(b.status) - ACTIVE.includes(a.status)) || b.created_at.localeCompare(a.created_at));
-  $('sweepTable').innerHTML = camps.length ? `<tr><th>Sweep</th><th>App</th><th>Status</th><th>Progress</th><th>Hardware</th><th class="num">Runs</th><th>Started</th><th></th></tr>` +
+  $('sweepTable').innerHTML = camps.length ? `<tr><th>Sweep</th><th>App</th><th>Status</th><th>Progress</th><th>Hardware</th><th class="num">Runs done</th><th>Started</th><th></th></tr>` +
     camps.map(c => { const k = c.job_counts || {}, f = k.FINISHED || 0, x = (k.FAILED || 0) + (k.SUBMIT_FAILED || 0) + (k.CANCELLED || 0);
       const hw = (c.hardware || []).map(h => h.system_id + (h.queue ? '/' + h.queue : '') + (h.cores_per_node ? ` (${h.cores_per_node}c)` : '')).join(', ');
       const act = ACTIVE.includes(c.status)
         ? (confirmCancel === c.id ? `<button class="rowbtn danger" data-cancel="${esc(c.id)}" type="button">Confirm cancel</button>`
-                                  : `<button class="rowbtn danger" data-ask="${esc(c.id)}" type="button">Cancel</button>`)
-        : x ? `<button class="rowbtn" data-resub="${esc(c.id)}" type="button">Resubmit failed</button>` : '';
+                                  : `<button class="rowbtn danger" data-ask="${esc(c.id)}" type="button">Cancel</button>`) : '';
       return `<tr class="${FSET.sweep === c.id ? 'sel' : ''}"><td><button class="rowbtn" data-only="${esc(c.id)}" type="button"><b>${esc(c.name)}</b></button></td>
         <td>${esc((c.app_ids || []).map(appName).join(', '))}</td><td>${pill(SWEEP_ST, c.status)}</td>
         <td>${bar(f, x, c.jobs_total)}<span class="updated">${f}/${c.jobs_total} finished${x ? ` · ${x} failed` : ''}</span></td>
-        <td class="uuid">${esc(hw)}</td><td class="num">${c.result ? c.result.rows.toLocaleString() : '–'}</td>
+        <td class="uuid">${esc(hw)}</td><td class="num">${sweepRuns(c.id)}</td>
         <td class="updated">${esc(ago(c.created_at))}</td><td>${act}</td></tr>`; }).join('')
     : '<tr><td class="updated">No sweeps yet. Configure one and submit the plan.</td></tr>';
   $('sweepTable').querySelectorAll('[data-only]').forEach(b => b.addEventListener('click', () => {
@@ -1232,7 +1235,6 @@ function renderJobs(){
   $('sweepTable').querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => {
     confirmCancel = b.dataset.ask; renderJobs(); setTimeout(() => { if (confirmCancel === b.dataset.ask) { confirmCancel = null; renderJobs(); } }, 5000); }));
   $('sweepTable').querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => sweepAction(b.dataset.cancel, 'cancel')));
-  $('sweepTable').querySelectorAll('[data-resub]').forEach(b => b.addEventListener('click', () => sweepAction(b.dataset.resub, 'resubmit')));
 
   // filters
   const opts = (vals, label, all) => `<option value="">${all}</option>` + [...new Set(vals)].filter(Boolean).sort()
@@ -1244,22 +1246,32 @@ function renderJobs(){
 
   // jobs table
   const val = (j, k) => k === 'app' ? appName(j.app_id) : k === 'where' ? j.system_id + '/' + (j.queue || '')
-    : k === 'duration' ? (dur(j) ?? -1) : k === 'status' ? ['active', 'waiting', 'failed', 'finished'].indexOf(group(j.status)) + j.status : (j[k] ?? '');
+    : k === 'duration' ? (dur(j) ?? -1) : k === 'runs' ? (j.runs_total ? runsDone(j) / j.runs_total : -1) : k === 'status' ? ['active', 'waiting', 'failed', 'finished'].indexOf(group(j.status)) + j.status : (j[k] ?? '');
   const rows = JOBS.filter(j => (!FSET.app || j.app_id === FSET.app) && (!FSET.system || j.system_id === FSET.system)
       && (!FSET.sweep || j.sweep_id === FSET.sweep) && (!FSET.status || group(j.status) === FSET.status))
     .sort((a, b) => { const x = val(a, jSort), y = val(b, jSort); return (x < y ? -1 : x > y ? 1 : 0) * jDir; });
   const COLS = [['app', 'App'], ['sweep', 'Sweep'], ['name', 'TAPIS job'], ['where', 'System / queue'], ['run_type', 'Type'],
-                ['status', 'Status'], ['submitted_at', 'Submitted'], ['duration', 'Duration'], ['uuid', 'TAPIS UUID']];
-  $('jobsTable').innerHTML = `<tr>${COLS.map(([k, l]) => `<th${k === 'duration' ? ' class="num"' : ''}><button class="sortb" data-k="${k}">${l}${jSort === k ? (jDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>` +
+                ['status', 'Status'], ['runs', 'Runs done'], ['submitted_at', 'Submitted'], ['duration', 'Duration'], ['uuid', 'TAPIS UUID']];
+  $('jobsTable').innerHTML = `<tr>${COLS.map(([k, l]) => `<th${k === 'duration' || k === 'runs' ? ' class="num"' : ''}><button class="sortb" data-k="${k}">${l}${jSort === k ? (jDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>` +
     (rows.length ? rows.slice(0, 500).map(j => `<tr><td>${esc(appName(j.app_id))}</td><td>${esc(j.sweep)}</td><td class="uuid">${esc(j.name)}</td>
       <td>${esc(j.system_id)}${j.queue ? ` <span class="am">/ ${esc(j.queue)}</span>` : ''}${j.cores_per_node ? ` <span class="am">· ${j.cores_per_node} cores${j.memory_mb ? ' · ' + esc(fmtMem(j.memory_mb)) : ''}</span>` : ''}</td><td>${esc(j.run_type)}</td>
       <td>${pill(JOB_ST, j.status)}${j.error ? `<div class="err">${esc(j.error)}</div>` : ''}</td>
+      <td class="num">${runsCell(j)}</td>
       <td class="updated">${esc(ago(j.submitted_at))}</td><td class="num">${fmtDur(dur(j))}</td><td class="uuid">${esc(j.uuid || '–')}</td></tr>`).join('')
-    : `<tr><td colspan="9" class="updated">${JOBS.length ? 'No jobs match these filters.' : 'No TAPIS jobs yet.'}</td></tr>`);
+    : `<tr><td colspan="10" class="updated">${JOBS.length ? 'No jobs match these filters.' : 'No TAPIS jobs yet.'}</td></tr>`);
   $('jobsTable').querySelectorAll('.sortb').forEach(b => b.addEventListener('click', () => {
     if (jSort === b.dataset.k) jDir = -jDir; else { jSort = b.dataset.k; jDir = ['submitted_at', 'duration'].includes(jSort) ? -1 : 1; }
     renderJobs(); }));
   $('jCount').textContent = `${Math.min(rows.length, 500)} of ${JOBS.length} jobs shown` + (FSET.sweep ? ' · filtered to one sweep' : '');
+}
+// Runs done in a job: the runner's progress file, read by the server through TAPIS while the job runs.
+function runsDone(j){ return j.progress && j.progress.runs_done != null ? j.progress.runs_done : 0; }
+function runsCell(j){
+  if (!j.runs_total) return '–';
+  const p = j.progress, known = p && p.runs_done != null, d = runsDone(j), bad = known ? p.runs_failed || 0 : 0;
+  const txt = known || ['waiting', 'active'].includes(group(j.status)) ? `${d} / ${j.runs_total}` : `– / ${j.runs_total}`;
+  const tip = p && p.current ? `running ${p.current}` : known && p.updated_at ? `updated ${ago(p.updated_at)}` : 'no progress reported yet';
+  return `<span title="${esc(tip)}">${txt}</span>${bad ? ` <span class="am">· ${bad} failed</span>` : ''}${known ? bar(d - bad, bad, j.runs_total) : ''}`;
 }
 [['fApp', 'app'], ['fStatus', 'status'], ['fSystem', 'system'], ['fSweep', 'sweep']].forEach(([id, k]) =>
   $(id).addEventListener('change', () => { FSET[k] = $(id).value; renderJobs(); }));
@@ -1281,14 +1293,14 @@ let dApp = null, prof = null, dFilter = 'all', dShown = 200, allCols = false, dS
 function renderDataApps(){
   const withData = [...new Set(CAMPS.flatMap(c => c.app_ids || []))];
   $('dataEmpty').hidden = !!withData.length;
-  if (!withData.length) { $('dataApps').innerHTML = ''; $('dataBody').hidden = true; return; }
+  if (!withData.length) { $('dataApps').innerHTML = ''; $('dataAppMeta').innerHTML = ''; $('dataBody').hidden = true; return; }
   if (!dApp || !withData.includes(dApp)) dApp = withData[0];
-  $('dataApps').innerHTML = withData.map(id => { const runs = CAMPS.filter(c => (c.app_ids || []).includes(id)).reduce((n, c) => n + (c.result ? c.result.rows : 0), 0);
-    const live = CAMPS.some(c => (c.app_ids || []).includes(id) && ACTIVE.includes(c.status));
-    return `<button class="achip" data-id="${esc(id)}" aria-pressed="${dApp === id}" type="button"><span class="ic">${esc(initials(appName(id)))}</span>
-      <span><span class="an">${esc(appName(id))}</span><span class="am">${runs.toLocaleString()} runs merged${live ? ' · running' : ''}</span></span></button>`; }).join('');
-  $('dataApps').querySelectorAll('.achip').forEach(b => b.addEventListener('click', () => { dApp = b.dataset.id; dFilter = 'all'; dShown = 200; renderDataApps(); loadProfile(); }));
+  const mine = id => CAMPS.filter(c => (c.app_ids || []).includes(id));
+  $('dataApps').innerHTML = withData.map(id => `<option value="${esc(id)}" ${dApp === id ? 'selected' : ''}>${esc(appName(id))} (${esc(id)})</option>`).join('');
+  const cs = mine(dApp), live = cs.filter(c => ACTIVE.includes(c.status)).length;
+  $('dataAppMeta').innerHTML = `<span><b>Sweeps</b> ${cs.length}${live ? ` (${live} running)` : ''}</span>`;
 }
+$('dataApps').addEventListener('change', () => { dApp = $('dataApps').value; dFilter = 'all'; dShown = 200; renderDataApps(); loadProfile(); });
 async function loadProfile(){
   if (!dApp) return;
   try { prof = await api('/api/apps/' + encodeURIComponent(dApp) + '/profile'); }

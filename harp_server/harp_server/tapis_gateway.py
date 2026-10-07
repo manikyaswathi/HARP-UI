@@ -185,6 +185,12 @@ class TapisGateway:
     def cancel_job(self, uuid):
         self._call(self.client.jobs.cancelJob, jobUuid=uuid)
 
+    def job_output_dir(self, uuid):
+        """(system, path) of the job's output folder on the execution system,
+        readable through TAPIS Files while the job runs."""
+        job = self._call(self.client.jobs.getJob, jobUuid=uuid)
+        return _get(job, "execSystemId"), _get(job, "execSystemOutputDir")
+
     # --------------------------------------------------------- access checks
     def check_storage(self, system_id, path):
         """Prove the storage location is writable and readable through TAPIS."""

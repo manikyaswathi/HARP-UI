@@ -87,6 +87,9 @@ class FakeGateway:
     def cancel_job(self, uuid):
         self.jobs[uuid]["status"] = "CANCELLED"
 
+    def job_output_dir(self, uuid):
+        return self.jobs[uuid]["request"]["execSystemId"], f"/exec/{uuid}"
+
     # helpers for tests
     def finish(self, uuid, csv_bytes=None, status="FINISHED"):
         job = self.jobs[uuid]

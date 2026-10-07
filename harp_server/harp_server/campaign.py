@@ -18,6 +18,8 @@ from .sweep import plan_jobs, summarize, validate_spec
 from .tapis_gateway import TERMINAL_STATUSES, TapisError
 
 PROFILE_FILE_NAME = "harp_profile.csv"
+PROGRESS_FILE_NAME = "harp_progress.json"   # written by the job runner after every run
+SUMMARY_FILE_NAME = "harp_job_summary.json"
 NOT_SUBMITTED = "NOT_SUBMITTED"
 SUBMIT_FAILED = "SUBMIT_FAILED"
 JOB_DONE_STATUSES = TERMINAL_STATUSES | {SUBMIT_FAILED}
@@ -199,7 +201,7 @@ class CampaignManager:
             for job in campaign["jobs"]:
                 if job["status"] in ("FAILED", "CANCELLED", SUBMIT_FAILED):
                     job.update({"status": NOT_SUBMITTED, "uuid": None, "error": None,
-                                "submitted_at": None, "ended_at": None})
+                                "submitted_at": None, "ended_at": None, "progress": None, "exec_output": None})
                     count += 1
             if count:
                 campaign["status"] = RUNNING
@@ -262,6 +264,34 @@ class CampaignManager:
                     if status in TERMINAL_STATUSES:
                         job["ended_at"] = _now()
                         self._event(campaign, f"{job['name']} {status} on {job['system_id']}")
+                        self._final_progress(campaign, job, gateway)
+                if status == "RUNNING":
+                    self._live_progress(job, gateway)
+
+    def _live_progress(self, job, gateway):
+        """Read the runner's progress file from the job's output folder on the
+        execution system (through TAPIS Files) while the job runs."""
+        try:
+            if not job.get("exec_output"):
+                job["exec_output"] = list(gateway.job_output_dir(job["uuid"]))
+            system, path = job["exec_output"]
+            if system and path:
+                p = json.loads(gateway.download(system, f"{path}/{PROGRESS_FILE_NAME}"))
+                job["progress"] = {k: p.get(k) for k in ("runs_done", "runs_failed", "runs_total", "current", "updated_at")}
+        except (TapisError, ValueError, TypeError):
+            pass  # not written yet, or not readable: keep the last value
+
+    def _final_progress(self, campaign, job, gateway):
+        """Once archived, the job summary says how many runs succeeded and failed."""
+        try:
+            s = json.loads(gateway.download(campaign["spec"]["storage"]["system_id"],
+                                            f"{job['archive_dir']}/{SUMMARY_FILE_NAME}"))
+            ok, bad = int(s.get("succeeded_runs", 0)), int(s.get("failed_runs", 0))
+            job["progress"] = {"runs_done": ok + bad, "runs_failed": bad,
+                               "runs_total": len(job["combinations"]) * campaign["spec"]["repetitions"],
+                               "current": None, "updated_at": _now()}
+        except (TapisError, ValueError, TypeError):
+            pass
 
     def _submit_jobs(self, campaign, gateway):
         active = {}
@@ -353,6 +383,8 @@ def campaign_view(c, include_jobs=True):
     if include_jobs:
         view["jobs"] = [{k: j[k] for k in ("name", "system_id", "run_type", "status", "uuid",
                                             "error", "submitted_at", "ended_at")}
-                        | {"combinations": len(j["combinations"]), "target": j["target"]}
+                        | {"combinations": len(j["combinations"]), "target": j["target"],
+                           "runs_total": len(j["combinations"]) * c["spec"]["repetitions"],
+                           "progress": j.get("progress")}
                         for j in c["jobs"]]
     return view

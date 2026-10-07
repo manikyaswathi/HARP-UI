@@ -103,7 +103,7 @@
     sweep('yolo-cpu-gpu', 'harp-sweep-yolo-swathi', [
       ['SD', {model:['yolo11n','yolo11s'], epochs:[1,2], imgsz:[320,480], batch:[4,8], device:['auto']}],
       ['FS', {model:['yolo11n','yolo11s','yolo11m'], epochs:[5], imgsz:[640], batch:[8,16], device:['auto']}],
-      ['test_data', {model:['yolo11s'], epochs:[3], imgsz:[640], batch:[8], device:['auto']}]], 1, yoloTime, ['pitzer','cardinal'], {runningFrom:19, hoursAgo:2})
+      ['test_data', {model:['yolo11s'], epochs:[3], imgsz:[640], batch:[8], device:['auto']}]], 3, yoloTime, ['pitzer','cardinal'], {runningFrom:19, hoursAgo:2})
   ];
 
   // ---- TAPIS execution systems -------------------------------------------------
@@ -193,6 +193,19 @@
     if (cols.includes('walltime')) { cols.splice(cols.indexOf('walltime'), 1); cols.push('walltime'); }
     return {app_id:appId, campaigns:mine.map(s => s.view), columns:cols, rows, total_rows:rows.length, missing:[]};
   }
+  // What the runner's harp_progress.json would say: runs done so far in each job.
+  function runsOf(sw, j, k){
+    const total = (j.combinations || 1) * (sw.view.repetitions || 1), at = new Date().toISOString();
+    if (j.status === 'FINISHED') return {runs_total: total, progress: {runs_done: total, runs_failed: 0, runs_total: total, current: null, updated_at: j.ended_at}};
+    if (j.status === 'FAILED') { const d = Math.floor(total / 2); return {runs_total: total, progress: {runs_done: d, runs_failed: 0, runs_total: total, current: null, updated_at: j.ended_at}}; }
+    if (j.status === 'RUNNING') {
+      const pl = sw.live && sw.live.plan[k];
+      const frac = pl ? Math.min(0.99, Math.max(0, (Date.now() - sw.live.created - pl.run) / (pl.end - pl.run))) : 0.5;
+      const d = Math.floor(total * frac);
+      return {runs_total: total, progress: {runs_done: d, runs_failed: 0, runs_total: total, current: `${j.name}.run-${k}.iteration-${d}`, updated_at: at}};
+    }
+    return {runs_total: total, progress: null};
+  }
   const realFetch = window.fetch.bind(window);
   window.fetch = function(url, opts = {}){
     const path = decodeURIComponent(String(url));
@@ -231,7 +244,7 @@
         return {...sw.view}; });
       return later(json(200, made));
     }
-    if (path === '/api/jobs') return later(json(200, SWEEPS.flatMap(sw => sw.jobs.map(j => ({...j,
+    if (path === '/api/jobs') return later(json(200, SWEEPS.flatMap(sw => sw.jobs.map((j, k) => ({...j, ...runsOf(sw, j, k),
       sweep:sw.view.name, sweep_id:sw.view.id, app_id:sw.view.app_ids[0],
       queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null,
       cores_per_node: j.cores_per_node || (sw.view.hardware.find(h => h.key === j.target) || {}).cores_per_node || null,
