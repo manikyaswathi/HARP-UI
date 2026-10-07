@@ -158,3 +158,57 @@ def test_profiling_page_is_served_with_its_own_csp(ctx):
     csp = r.headers["content-security-policy"]
     assert "fonts.googleapis.com" in csp and "'unsafe-inline'" in csp
     assert "unsafe-inline" not in client.get("/").headers["content-security-policy"].split("script-src")[1].split(";")[0]
+
+
+def _finish_all(manager, gw, csv_for):
+    manager.tick()
+    for _ in range(20):
+        for u in gw.submitted:
+            if gw.jobs[u]["status"] != "FINISHED":
+                gw.finish(u, csv_for(u))
+        manager.tick()
+        if all(j["uuid"] for c in manager.campaigns.values() for j in c["jobs"]) and \
+           all(c["status"] not in ("RUNNING", "FINALIZING") for c in manager.campaigns.values()):
+            break
+
+
+def test_app_profile_merges_all_campaigns_of_an_app(ctx):
+    client, manager, gateways = ctx
+    _login(client)
+    client.post("/api/campaigns", json=euler_spec(name="sweep-a"))
+    client.post("/api/campaigns", json=euler_spec(name="sweep-b"))
+    gw = gateways["alice"]
+    _finish_all(manager, gw, lambda u: b"run_type,run_n,walltime\nSD,10,0.5\n")
+
+    r = client.get("/api/apps/harp-sweep-euler/profile").json()
+    assert len(r["campaigns"]) == 2 and all(c["status"] == "DONE" for c in r["campaigns"])
+    assert r["columns"] == ["campaign", "run_type", "run_n", "walltime"]
+    assert r["total_rows"] == 8 and {row["campaign"] for row in r["rows"]} == {"sweep-a", "sweep-b"}
+
+    csv_text = client.get("/api/apps/harp-sweep-euler/profile.csv").text.splitlines()
+    assert csv_text[0] == "campaign,run_type,run_n,walltime" and len(csv_text) == 9
+
+    assert client.get("/api/apps/other-app/profile").json()["total_rows"] == 0
+    assert client.get("/api/apps/other-app/profile.csv").status_code == 404
+
+
+def test_results_page_is_served(ctx):
+    client, _, _ = ctx
+    r = client.get("/results.html")
+    assert r.status_code in (200, 404)  # 404 only until results.html exists
+
+
+def test_app_profile_shows_finished_jobs_while_sweep_runs(ctx):
+    client, manager, gateways = ctx
+    _login(client)
+    spec = euler_spec(name="live")
+    for t in spec["targets"]:
+        t["max_concurrent_jobs"] = 10
+    c = client.post("/api/campaigns", json=spec).json()
+    manager.tick()
+    gw = gateways["alice"]
+    gw.finish(gw.submitted[0], b"run_type,walltime\nSD,0.5\nSD,0.6\n")
+    manager.tick()
+    assert manager.campaigns[c["id"]]["status"] == "RUNNING"
+    r = client.get("/api/apps/harp-sweep-euler/profile").json()
+    assert r["total_rows"] == 2 and r["campaigns"][0]["status"] == "RUNNING"

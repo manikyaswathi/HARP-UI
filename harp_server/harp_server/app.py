@@ -5,6 +5,8 @@ many TAPIS jobs across several systems.
 Run with HTTPS:  python3 -m harp_server.serve   (see README for certificates)
 """
 
+import csv
+import io
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -13,7 +15,8 @@ from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from .campaign import CampaignManager, CampaignStore, campaign_view, ACTIVE_CAMPAIGN_STATUSES
+from .campaign import (ACTIVE_CAMPAIGN_STATUSES, PROFILE_FILE_NAME, CampaignManager, CampaignStore,
+                       campaign_view)
 from .sweep import SpecError
 from .tapis_gateway import TapisError, TapisGateway
 
@@ -22,6 +25,8 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 PROFILING_PAGE = os.environ.get(
     "HARP_PROFILING_PAGE",
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "profiling.html"))
+RESULTS_PAGE = os.path.join(os.path.dirname(PROFILING_PAGE), "results.html")
+MAX_PROFILE_ROWS = 5000
 # That page is a single file with inline script/style and Google Fonts.
 PROFILING_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; "
                  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
@@ -224,15 +229,79 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
         return Response(data, media_type="text/csv",
                         headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
+    # ------------------------------------------------------- per-app results
+    csv_cache = {}  # (system, path) -> bytes; a merged campaign CSV never changes
+
+    def app_campaigns(app_id, gw):
+        return [c for c in manager.list(gw.username)
+                if app_id in {t["app_id"] for t in c["spec"]["targets"]}]
+
+    def app_rows(app_id, gw):
+        """Every profiling row collected for an app, across all its campaigns."""
+        columns, rows, missing = ["campaign"], [], []
+        for c in app_campaigns(app_id, gw):
+            system = c["spec"]["storage"]["system_id"]
+            merged = (c.get("result") or {}).get("csv_path")
+            # Once a sweep is merged read its one CSV; while it runs, read the CSV
+            # of every job that has finished so progress shows up straight away.
+            paths = [merged] if merged else [f"{j['archive_dir']}/{PROFILE_FILE_NAME}"
+                                             for j in c["jobs"] if j["status"] == "FINISHED"]
+            for path in paths:
+                key = (system, path)
+                if key not in csv_cache:
+                    try:
+                        csv_cache[key] = gw.download(*key)
+                    except TapisError as e:
+                        missing.append({"campaign": c["spec"]["name"], "error": str(e)})
+                        continue
+                reader = csv.DictReader(io.StringIO(csv_cache[key].decode("utf-8")))
+                for name in reader.fieldnames or []:
+                    if name not in columns:
+                        columns.append(name)
+                rows.extend({"campaign": c["spec"]["name"], **r} for r in reader)
+        if "walltime" in columns:  # keep walltime last, like the CSVs
+            columns.remove("walltime")
+            columns.append("walltime")
+        return columns, rows, missing
+
+    @app.get("/api/apps/{app_id}/profile")
+    def app_profile(app_id: str, gw: TapisGateway = Depends(gateway)):
+        columns, rows, missing = app_rows(app_id, gw)
+        return {"app_id": app_id,
+                "campaigns": [campaign_view(c, include_jobs=False) for c in app_campaigns(app_id, gw)],
+                "columns": columns, "rows": rows[:MAX_PROFILE_ROWS], "total_rows": len(rows),
+                "missing": missing}
+
+    @app.get("/api/apps/{app_id}/profile.csv")
+    def app_profile_csv(app_id: str, gw: TapisGateway = Depends(gateway)):
+        columns, rows, _ = app_rows(app_id, gw)
+        if not rows:
+            raise HTTPException(404, "no profiling data for this app yet")
+        out = io.StringIO()
+        writer = csv.DictWriter(out, fieldnames=columns, restval="")
+        writer.writeheader()
+        writer.writerows(rows)
+        safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in app_id)
+        return Response(out.getvalue(), media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{safe}_profile.csv"'})
+
     # ------------------------------------------------------------------ UI
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    def page(path):
+        if not os.path.isfile(path):
+            raise HTTPException(404, f"{os.path.basename(path)} not found")
+        return FileResponse(path, headers={"Content-Security-Policy": PROFILING_CSP})
 
     @app.get("/profiling")
     @app.get("/profiling.html")
     def profiling_page():
-        if not os.path.isfile(PROFILING_PAGE):
-            raise HTTPException(404, "profiling.html not found")
-        return FileResponse(PROFILING_PAGE, headers={"Content-Security-Policy": PROFILING_CSP})
+        return page(PROFILING_PAGE)
+
+    @app.get("/results")
+    @app.get("/results.html")
+    def results_page():
+        return page(RESULTS_PAGE)
 
     @app.get("/")
     def index():
