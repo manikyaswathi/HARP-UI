@@ -41,9 +41,11 @@ which is the name the existing **build** phase looks for. Runs that fail go to
    docker push <hub>/harp-sweep-eulernumber:1.0.0
    ```
    For your own application, start from `DockerFiles/Dockerfile_App_Template_Sweep`.
-2. **Register the TAPIS app** from `JSON_Templates/harp_sweep_app.json`, filling in `id` and
-   `containerImage`. Register it **on each tenant you use**, for example
-   `client.apps.createAppVersion(**app_def)`.
+2. **Register the TAPIS app** with `Notebooks/Create_HARP_Sweep_App_TAPIS.ipynb` (tapipy). It
+   creates the app, or updates it if it already exists, and can run one small test job. The GitHub
+   workflow `.github/workflows/build-sweep-image.yml` builds and pushes the image to
+   `ghcr.io/<owner>/harp-sweep-eulernumber:1.0.0`, so you don't need Docker locally. Make that
+   package public once so the clusters can pull it.
 3. **Register the systems and credentials** as in `Notebooks/Executing_HARP_using_TAPIS*.ipynb`.
 4. **Run the server over HTTPS** (it receives TAPIS passwords, so it must use HTTPS):
    ```bash
