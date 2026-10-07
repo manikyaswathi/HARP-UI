@@ -229,3 +229,39 @@ def test_app_profile_shows_finished_jobs_while_sweep_runs(ctx):
     assert manager.campaigns[c["id"]]["status"] == "RUNNING"
     r = client.get("/api/apps/harp-sweep-euler/profile").json()
     assert r["total_rows"] == 2 and r["campaigns"][0]["status"] == "RUNNING"
+
+
+def test_exec_systems_come_with_their_queues(ctx):
+    client, _, _ = ctx
+    _login(client)
+    systems = client.get("/api/tapis/exec-systems").json()
+    assert [s["id"] for s in systems] == ["pitzer", "stampede"]
+    assert systems[0]["queues"][0]["name"] == "serial" and systems[0]["queues"][0]["default"]
+
+
+def test_batch_preview_reports_each_sweep(ctx):
+    client, _, _ = ctx
+    _login(client)
+    r = client.post("/api/campaigns/batch/preview", json=[euler_spec(name="a"), euler_spec(name="b", command="")]).json()
+    assert r[0]["ok"] and r[0]["summary"]["jobs"] == 4
+    assert not r[1]["ok"] and "command" in r[1]["error"]
+
+
+def test_batch_submit_is_all_or_nothing(ctx):
+    client, manager, _ = ctx
+    _login(client)
+    bad = client.post("/api/campaigns/batch", json=[euler_spec(name="a"), euler_spec(name="b", targets=[])])
+    assert bad.status_code == 400 and "'b'" in bad.json()["detail"]
+    assert manager.campaigns == {}
+    ok = client.post("/api/campaigns/batch", json=[euler_spec(name="a"), euler_spec(name="b")]).json()
+    assert [c["name"] for c in ok] == ["a", "b"] and len(manager.campaigns) == 2
+
+
+def test_all_jobs_lists_every_job_with_app_and_queue(ctx):
+    client, manager, _ = ctx
+    _login(client)
+    client.post("/api/campaigns/batch", json=[euler_spec(name="a"), euler_spec(name="b")])
+    jobs = client.get("/api/jobs").json()
+    assert len(jobs) == 8 and {j["sweep"] for j in jobs} == {"a", "b"}
+    j = next(j for j in jobs if j["system_id"] == "pitzer")
+    assert j["app_id"] == "harp-sweep-euler" and j["queue"] == "serial" and j["status"] == "NOT_SUBMITTED"

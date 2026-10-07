@@ -422,6 +422,32 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .budget .two select,.budget .two input.ti{height:38px}
 .launchmsg{font-size:12px;color:#F0C9C4;margin-top:10px;min-height:1em;line-height:1.5}
 .launchmsg.ok{color:#8CD0DE}
+.stage[hidden]{display:none!important}
+.steps{position:relative}
+.ghostx{background:transparent;border:1px solid var(--panel-line);color:#CBD8E4;margin-top:8px}
+.ghostx:hover{background:rgba(255,255,255,.04);border-color:#8CD0DE}
+.intro{background:transparent;border-style:dashed}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:12px}
+@media(max-width:640px){.three{grid-template-columns:1fr}}
+.sweephead{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:14px}
+.sweephead .spacer{flex:1}
+.swname{max-width:240px;font-weight:600;color:var(--navy)}
+.syshead{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 12px;margin-bottom:8px}
+.syshead h3{margin:0}
+.scroll{overflow-x:auto;max-width:100%}
+.table td.num,.table th.num{text-align:right}
+.qt th,.qt td{padding:10px 12px;white-space:nowrap;vertical-align:middle}
+.qt td:first-child{white-space:normal;min-width:140px}
+.qt .lim{white-space:normal;font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted);min-width:170px}
+.qt .lim span{display:inline-block;margin-right:10px}
+.qt .c{text-align:center;max-width:120px;overflow:hidden;text-overflow:ellipsis}
+.qt input[type=checkbox]{width:18px;height:18px;accent-color:var(--teal)}
+.qt .qc{width:76px}
+.confirmrow{display:flex;gap:10px;align-items:center;font-size:14px;margin-top:6px;cursor:pointer}
+.confirmrow input{width:auto}
+.tlink{color:var(--teal-700);font-weight:600}
+.budget .kv .t{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
 </style>
 
 </head>
@@ -431,8 +457,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <div class="nav-links">
     <a href="index.html">Overview</a>
     <a href="profiling.html" aria-current="page">Profiling</a>
-    <a href="runs.html">Runs</a>
-    <a href="profile-data.html">Profile data</a>
+    <a href="runs.html">Profiling jobs</a>
+    <a href="profile-data.html">Profiled apps</a>
   </div>
   <div class="who" id="who" hidden>
     <span class="mono" id="whoName"></span>
@@ -443,14 +469,14 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 <header class="page-head"><div class="wrap-p">
   <div class="eyebrow">HARP &middot; Generate</div>
   <h1>Profiling</h1>
-  <p>Configure a sweep for one of your TAPIS apps. We generate the profiling
-     runs, then use them to build runtime estimators.</p>
+  <p>Pick an app, configure its sweeps, and choose where they run. We generate the
+     profiling runs on TAPIS, then use them to build runtime estimators.</p>
 </div></header>
 
 <section><div class="wrap-p">
   <div class="card2 login" id="loginPanel" hidden>
     <h3>Log in to TAPIS</h3>
-    <p class="sub">Lists the apps you can run.</p>
+    <p class="sub">Lists the apps and systems you can use.</p>
     <form id="loginForm">
       <div class="field"><label class="lbl" for="lgTenant">Tenant</label>
         <input class="ti" id="lgTenant" name="base_url" value="https://icicle.tapis.io" required></div>
@@ -464,104 +490,106 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   </div>
 
   <div id="appView" hidden>
-  <div class="tabbar">
-    <button class="tabx" data-t="profiled" aria-selected="true">Profiled apps
-      <span class="b" id="cProfiled">0</span></button>
-    <button class="tabx" data-t="unprofiled" aria-selected="false">Not yet profiled
-      <span class="b" id="cUnprofiled">0</span></button>
+  <div class="steps" id="steps" role="list">
+    <div class="s" data-step="1" role="listitem"><span class="n">1</span><span class="t">App</span></div>
+    <div class="s" data-step="2" role="listitem"><span class="n">2</span><span class="t">Sweeps</span></div>
+    <div class="s" data-step="3" role="listitem"><span class="n">3</span><span class="t">Systems</span></div>
+    <div class="s" data-step="4" role="listitem"><span class="n">4</span><span class="t">Preview</span></div>
+    <div class="s" data-step="5" role="listitem"><span class="n">5</span><span class="t">Submit</span></div>
   </div>
 
   <div class="pgrid">
     <div>
-      <div class="card2">
-        <h3 id="listTitle">Applications</h3>
-        <p class="sub" id="listSub"></p>
-        <div class="applist" id="applist"></div>
+      <!-- 1. app -->
+      <div class="stage" data-stage="1">
+        <div class="tabbar">
+          <button class="tabx" data-t="unprofiled" aria-selected="true">Not yet profiled
+            <span class="b" id="cUnprofiled">0</span></button>
+          <button class="tabx" data-t="profiled" aria-selected="false">Profiled apps
+            <span class="b" id="cProfiled">0</span></button>
+        </div>
+        <div class="card2">
+          <h3 id="listTitle">Select an app to profile</h3>
+          <p class="sub" id="listSub"></p>
+          <div class="applist" id="applist"></div>
+        </div>
+        <div class="card2" id="epCard" hidden>
+          <h3>How TAPIS runs this app</h3>
+          <div class="ep" id="epBlock"></div>
+        </div>
       </div>
 
-      <div id="jobPanel" style="display:none">
+      <!-- 2. sweeps -->
+      <div class="stage" data-stage="2" hidden>
+        <div class="card2 intro">
+          <h3>Configure sweeps</h3>
+          <p class="sub">Each sweep is a set of parameter values. Every combination becomes one TAPIS job.
+            Add several sweeps to profile different ranges.</p>
+        </div>
+        <div id="sweeps"></div>
+        <button class="btn btn-outline btn-sm" id="addSweep" type="button">+ Add sweep</button>
+      </div>
+
+      <!-- 3. systems -->
+      <div class="stage" data-stage="3" hidden>
+        <div class="card2 intro">
+          <h3>Choose systems and queues</h3>
+          <p class="sub">Your TAPIS execution systems, with their batch queues. Tick a queue under each sweep
+            that should run there. A sweep can run on several systems; several sweeps can share one.</p>
+        </div>
+        <div id="systems"></div>
+      </div>
+
+      <!-- 4. preview -->
+      <div class="stage" data-stage="4" hidden>
         <div class="card2">
-          <h3>Tapis jobs under this app</h3>
-          <p class="sub">Pick an earlier run to seed the sweep.</p>
-          <div class="jsel">
-            <label class="lbl">Seed the sweep from a job</label>
-            <select id="jobPick"></select>
-            <div id="jobList"></div>
+          <h3>Preview</h3>
+          <p class="sub">One row per sweep and queue. Each row is submitted as its own TAPIS jobs.</p>
+          <div class="scroll"><table class="table" id="previewTable"></table></div>
+          <p class="loginerr" id="previewErr"></p>
+        </div>
+        <div class="card2">
+          <h3>Where results go</h3>
+          <div class="two">
+            <div class="field"><label class="lbl" for="storeSys">TAPIS system</label>
+              <select id="storeSys"></select></div>
+            <div class="field"><label class="lbl" for="alloc">Allocation</label>
+              <input class="ti" id="alloc" placeholder="-A PAS0000" autocomplete="off"></div>
+          </div>
+          <div class="field"><label class="lbl" for="store">Folder</label>
+            <input class="ti" id="store" placeholder="/fs/scratch/PAS0000/you/harp_runs" autocomplete="off"></div>
+          <label class="confirmrow"><input type="checkbox" id="confirm"> I checked the sweeps and queues above.</label>
+        </div>
+      </div>
+
+      <!-- 5. submit -->
+      <div class="stage" data-stage="5" hidden>
+        <div class="card2">
+          <h3 id="doneTitle">Submitting&hellip;</h3>
+          <p class="sub" id="doneSub"></p>
+          <div class="scroll"><table class="table" id="doneTable"></table></div>
+          <div class="step-actions" style="justify-content:flex-start;gap:10px">
+            <a class="btn btn-navy btn-sm" href="runs.html">Open profiling jobs</a>
+            <button class="btn btn-outline btn-sm" id="again" type="button">Profile another app</button>
           </div>
         </div>
       </div>
-
-      <div id="designPanel" style="display:none">
-        <div class="card2">
-          <h3>Container entrypoint</h3>
-          <p class="sub">How TAPIS runs this app.</p>
-          <div class="ep" id="epBlock"></div>
-        </div>
-
-        <div class="card2">
-          <h3>Parameters to sweep</h3>
-          <p class="sub">Hold a value fixed (<b>single</b>) or sweep a
-            comma-separated <b>list</b>.</p>
-          <div class="atbl" id="argTable"></div>
-        </div>
-      </div>
-
-      <div id="emptyPanel">
-        <div class="empty">Select an application to begin.</div>
-      </div>
     </div>
 
-    <div class="budget" id="budget" style="display:none">
-      <h4>Campaign size</h4>
-      <div class="big" id="totalRuns">0</div>
-      <div class="blab" id="runsLabel">runs</div>
-      <div class="formula" id="formula"></div>
-      <div class="kv"><span>experiments / target</span><span id="perTarget">0</span></div>
-      <div class="kv"><span>hardware targets</span><span class="t" id="nTargets">0</span></div>
-      <div class="kv"><span>repetitions</span><span id="nReps">1</span></div>
-      <div class="kv"><span>node-hours (worst case)</span><span id="nodeHours">0</span></div>
+    <aside class="budget" id="budget">
+      <h4>Profiling plan</h4>
+      <div class="big" id="sumJobs">0</div>
+      <div class="blab" id="sumJobsLbl">TAPIS jobs</div>
+      <div class="kv"><span>app</span><span class="t" id="sumApp">&ndash;</span></div>
+      <div class="kv"><span>sweeps</span><span id="sumSweeps">0</span></div>
+      <div class="kv"><span>sweep &times; queue pairs</span><span id="sumPairs">0</span></div>
+      <div class="kv"><span>application runs</span><span id="sumRuns">0</span></div>
+      <div class="kv"><span>node-hours (worst case)</span><span id="sumHours">0</span></div>
       <div id="alarm"></div>
-
-      <h4 style="margin-top:22px">Hardware</h4>
-      <div id="hwpick"></div>
-
-      <div class="two" style="margin-top:14px">
-        <div class="field">
-          <label class="lbl" for="reps">Repetitions</label>
-          <input class="ti" id="reps" type="number" min="1" value="1">
-        </div>
-        <div class="field">
-          <label class="lbl" for="timeout">Timeout (min)</label>
-          <input class="ti" id="timeout" type="number" min="1" value="20">
-        </div>
-        <div class="field">
-          <label class="lbl" for="runType">Run type</label>
-          <select id="runType">
-            <option value="SD">SD &middot; scaled-down</option>
-            <option value="FS">FS &middot; full-scale</option>
-            <option value="test_data">test_data</option>
-          </select>
-        </div>
-        <div class="field">
-          <label class="lbl" for="cores">Cores per job</label>
-          <input class="ti" id="cores" type="number" min="1" value="4">
-        </div>
-      </div>
-      <div class="field">
-        <label class="lbl" for="alloc">Allocation</label>
-        <input class="ti" id="alloc" placeholder="-A PAS0000" autocomplete="off">
-      </div>
-      <div class="field">
-        <label class="lbl" for="store">Save results to</label>
-        <select id="storeSys"></select>
-        <input class="ti" id="store" placeholder="/fs/scratch/PAS0000/you/harp_runs" style="margin-top:6px" autocomplete="off">
-      </div>
-
-      <button class="btnx" id="genBtn">Launch sweep</button>
-      <p class="launchmsg" id="launchMsg" role="status"></p>
-    </div>
-  </div>
-
+      <button class="btnx" id="nextBtn" type="button">Next</button>
+      <button class="btnx ghostx" id="backBtn" type="button">Back</button>
+      <p class="launchmsg" id="stepMsg" role="status"></p>
+    </aside>
   </div>
   </div>
 </div></section>
@@ -572,410 +600,369 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <div>The Ohio State University<br>Computer Science and Engineering</div>
 </div></footer>
 <script>
-/* Profiling.
-   A Tapis app is a versioned container with an entrypoint. Its appArgs are the
-   named parameters we sweep. Docker exposes them after the image ref; an
-   Apptainer/Singularity image exposes them after the runscript. Either way the
-   Jobs service appends appArgs to the container's own entrypoint -- so parsing
-   the app means reading its appArgs, not guessing at a raw command string.
+/* Profiling: pick an app, configure sweeps, choose TAPIS systems and queues,
+   preview, then submit. The HARP server turns each sweep x queue into TAPIS
+   jobs (one per parameter combination) and tracks them.
 
-   Batch jobs only: submit and wait, no human in the loop. Such jobs are either
-   compute-bound or I/O-bound; both just run to completion. */
-
-// --- apps come from TAPIS through the HARP server ---------------------------
-// An app's sweep parameters come from its TAPIS "notes.harp" block, e.g.
-//   {"label": "...", "entrypoint": "...", "command": "python3 x.py {a} {b}",
-//    "params": [{"name": "a", "arg": "--a", "kind": "int", "default": "1"}]}
-// falling back to the {placeholders} in notes.harp.command, then to appArgs.
-let APPS = [];
+   An app is ready for HARP when its TAPIS notes carry a "harp" block:
+     {"label": "...", "entrypoint": "...", "command": "python3 x.py {a} {b}",
+      "workdir": "/app/...", "params": [{"name":"a","arg":"--a","kind":"int","default":"1"}]} */
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-
+const $ = id => document.getElementById(id);
 async function api(path, opts = {}) {
-  const res = await fetch(path, {
-    ...opts, headers: {'Content-Type': 'application/json'},
-    body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const res = await fetch(path, {...opts, headers: {'Content-Type': 'application/json'},
+    body: opts.body ? JSON.stringify(opts.body) : undefined});
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw Object.assign(new Error(data.detail || res.statusText), {status: res.status});
   return data;
 }
 
-function toApp(a, runsByApp) {
+let APPS = [], SYSTEMS = [], app = null, tab = 'unprofiled', step = 1;
+let SWEEPS = [];            // [{id, name, run_type, reps, timeout, params: {name: {mode, raw}}}]
+let ASSIGN = {};            // sweep id -> Set of queue keys
+let QCORES = {};            // queue key -> cores per job
+let PREVIEW = null, nextId = 1;
+
+/* ---------------------------------------------------------------- data */
+function toApp(a, runsByApp){
   const h = (a.notes && a.notes.harp) || {};
   let params = Array.isArray(h.params) ? h.params : [];
   if (!params.length && h.command)
     params = [...h.command.matchAll(/\{(\w+)\}/g)].map(m => ({name: m[1], arg: `{${m[1]}}`}));
-  if (!params.length)
-    params = (a.app_args || []).map(x => ({name: x.name || x.arg, arg: x.arg}));
-  const runs = runsByApp[a.id] || 0;
-  return {
-    id: a.id, version: a.version, label: h.label || a.id,
-    runtime: a.runtime || 'SINGULARITY', image: a.image || '',
-    entrypoint: h.entrypoint || h.command || 'container entrypoint',
-    command: h.command || '', workdir: h.workdir || '',
-    profiled: runs > 0, runs,
-    appArgs: params.map(p => ({name: p.name, arg: p.arg || '', kind: p.kind || 'string',
-                               values: [String(p.default ?? '')]})),
-    jobs: []
-  };
+  return {id: a.id, version: a.version, label: h.label || a.id, runtime: a.runtime || 'SINGULARITY',
+    image: a.image || '', entrypoint: h.entrypoint || h.command || 'container entrypoint',
+    command: h.command || '', workdir: h.workdir || '', runs: runsByApp[a.id] || 0,
+    params: params.map(p => ({name: p.name, arg: p.arg || '', kind: p.kind || 'string', def: String(p.default ?? '')}))};
 }
-
-async function loadApps() {
-  const [apps, campaigns] = await Promise.all([api('/api/tapis/apps'), api('/api/campaigns')]);
+async function loadApps(){
+  const [apps, camps] = await Promise.all([api('/api/tapis/apps'), api('/api/campaigns')]);
   const runsByApp = {};
-  for (const c of campaigns)
-    if (c.status === 'DONE' || c.status === 'DONE_WITH_ERRORS')
-      for (const id of c.app_ids || [])
-        runsByApp[id] = (runsByApp[id] || 0) + (c.result ? c.result.rows : 0);
-  APPS = apps.map(a => toApp(a, runsByApp))
-             .sort((x, y) => x.label.localeCompare(y.label));
+  for (const c of camps) for (const id of c.app_ids || [])
+    runsByApp[id] = (runsByApp[id] || 0) + (c.result ? c.result.rows : 0);
+  APPS = apps.map(a => toApp(a, runsByApp)).sort((x, y) => x.label.localeCompare(y.label));
 }
-
-const HINT = { single:'one fixed value', list:'comma-separated values' };
-
-let TARGETS = [], chosen = new Set();   // TAPIS system|queue keys
-let tab = 'profiled', currentApp = null;
-let SWEEP = {};   // arg name -> {mode, raw}
-
-/* ---- hardware: your TAPIS execution systems and their queues ------- */
-async function loadTargets(){
-  const systems = (await api('/api/tapis/systems')).filter(x => x.can_exec);
-  const details = await Promise.all(systems.map(x =>
-    api('/api/tapis/systems/' + encodeURIComponent(x.id)).catch(() => ({id:x.id, queues:[]}))));
-  TARGETS = details.flatMap(d => (d.queues && d.queues.length ? d.queues : [{name:''}]).map(q => ({
-    key: d.id + '|' + (q.name || ''), system_id: d.id, queue: q.name || null,
-    max_cores: q.max_cores, max_minutes: q.max_minutes, max_jobs: q.max_jobs_per_user,
-    gpu: /gpu/i.test(q.name || '')})));
-  chosen = new Set(TARGETS.slice(0, 1).map(t => t.key));
-  const sel = document.getElementById('storeSys');
-  sel.innerHTML = [...new Set(TARGETS.map(t => t.system_id))]
-    .map(id => `<option value="${esc(id)}">${esc(id)}</option>`).join('');
+async function loadSystems(){
+  SYSTEMS = (await api('/api/tapis/exec-systems')).filter(s => s.enabled !== false);
+  for (const s of SYSTEMS) for (const q of qlist(s)) QCORES[qkey(s, q)] ??= Math.min(4, q.max_cores || 4);
+  $('storeSys').innerHTML = SYSTEMS.map(s => `<option value="${esc(s.id)}">${esc(s.id)}</option>`).join('');
   try { const saved = JSON.parse(localStorage.getItem('harp-launch') || '{}');
-        if (saved.storeSys) sel.value = saved.storeSys;
-        for (const k of ['store', 'alloc']) if (saved[k]) document.getElementById(k).value = saved[k]; } catch (e) {}
+        if (saved.storeSys) $('storeSys').value = saved.storeSys;
+        for (const k of ['store', 'alloc']) if (saved[k]) $(k).value = saved[k]; } catch (e) {}
+}
+const qlist = s => s.queues && s.queues.length ? s.queues : [{name: '', hpc_queue: '', default: true}];
+const qkey = (s, q) => s.id + '|' + (q.name || '');
+const isGpu = q => /gpu/i.test((q.name || '') + ' ' + (q.description || '') + ' ' + (q.hpc_queue || ''));
+function queueByKey(k){ for (const s of SYSTEMS) for (const q of qlist(s)) if (qkey(s, q) === k) return {s, q}; return null; }
+
+/* ------------------------------------------------------------- sweeps */
+function values(p, st){
+  const raw = (st.raw || '').trim();
+  if (!raw) return [];
+  return st.mode === 'list' ? raw.split(',').map(x => x.trim()).filter(Boolean) : [raw];
+}
+const combos = sw => app.params.reduce((n, p) => n * Math.max(1, values(p, sw.params[p.name]).length), 1);
+function newSweep(from){
+  const id = nextId++;
+  const sw = from ? JSON.parse(JSON.stringify({...from, id})) :
+    {id, run_type: 'SD', reps: 1, timeout: 20, params: Object.fromEntries(app.params.map(p => [p.name, {mode:'single', raw:p.def}]))};
+  sw.id = id; sw.name = from ? from.name + '-copy' : (SWEEPS.length ? 'sweep-' + (SWEEPS.length + 1) : 'sd-sweep');
+  ASSIGN[id] = new Set(from ? ASSIGN[from.id] : []);
+  return sw;
+}
+function sweepProblem(sw){
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,30}$/.test(sw.name)) return 'Name: letters, digits, - _ . (max 31).';
+  if (SWEEPS.filter(x => x.name === sw.name).length > 1) return 'Two sweeps share this name.';
+  for (const p of app.params) {
+    const v = values(p, sw.params[p.name]);
+    if (!v.length) return `Give "${p.name}" a value.`;
+    if ((p.kind === 'int' || p.kind === 'float') && v.some(x => isNaN(+x))) return `"${p.name}" needs numbers.`;
+  }
+  if (!(sw.reps >= 1) || !(sw.timeout >= 1)) return 'Repetitions and timeout must be at least 1.';
+  return '';
+}
+function renderSweeps(){
+  $('sweeps').innerHTML = SWEEPS.map(sw => {
+    const prob = sweepProblem(sw), n = combos(sw);
+    const rows = app.params.map(p => { const st = sw.params[p.name], c = values(p, st).length;
+      return `<div class="arow">
+        <div><span class="aname">${esc(p.name)}</span><span class="aflag">${esc(p.arg)} &middot; ${esc(p.kind)}</span></div>
+        <div><select class="modesel" data-s="${sw.id}" data-p="${esc(p.name)}" aria-label="How to vary ${esc(p.name)}">
+          <option value="single" ${st.mode==='single'?'selected':''}>single</option>
+          <option value="list" ${st.mode==='list'?'selected':''}>list</option></select></div>
+        <div><input class="valin" data-s="${sw.id}" data-p="${esc(p.name)}" value="${esc(st.raw)}" placeholder="${esc(p.def)}" aria-label="${esc(p.name)} values">
+          <span class="vhint">${st.mode==='list'?'comma-separated':'one value'} &middot; <b>${c}</b> value${c===1?'':'s'}</span></div></div>`; }).join('');
+    return `<div class="card2 sweep" data-s="${sw.id}">
+      <div class="sweephead">
+        <input class="ti swname" data-s="${sw.id}" value="${esc(sw.name)}" aria-label="Sweep name">
+        <span class="pill ${prob ? 'none' : 'done'}">${n} job${n===1?'':'s'} per queue</span>
+        <span class="spacer"></span>
+        <button class="btn btn-outline btn-sm dup" data-s="${sw.id}" type="button">Duplicate</button>
+        ${SWEEPS.length > 1 ? `<button class="btn btn-outline btn-sm rm" data-s="${sw.id}" type="button">Remove</button>` : ''}
+      </div>
+      <div class="three">
+        <div class="field"><label class="lbl">Run type</label><select class="swf" data-s="${sw.id}" data-f="run_type">
+          ${['SD','FS','test_data'].map(t => `<option ${sw.run_type===t?'selected':''}>${t}</option>`).join('')}</select></div>
+        <div class="field"><label class="lbl">Repetitions</label><input class="ti swf" type="number" min="1" data-s="${sw.id}" data-f="reps" value="${sw.reps}"></div>
+        <div class="field"><label class="lbl">Timeout per run (min)</label><input class="ti swf" type="number" min="1" data-s="${sw.id}" data-f="timeout" value="${sw.timeout}"></div>
+      </div>
+      ${app.params.length ? `<div class="atbl"><div class="ahead"><div>Parameter</div><div>How to vary</div><div>Value(s)</div></div>${rows}</div>`
+                          : '<div class="empty">This app has no sweep parameters.</div>'}
+      <p class="loginerr">${esc(prob)}</p></div>`; }).join('');
+  const box = $('sweeps'), find = el => SWEEPS.find(s => s.id === +el.dataset.s);
+  box.querySelectorAll('.modesel').forEach(el => el.addEventListener('change', () => { find(el).params[el.dataset.p].mode = el.value; renderSweeps(); summary(); }));
+  box.querySelectorAll('.valin').forEach(el => el.addEventListener('change', () => { find(el).params[el.dataset.p].raw = el.value; renderSweeps(); summary(); }));
+  box.querySelectorAll('.valin').forEach(el => el.addEventListener('input', () => { find(el).params[el.dataset.p].raw = el.value; summary(); }));
+  box.querySelectorAll('.swname').forEach(el => el.addEventListener('change', () => { find(el).name = el.value.trim(); renderSweeps(); summary(); }));
+  box.querySelectorAll('.swf').forEach(el => el.addEventListener('change', () => {
+    const sw = find(el); sw[el.dataset.f] = el.dataset.f === 'run_type' ? el.value : +el.value; renderSweeps(); summary(); }));
+  box.querySelectorAll('.dup').forEach(el => el.addEventListener('click', () => {
+    const i = SWEEPS.findIndex(s => s.id === +el.dataset.s); SWEEPS.splice(i + 1, 0, newSweep(SWEEPS[i])); renderSweeps(); summary(); }));
+  box.querySelectorAll('.rm').forEach(el => el.addEventListener('click', () => {
+    SWEEPS = SWEEPS.filter(s => s.id !== +el.dataset.s); delete ASSIGN[+el.dataset.s]; renderSweeps(); summary(); }));
 }
 
-/* ---- sweep expansion ---------------------------------------------- */
-function expand(mode, raw){
-  raw=(raw||'').trim();
-  if(!raw) return [];
-  if(mode==='list') return raw.split(',').map(x=>x.trim()).filter(Boolean);
-  return [raw];   // single
+/* ------------------------------------------------------------ systems */
+const fmtMem = mb => mb ? (mb >= 1024 ? Math.round(mb / 1024) + ' GB' : mb + ' MB') : '–';
+const fmtMin = m => !m || m < 0 ? '–' : m >= 1440 ? (m / 1440).toFixed(m % 1440 ? 1 : 0) + ' d' : m >= 60 ? (m / 60).toFixed(m % 60 ? 1 : 0) + ' h' : m + ' min';
+const range = (a, b, f = x => x) => (a || b) ? (a && b && a !== b ? `${f(a)}–${f(b)}` : f(b || a)) : '–';
+function limits(q){
+  const parts = [
+    q.max_nodes > 0 ? `${range(q.min_nodes, q.max_nodes)} node${q.max_nodes === 1 ? '' : 's'}` : '',
+    q.max_cores ? `${range(q.min_cores, q.max_cores)} cores/node` : '',
+    q.max_memory_mb ? `${fmtMem(q.max_memory_mb)} memory` : '',
+    q.max_minutes > 0 ? `${fmtMin(q.max_minutes)} max` : '',
+    q.max_jobs_per_user > 0 ? `${q.max_jobs_per_user} jobs/user` : ''].filter(Boolean);
+  return parts.length ? parts.map(x => `<span>${esc(x)}</span>`).join('') : '<span>no limits set</span>';
 }
-function sweptValues(a){
-  const st=SWEEP[a.name]||{mode:'single',raw:a.values[0]};
-  return expand(st.mode, st.raw);
-}
-function designSize(){
-  return currentApp.appArgs.reduce((n,a)=>{
-    const v=sweptValues(a); return n * Math.max(1, v.length);
-  },1);
+function renderSystems(){
+  if (!SYSTEMS.length) { $('systems').innerHTML = '<div class="empty">No TAPIS execution systems found for your account.</div>'; return; }
+  const heads = SWEEPS.map(sw => `<th class="c" title="${esc(sw.name)}">${esc(sw.name)}</th>`).join('');
+  $('systems').innerHTML = SYSTEMS.map(s => `<div class="card2 sys">
+    <div class="syshead"><h3>${esc(s.id)}</h3>
+      <span class="am">${esc(s.host || '')}</span>
+      ${s.batch_scheduler ? `<span class="rt sing">${esc(s.batch_scheduler)}</span>` : ''}
+      ${(s.runtimes || []).map(r => `<span class="rt dock">${esc(r)}</span>`).join(' ')}</div>
+    ${s.description ? `<p class="sub">${esc(s.description)}</p>` : ''}
+    ${s.error ? `<p class="loginerr">Could not read its queues: ${esc(s.error)}</p>` : ''}
+    <div class="scroll"><table class="table qt">
+      <tr><th>Queue</th><th>Limits</th><th>Cores per job</th>${heads}</tr>
+      ${qlist(s).map(q => { const k = qkey(s, q);
+        return `<tr><td><b>${esc(q.name || 'default')}</b>${q.default ? ' <span class="pill done">default</span>' : ''}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}
+            ${q.hpc_queue && q.hpc_queue !== q.name ? `<div class="am">scheduler: ${esc(q.hpc_queue)}</div>` : ''}
+            ${q.description ? `<div class="am">${esc(q.description)}</div>` : ''}</td>
+          <td class="lim">${limits(q)}</td>
+          <td><input class="valin qc" type="number" min="1" ${q.max_cores ? `max="${q.max_cores}"` : ''} data-k="${esc(k)}" value="${QCORES[k]}" aria-label="Cores per job on ${esc(s.id)} ${esc(q.name)}"></td>
+          ${SWEEPS.map(sw => `<td class="c"><input type="checkbox" class="as" data-s="${sw.id}" data-k="${esc(k)}" ${ASSIGN[sw.id].has(k) ? 'checked' : ''}
+              aria-label="Run ${esc(sw.name)} on ${esc(s.id)} ${esc(q.name)}"></td>`).join('')}</tr>`; }).join('')}
+    </table></div></div>`).join('');
+  $('systems').querySelectorAll('.as').forEach(el => el.addEventListener('change', () => {
+    el.checked ? ASSIGN[+el.dataset.s].add(el.dataset.k) : ASSIGN[+el.dataset.s].delete(el.dataset.k); summary(); }));
+  $('systems').querySelectorAll('.qc').forEach(el => el.addEventListener('change', () => {
+    QCORES[el.dataset.k] = Math.max(1, +el.value || 1); summary(); }));
 }
 
-/* ---- render: app lists -------------------------------------------- */
+/* ------------------------------------------------------------ preview */
+function pairs(){
+  return SWEEPS.flatMap(sw => [...ASSIGN[sw.id]].map(k => ({sw, k, ...queueByKey(k)}))).filter(p => p.s);
+}
+function specs(){
+  const stamp = new Date().toISOString().slice(2, 16).replace(/[-:T]/g, '');
+  const slug = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'app';
+  const alloc = $('alloc').value.trim() || null;
+  return SWEEPS.filter(sw => ASSIGN[sw.id].size).map(sw => ({
+    name: `${slug}-${sw.name}-${stamp}`.slice(0, 64), application: slug,
+    command: app.command, workdir: app.workdir,
+    repetitions: sw.reps, run_timeout_sec: sw.timeout * 60, combos_per_job: 1, distribution: 'replicate',
+    run_sets: [{run_type: sw.run_type, parameters: Object.fromEntries(app.params.map(p =>
+      [p.name, values(p, sw.params[p.name]).map(x => p.kind === 'int' || p.kind === 'float' ? Number(x) : x)]))}],
+    targets: [...ASSIGN[sw.id]].map(k => { const {s, q} = queueByKey(k), cores = QCORES[k] || 1;
+      return {system_id: s.id, queue: q.name || null, app_id: app.id, app_version: app.version,
+        scheduler_options: alloc, container_args: isGpu(q) ? '--nv' : null, node_count: 1,
+        cores_per_node: q.max_cores ? Math.min(cores, q.max_cores) : cores,
+        memory_mb: q.max_memory_mb ? Math.min(q.max_memory_mb, Math.max(4000, cores * 4000)) : Math.max(4000, cores * 4000),
+        max_minutes: Math.min(sw.timeout * sw.reps + 10, q.max_minutes > 0 ? q.max_minutes : Infinity),
+        max_concurrent_jobs: q.max_jobs_per_user > 0 ? Math.min(q.max_jobs_per_user, 10) : 4}; }),
+    storage: {system_id: $('storeSys').value, path: $('store').value.trim()}}));
+}
+async function renderPreview(){
+  const ps = pairs();
+  $('previewTable').innerHTML = `<tr><th>Sweep</th><th>Type</th><th>System / queue</th><th class="num">Jobs</th><th class="num">Runs</th><th class="num">Cores</th><th class="num">Time limit</th><th>Check</th></tr>` +
+    ps.map(p => { const n = combos(p.sw), t = Math.min(p.sw.timeout * p.sw.reps + 10, p.q.max_minutes > 0 ? p.q.max_minutes : Infinity);
+      return `<tr data-sw="${esc(p.sw.name)}"><td><b>${esc(p.sw.name)}</b></td><td>${esc(p.sw.run_type)}</td>
+        <td>${esc(p.s.id)}${p.q.name ? ' / ' + esc(p.q.name) : ''}${isGpu(p.q) ? ' <span class="pill none">GPU</span>' : ''}</td>
+        <td class="num mono">${n}</td><td class="num mono">${n * p.sw.reps}</td><td class="num mono">${QCORES[p.k]}</td>
+        <td class="num mono">${fmtMin(t)}</td><td class="chk">checking&hellip;</td></tr>`; }).join('');
+  $('previewErr').textContent = '';
+  PREVIEW = null;
+  const sp = specs().map(x => ({...x, storage: {system_id: x.storage.system_id || 'unset', path: x.storage.path || '/unset'}}));
+  try {
+    const res = await api('/api/campaigns/batch/preview', {method:'POST', body: sp});
+    PREVIEW = res;
+    SWEEPS.forEach((sw, i) => {
+      const r = res.find(x => x.name && x.name.includes('-' + sw.name + '-'));
+      $('previewTable').querySelectorAll(`tr[data-sw="${CSS.escape(sw.name)}"] .chk`).forEach(td =>
+        td.innerHTML = !r ? '' : r.ok ? '<span class="pill done">ready</span>' : `<span class="pill none" title="${esc(r.error)}">fix</span>`);
+    });
+    const bad = res.filter(r => !r.ok);
+    if (bad.length) $('previewErr').textContent = bad.map(r => r.error).join(' · ');
+  } catch (e) { $('previewErr').textContent = 'Could not check the sweeps: ' + e.message; }
+  summary();
+}
+
+/* -------------------------------------------------------------- submit */
+async function submit(){
+  const sp = specs();
+  try { localStorage.setItem('harp-launch', JSON.stringify({storeSys: $('storeSys').value, store: $('store').value.trim(), alloc: $('alloc').value.trim()})); } catch (e) {}
+  go(5);
+  $('doneTitle').textContent = 'Submitting…'; $('doneSub').textContent = ''; $('doneTable').innerHTML = '';
+  try {
+    const made = await api('/api/campaigns/batch', {method:'POST', body: sp});
+    $('doneTitle').textContent = `Submitted ${made.length} sweep${made.length===1?'':'s'}`;
+    $('doneSub').textContent = `${made.reduce((n, c) => n + c.jobs_total, 0)} TAPIS jobs are being submitted. Follow them on Profiling jobs.`;
+    $('doneTable').innerHTML = `<tr><th>Sweep</th><th class="num">TAPIS jobs</th><th>Results folder</th><th></th></tr>` +
+      made.map(c => `<tr><td><b>${esc(c.name)}</b></td><td class="num mono">${c.jobs_total}</td>
+        <td class="mono">${esc(c.storage.system_id)}:${esc(c.campaign_dir)}</td>
+        <td><a class="tlink" href="runs.html#${esc(c.id)}">Jobs &rarr;</a></td></tr>`).join('');
+    $('backBtn').hidden = true; $('nextBtn').hidden = true;
+  } catch (e) {
+    $('doneTitle').textContent = 'Not submitted';
+    $('doneSub').textContent = e.status === 401 ? 'Your session expired. Log in again, then submit.' : e.message;
+    $('backBtn').hidden = false;
+  }
+}
+
+/* ------------------------------------------------------------- stepper */
+function stepProblem(n){
+  if (n >= 1 && !app) return 'Select an app.';
+  if (n >= 1 && !app.command) return 'This app has no HARP command yet. Register it with the HARP app notebook.';
+  if (n >= 2) { if (!SWEEPS.length) return 'Add a sweep.';
+    const bad = SWEEPS.map(sweepProblem).find(Boolean); if (bad) return 'Fix the sweeps: ' + bad; }
+  if (n >= 3) { const none = SWEEPS.find(sw => !ASSIGN[sw.id].size); if (none) return `Pick a queue for "${none.name}".`; }
+  if (n >= 4) { if (!$('store').value.trim()) return 'Choose a results folder.';
+    if (!PREVIEW || PREVIEW.some(r => !r.ok)) return 'Fix the problems shown in the preview.';
+    if (!$('confirm').checked) return 'Tick the confirmation to submit.'; }
+  return '';
+}
+function go(n){
+  step = n;
+  document.querySelectorAll('.stage').forEach(el => el.hidden = +el.dataset.stage !== n);
+  document.querySelectorAll('#steps .s').forEach(el => {
+    const k = +el.dataset.step; el.classList.toggle('active', k === n); el.classList.toggle('done', k < n);
+    el.setAttribute('aria-current', k === n ? 'step' : 'false'); });
+  if (n === 2) renderSweeps();
+  if (n === 3) renderSystems();
+  if (n === 4) renderPreview();
+  $('backBtn').hidden = n === 1 || n === 5;
+  $('nextBtn').hidden = n === 5;
+  $('nextBtn').textContent = n === 4 ? 'Confirm and submit' : 'Next';
+  summary();
+  window.scrollTo({top: $('steps').offsetTop - 80, behavior: 'smooth'});
+}
+function summary(){
+  const ps = app ? pairs() : [];
+  const jobs = ps.reduce((n, p) => n + combos(p.sw), 0);
+  const runs = ps.reduce((n, p) => n + combos(p.sw) * p.sw.reps, 0);
+  const hours = ps.reduce((n, p) => n + combos(p.sw) * p.sw.reps * p.sw.timeout / 60, 0);
+  const combosOnly = !ps.length && app && SWEEPS.length;
+  const big = combosOnly ? SWEEPS.reduce((n, sw) => n + combos(sw), 0) : jobs;
+  $('sumJobs').textContent = big.toLocaleString();
+  $('sumJobs').className = 'big' + (hours > 5000 ? ' bad' : hours > 800 ? ' warn' : '');
+  $('sumJobsLbl').textContent = combosOnly ? `combination${big === 1 ? '' : 's'} · pick queues next`
+                                           : jobs === 1 ? 'TAPIS job' : 'TAPIS jobs';
+  $('sumApp').textContent = app ? app.label : '–';
+  $('sumSweeps').textContent = SWEEPS.length; $('sumPairs').textContent = ps.length;
+  $('sumRuns').textContent = runs.toLocaleString(); $('sumHours').textContent = Math.round(hours).toLocaleString();
+  $('alarm').innerHTML = hours > 5000 ? `<div class="alarm">${Math.round(hours).toLocaleString()} node-hours is beyond a normal allocation. Shorten a list.</div>`
+                       : jobs > 500 ? `<div class="alarm">${jobs} jobs is a lot. Try one queue first.</div>` : '';
+  const prob = step < 5 ? stepProblem(step) : '';
+  $('nextBtn').disabled = !!prob; $('stepMsg').textContent = prob;
+}
+
+/* ------------------------------------------------------------ step 1 */
 function renderTabs(){
-  const prof=APPS.filter(a=>a.profiled), un=APPS.filter(a=>!a.profiled);
-  document.getElementById('cProfiled').textContent=prof.length;
-  document.getElementById('cUnprofiled').textContent=un.length;
+  $('cProfiled').textContent = APPS.filter(a => a.runs).length;
+  $('cUnprofiled').textContent = APPS.filter(a => !a.runs).length;
 }
 function renderList(){
-  const apps=APPS.filter(a=>tab==='profiled'?a.profiled:!a.profiled);
-  document.getElementById('listTitle').textContent =
-    tab==='profiled'?'Profiled applications':'Register for profiling';
-  document.getElementById('listSub').textContent =
-    tab==='profiled'
-      ? 'Pick one to extend its sweep. Its data is on the Profile data page.'
-      : 'Your TAPIS apps. Pick one to profile.';
-  const box=document.getElementById('applist');
-  if(!apps.length){box.innerHTML='<div class="empty" style="border:none">'
-    +(tab==='profiled'?'Nothing profiled yet.'
-                      :'No apps left to profile.')+'</div>';return;}
-  box.innerHTML=apps.map(a=>`
-    <button class="appitem" data-id="${esc(a.id)}"
-       aria-current="${!!(currentApp&&currentApp.id===a.id)}">
-      <span class="ic">${esc(a.label.split(/[\s_-]+/).filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase())}</span>
-      <span><span class="an">${esc(a.label)}</span>
+  const apps = APPS.filter(a => tab === 'profiled' ? a.runs : !a.runs);
+  $('listSub').textContent = tab === 'profiled' ? 'Add more sweeps to an app you profiled before.' : 'Your TAPIS apps.';
+  if (!apps.length) { $('applist').innerHTML = `<div class="empty" style="border:none">${tab === 'profiled' ? 'Nothing profiled yet.' : 'No apps left to profile.'}</div>`; return; }
+  $('applist').innerHTML = apps.map(a => `
+    <button class="appitem" data-id="${esc(a.id)}" aria-current="${!!(app && app.id === a.id)}">
+      <span class="ic">${esc(a.label.split(/[\s_-]+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase())}</span>
+      <span style="min-width:0"><span class="an">${esc(a.label)}</span>
         <span class="am">${esc(a.id)} &middot; v${esc(a.version)}</span></span>
-      <span class="ar">
-        <span class="rt ${a.runtime==='DOCKER'?'dock':'sing'}">${
-          a.runtime==='DOCKER'?'Docker':'Apptainer'}</span><br>
-        <span class="pill ${a.profiled?'done':'none'}" style="margin-top:5px;display:inline-block">${
-          a.profiled?a.runs+' runs':'not profiled'}</span>
-      </span>
+      <span class="ar"><span class="rt ${a.runtime === 'DOCKER' ? 'dock' : 'sing'}">${a.runtime === 'DOCKER' ? 'Docker' : 'Apptainer'}</span><br>
+        <span class="pill ${a.command ? (a.runs ? 'done' : 'none') : 'none'}" style="margin-top:5px;display:inline-block">${
+          !a.command ? 'not HARP-ready' : a.runs ? a.runs + ' runs' : 'not profiled'}</span></span>
     </button>`).join('');
-  box.querySelectorAll('.appitem').forEach(b=>
-    b.addEventListener('click',()=>selectApp(b.dataset.id)));
+  $('applist').querySelectorAll('.appitem').forEach(b => b.addEventListener('click', () => selectApp(b.dataset.id)));
 }
-
-/* ---- select an app ------------------------------------------------- */
 function selectApp(id){
-  currentApp=APPS.find(a=>a.id===id);
-  SWEEP={};
-  for(const a of currentApp.appArgs)
-    SWEEP[a.name]={mode:'single', raw:a.values[0]};
-  document.getElementById('emptyPanel').style.display='none';
-  document.getElementById('designPanel').style.display='block';
-  document.getElementById('budget').style.display='block';
-  document.getElementById('jobPanel').style.display =
-    currentApp.jobs.length ? 'block' : 'none';
-  renderList(); renderEntrypoint(); renderJobs(); renderArgTable();
-  renderHw(); recompute();
+  if (app && app.id === id) return;
+  app = APPS.find(a => a.id === id);
+  SWEEPS = []; ASSIGN = {}; nextId = 1; SWEEPS.push(newSweep());
+  renderList();
+  const docker = app.runtime === 'DOCKER';
+  $('epCard').hidden = false;
+  $('epBlock').innerHTML = `
+    <div class="eprow"><span class="eplbl">Image</span><code>${esc(app.image)}</code></div>
+    <div class="eprow"><span class="eplbl">Runtime</span><code>${esc(app.runtime)}</code><span class="ok" style="font-size:12px">${docker ? 'Docker' : 'Apptainer on HPC systems'}</span></div>
+    <div class="eprow"><span class="eplbl">Command</span><code>${esc(app.command || 'not set')}</code></div>
+    <div class="eprow"><span class="eplbl">Parameters</span><code>${esc(app.params.map(p => p.name).join(', ') || 'none')}</code></div>
+    <div class="eprow"><span class="eplbl">Job type</span><code>BATCH</code><span class="ok" style="font-size:12px">submit and wait</span></div>`;
+  summary();
 }
+document.querySelectorAll('.tabx').forEach(b => b.addEventListener('click', () => {
+  tab = b.dataset.t;
+  document.querySelectorAll('.tabx').forEach(x => x.setAttribute('aria-selected', x === b));
+  renderList();
+}));
 
-/* ---- entrypoint check --------------------------------------------- */
-function renderEntrypoint(){
-  const a=currentApp;
-  const isDocker=a.runtime==='DOCKER';
-  // Docker: args follow the image's CMD/ENTRYPOINT. Apptainer: args follow the
-  // image's %runscript. Tapis appends appArgs either way; we surface which.
-  const invoke=isDocker
-    ? `docker run ${esc(a.image)} <span class="ok">&lt;appArgs&gt;</span>`
-    : `apptainer run ${esc(a.image)} <span class="ok">&lt;appArgs&gt;</span>`;
-  document.getElementById('epBlock').innerHTML=`
-    <div class="eprow"><span class="eplbl">Runtime</span>
-      <code>${esc(a.runtime)}</code>
-      <span class="${isDocker?'':'ok'}" style="font-size:12px">${
-        isDocker?'Docker &mdash; runs on cloud/VM exec systems'
-               :'Apptainer &mdash; runs on HPC exec systems'}</span></div>
-    <div class="eprow"><span class="eplbl">Image</span><code>${esc(a.image)}</code></div>
-    <div class="eprow"><span class="eplbl">Entrypoint</span>
-      <code>${esc(a.entrypoint)}</code></div>
-    <div class="eprow"><span class="eplbl">Job type</span>
-      <code>BATCH</code><span class="ok" style="font-size:12px">submit and wait</span></div>
-    <div class="eprow"><span class="eplbl">Invocation</span><code>${invoke}</code></div>`;
-}
+/* ------------------------------------------------------------- wiring */
+$('nextBtn').addEventListener('click', () => { if (step === 4) submit(); else if (!stepProblem(step)) go(step + 1); });
+$('backBtn').addEventListener('click', () => go(Math.max(1, step === 5 ? 4 : step - 1)));
+document.querySelectorAll('#steps .s').forEach(el => el.addEventListener('click', () => {
+  const n = +el.dataset.step;
+  if (step === 5 || n === step) return;
+  if (n < step || !stepProblem(n - 1)) go(n);
+}));
+$('addSweep').addEventListener('click', () => { SWEEPS.push(newSweep()); renderSweeps(); summary(); });
+['store', 'alloc', 'storeSys'].forEach(id => $(id).addEventListener('input', summary));
+$('confirm').addEventListener('change', summary);
+$('again').addEventListener('click', () => { app = null; SWEEPS = []; ASSIGN = {}; $('confirm').checked = false;
+  $('epCard').hidden = true; loadApps().then(() => { renderTabs(); renderList(); go(1); }); });
 
-/* ---- jobs under the app ------------------------------------------- */
-function renderJobs(){
-  const sel=document.getElementById('jobPick');
-  const jl=document.getElementById('jobList');
-  if(!currentApp.jobs.length){ sel.innerHTML=''; jl.innerHTML=''; return; }
-  sel.innerHTML='<option value="">&mdash; start from app defaults &mdash;</option>'
-    + currentApp.jobs.map(j=>`<option value="${j.uuid}">${j.name} (${j.uuid})</option>`).join('');
-  jl.innerHTML=currentApp.jobs.map(j=>`
-    <div class="jobrow"><code>${j.uuid}</code>
-      <span>${j.name}</span>
-      <span class="jm">${j.state} &middot; ${j.when}</span></div>`).join('');
-  sel.onchange=()=>{
-    const j=currentApp.jobs.find(x=>x.uuid===sel.value);
-    if(!j) return;
-    // Seed each arg's single value from the chosen job's recorded args.
-    for(const a of currentApp.appArgs){
-      if(a.arg in j.args) SWEEP[a.name]={mode:'single', raw:j.args[a.arg]};
-    }
-    renderArgTable(); recompute();
-  };
-}
-
-/* ---- the per-arg sweep table -------------------------------------- */
-function renderArgTable(){
-  if(!currentApp.appArgs.length){
-    document.getElementById('argTable').innerHTML=
-      '<div class="empty" style="border:none">No sweep parameters defined for this app.</div>';
-    return;
-  }
-  const rows=currentApp.appArgs.map(a=>{
-    const st=SWEEP[a.name];
-    const opts=['single','list']
-      .map(m=>`<option value="${m}" ${st.mode===m?'selected':''}>${m}</option>`).join('');
-    const count=sweptValues(a).length;
-    return `<div class="arow">
-      <div><span class="aname">${esc(a.name)}</span>
-        <span class="aflag">${esc(a.arg)} &middot; ${esc(a.kind)}</span></div>
-      <div><select class="modesel" data-n="${esc(a.name)}">${opts}</select></div>
-      <div><input class="valin" data-n="${esc(a.name)}" value="${esc(st.raw)}"
-             placeholder="${esc(a.values[0])}">
-        <span class="vhint">${HINT[st.mode]} &middot; <b>${count}</b> value${
-          count===1?'':'s'}</span></div>
-    </div>`;
-  }).join('');
-  document.getElementById('argTable').innerHTML=
-    `<div class="ahead"><div>Parameter</div><div>How to vary</div><div>Value(s)</div></div>`+rows;
-
-  document.querySelectorAll('.modesel').forEach(s=>
-    s.addEventListener('change',()=>{
-      SWEEP[s.dataset.n].mode=s.value; renderArgTable(); recompute();
-    }));
-  document.querySelectorAll('.valin').forEach(inp=>
-    inp.addEventListener('input',()=>{
-      SWEEP[inp.dataset.n].raw=inp.value; updateCounts(); recompute();
-    }));
-}
-function updateCounts(){
-  currentApp.appArgs.forEach((a,i)=>{
-    const hint=document.querySelectorAll('.vhint')[i];
-    if(hint){const c=sweptValues(a).length;
-      hint.innerHTML=`${HINT[(SWEEP[a.name]||{}).mode||'single']} &middot; <b>${c}</b> value${c===1?'':'s'}`;}
-  });
-}
-
-/* ---- hardware ------------------------------------------------------ */
-function renderHw(){
-  const box = document.getElementById('hwpick');
-  if (!TARGETS.length) { box.innerHTML = '<div class="blab">No TAPIS execution systems found.</div>'; return; }
-  box.innerHTML = TARGETS.map(t => `<label class="hwt"><input type="checkbox" data-k="${esc(t.key)}" ${
-      chosen.has(t.key) ? 'checked' : ''}>
-      <span class="n">${esc(t.system_id)}${t.queue ? '/' + esc(t.queue) : ''}</span>
-      <span class="g">${t.gpu ? 'GPU' : 'CPU'}${t.max_cores ? ' &middot; &le;' + t.max_cores + 'c' : ''}</span></label>`).join('');
-  box.querySelectorAll('.hwt input').forEach(c =>
-    c.addEventListener('change', () => { c.checked ? chosen.add(c.dataset.k) : chosen.delete(c.dataset.k); recompute(); }));
-}
-
-/* ---- budget -------------------------------------------------------- */
-function recompute(){
-  if(!currentApp) return;
-  const per=designSize();
-  const targets=chosen.size;
-  const reps=Math.max(1,+document.getElementById('reps').value||1);
-  const timeout=Math.max(1,+document.getElementById('timeout').value||1);
-  const total=per*targets*reps;
-  const nodeHours=total*(timeout/60);
-
-  const el=document.getElementById('totalRuns');
-  el.textContent=total.toLocaleString();
-  el.className='big'+(nodeHours>5000?' bad':nodeHours>800?' warn':'');
-  document.getElementById('runsLabel').textContent=total===1?'run':'runs';
-
-  const swept=currentApp.appArgs.filter(a=>sweptValues(a).length>1);
-  document.getElementById('formula').innerHTML=swept.length
-    ? swept.map(a=>`<b>${sweptValues(a).length}</b> ${esc(a.name)}`).join(' &times; ')
-      +`<br>&times; <b>${targets}</b> hw &times; <b>${reps}</b> reps`
-    : 'Nothing swept &mdash; every parameter is fixed.';
-  document.getElementById('perTarget').textContent=per.toLocaleString();
-  document.getElementById('nTargets').textContent=targets;
-  document.getElementById('nReps').textContent=reps;
-  document.getElementById('nodeHours').textContent=Math.round(nodeHours).toLocaleString();
-
-  let alarm='';
-  if(!targets) alarm='No hardware selected.';
-  else if(nodeHours>5000) alarm=Math.round(nodeHours).toLocaleString()
-    +' node-hours is beyond a normal allocation. Shorten a list before submitting.';
-  else if(per>500) alarm='A full sweep of '+per.toLocaleString()
-    +' per target is large. Screen on one machine first.';
-  document.getElementById('alarm').innerHTML=alarm?`<div class="alarm">${alarm}</div>`:'';
-  const ready = !!currentApp.command;
-  if (!ready) alarm = alarm || 'This app has no HARP command yet. Register it with the HARP app notebook to profile it.';
-  document.getElementById('alarm').innerHTML=alarm?`<div class="alarm">${alarm}</div>`:'';
-  document.getElementById('genBtn').disabled=!targets||total===0||!ready;
-}
-
-/* ---- launch: the HARP server builds the jobs and submits them to TAPIS */
-function sweepSpec(){
-  const v = id => document.getElementById(id).value.trim();
-  const reps = Math.max(1, +v('reps') || 1), timeoutMin = Math.max(1, +v('timeout') || 20);
-  const cores = Math.max(1, +v('cores') || 1);
-  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
-  const slug = currentApp.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'app';
-  const parameters = {};
-  for (const a of currentApp.appArgs) {
-    const vals = sweptValues(a);
-    if (!vals.length) throw new Error(`Give "${a.name}" a value.`);
-    parameters[a.name] = vals.map(x => a.kind === 'int' || a.kind === 'float' ? Number(x) : x);
-    if (parameters[a.name].some(x => typeof x === 'number' && Number.isNaN(x))) throw new Error(`"${a.name}" needs numbers.`);
-  }
-  if (!v('store')) throw new Error('Choose a folder to save the results in.');
-  return {
-    name: `${slug}-${stamp}`, application: slug,
-    command: currentApp.command, workdir: currentApp.workdir,
-    repetitions: reps, run_timeout_sec: timeoutMin * 60, combos_per_job: 1,
-    distribution: 'replicate',            // every combination on every chosen machine
-    run_sets: [{run_type: v('runType'), parameters}],
-    targets: TARGETS.filter(t => chosen.has(t.key)).map(t => ({
-      system_id: t.system_id, queue: t.queue, app_id: currentApp.id, app_version: currentApp.version,
-      scheduler_options: v('alloc') || null, container_args: t.gpu ? '--nv' : null,
-      node_count: 1, cores_per_node: t.max_cores ? Math.min(cores, t.max_cores) : cores,
-      memory_mb: Math.max(4000, cores * 4000),
-      max_minutes: Math.min(timeoutMin * reps + 10, t.max_minutes > 0 ? t.max_minutes : Infinity),
-      max_concurrent_jobs: t.max_jobs > 0 ? Math.min(t.max_jobs, 10) : 4})),
-    storage: {system_id: v('storeSys'), path: v('store')}
-  };
-}
-async function launch(){
-  const btn = document.getElementById('genBtn'), msg = document.getElementById('launchMsg');
-  msg.className = 'launchmsg'; msg.textContent = '';
-  let spec;
-  try { spec = sweepSpec(); } catch (e) { msg.textContent = e.message; return; }
-  btn.disabled = true; btn.textContent = 'Launching…';
-  try {
-    const c = await api('/api/campaigns', {method:'POST', body:spec});
-    try { localStorage.setItem('harp-launch', JSON.stringify({storeSys: spec.storage.system_id,
-          store: spec.storage.path, alloc: spec.targets[0].scheduler_options || ''})); } catch (e) {}
-    msg.className = 'launchmsg ok';
-    msg.textContent = `Launched ${c.jobs_total} TAPIS jobs. Opening Runs…`;
-    setTimeout(() => { location.href = 'runs.html#' + encodeURIComponent(c.id); }, 900);
-  } catch (e) {
-    msg.textContent = e.status === 401 ? 'Session expired. Log in again.' : e.message;
-    btn.disabled = false; btn.textContent = 'Launch sweep';
-  }
-}
-
-/* ---- wiring -------------------------------------------------------- */
-document.querySelectorAll('.tabx').forEach(b=>
-  b.addEventListener('click',()=>{
-    tab=b.dataset.t;
-    document.querySelectorAll('.tabx').forEach(x=>x.setAttribute('aria-selected',x===b));
-    currentApp=null;
-    document.getElementById('emptyPanel').style.display='block';
-    document.getElementById('designPanel').style.display='none';
-    document.getElementById('jobPanel').style.display='none';
-    document.getElementById('budget').style.display='none';
-    renderList();
-  }));
-['reps','timeout'].forEach(id=>
-  document.getElementById(id).addEventListener('input',recompute));
-document.getElementById('genBtn').addEventListener('click',launch);
-['cores','alloc','store'].forEach(id=>
-  document.getElementById(id).addEventListener('input',()=>{document.getElementById('launchMsg').textContent='';}));
-
-/* ---- TAPIS login (the HARP server holds the token) ------------------ */
+/* ---- TAPIS login (the HARP server holds the token) ---- */
 function showLogin(msg){
-  document.getElementById('loginPanel').hidden=false;
-  document.getElementById('appView').hidden=true;
-  document.getElementById('who').hidden=true;
-  document.getElementById('loginErr').textContent=msg||'';
+  $('loginPanel').hidden = false; $('appView').hidden = true; $('who').hidden = true;
+  $('loginErr').textContent = msg || '';
 }
 async function showApps(me){
-  document.getElementById('loginPanel').hidden=true;
-  document.getElementById('appView').hidden=false;
-  document.getElementById('who').hidden=false;
-  document.getElementById('whoName').textContent=
-    me.username+' @ '+me.base_url.replace('https://','');
-  document.getElementById('applist').innerHTML='<div class="empty" style="border:none">Loading apps&hellip;</div>';
-  try{ await Promise.all([loadApps(), loadTargets()]); }
-  catch(e){
-    if(e.status===401) return showLogin('Session expired. Log in again.');
-    document.getElementById('applist').innerHTML=
-      `<div class="empty" style="border:none">Could not load apps: ${esc(e.message)}</div>`;
-    return;
-  }
-  // open on the tab that has something in it
-  const want=APPS.some(a=>a.profiled)?'profiled':'unprofiled';
-  if(tab!==want) document.querySelector(`.tabx[data-t="${want}"]`).click();
-  renderTabs(); renderList();
+  $('loginPanel').hidden = true; $('appView').hidden = false; $('who').hidden = false;
+  $('whoName').textContent = me.username + ' @ ' + me.base_url.replace('https://', '');
+  $('applist').innerHTML = '<div class="empty" style="border:none">Loading apps and systems&hellip;</div>';
+  try { await Promise.all([loadApps(), loadSystems()]); }
+  catch (e) { if (e.status === 401) return showLogin('Session expired. Log in again.');
+              $('applist').innerHTML = `<div class="empty" style="border:none">Could not load: ${esc(e.message)}</div>`; return; }
+  renderTabs(); renderList(); go(1);
 }
-document.getElementById('loginForm').addEventListener('submit',async ev=>{
+$('loginForm').addEventListener('submit', async ev => {
   ev.preventDefault();
-  const f=new FormData(ev.target), btn=ev.target.querySelector('button');
-  btn.disabled=true; document.getElementById('loginErr').textContent='';
-  try{
-    const me=await api('/api/login',{method:'POST',body:{
-      base_url:f.get('base_url').trim().replace(/\/+$/,''),
-      username:f.get('username').trim(), password:f.get('password')}});
-    showApps(me);
-  }catch(e){ document.getElementById('loginErr').textContent=e.message; }
-  finally{ btn.disabled=false; ev.target.password.value=''; }
+  const f = new FormData(ev.target), btn = ev.target.querySelector('button');
+  btn.disabled = true; $('loginErr').textContent = '';
+  try { showApps(await api('/api/login', {method:'POST', body:{
+          base_url: f.get('base_url').trim().replace(/\/+$/, ''), username: f.get('username').trim(), password: f.get('password')}})); }
+  catch (e) { $('loginErr').textContent = e.message; }
+  finally { btn.disabled = false; ev.target.password.value = ''; }
 });
-document.getElementById('logoutBtn').addEventListener('click',async()=>{
-  await api('/api/logout',{method:'POST'}).catch(()=>{});
-  APPS=[]; currentApp=null; showLogin();
+$('logoutBtn').addEventListener('click', async () => {
+  await api('/api/logout', {method:'POST'}).catch(() => {});
+  APPS = []; app = null; showLogin();
 });
-
-(async function init(){
-  try{ showApps(await api('/api/me')); }
-  catch(e){ showLogin(); }
-})();
-
+(async () => { try { showApps(await api('/api/me')); } catch (e) { showLogin(); } })();
 </script>
 </body>
 </html>

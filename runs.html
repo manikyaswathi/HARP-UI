@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Runs &mdash; iScheduler</title>
+<title>Profiling jobs &mdash; iScheduler</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -425,8 +425,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <div class="nav-links">
     <a href="index.html">Overview</a>
     <a href="profiling.html">Profiling</a>
-    <a href="runs.html" aria-current="page">Runs</a>
-    <a href="profile-data.html">Profile data</a>
+    <a href="runs.html" aria-current="page">Profiling jobs</a>
+    <a href="profile-data.html">Profiled apps</a>
   </div>
   <div class="who" id="who" hidden>
     <span class="mono" id="whoName"></span>
@@ -519,12 +519,17 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .sweephead{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:14px}
 .sweephead h2{font-size:22px;color:var(--navy);margin:0}
 .sweephead .spacer{flex:1}
+.fsel{width:auto;min-width:150px;font-size:13px;padding:7px 10px}
+.sortb{font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;background:none;border:none;padding:0;cursor:pointer}
+.sortb:hover{color:var(--navy)}
+#jobsTable td .err{color:#A23A3A;font-size:11.5px;white-space:normal;max-width:240px;margin-top:3px}
+#jobsTable .swlink{color:var(--navy);border-bottom:1px solid var(--line)}
 </style>
 
 <header class="page-head"><div class="wrap-p">
   <div class="eyebrow">HARP &middot; Generate</div>
-  <h1>Runs</h1>
-  <p>Live status of each profiling sweep. Every job is one TAPIS job on one machine.</p>
+  <h1>Profiling jobs</h1>
+  <p>Every TAPIS job your profiling sweeps submitted, for all apps. Each job runs one sweep combination on one machine.</p>
 </div></header>
 
 <section><div class="wrap-p">
@@ -543,7 +548,33 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     </form>
   </div>
 
-  <div class="rgrid" id="appView" hidden>
+  <div id="appView" hidden>
+  <div class="tabbar">
+    <button class="tabx vtab" data-v="all" aria-selected="true">All jobs</button>
+    <button class="tabx vtab" data-v="sweep" aria-selected="false">By sweep</button>
+  </div>
+
+  <div id="allView">
+    <div class="metrics4">
+      <div class="mt"><div class="v" id="aTotal">0</div><div class="l">TAPIS jobs</div></div>
+      <div class="mt"><div class="v" id="aActive">0</div><div class="l">Running or queued</div></div>
+      <div class="mt"><div class="v" id="aDone">0</div><div class="l">Finished</div></div>
+      <div class="mt"><div class="v" id="aFail">0</div><div class="l">Failed</div></div>
+    </div>
+    <div class="card2">
+      <div class="chipbar">
+        <select id="fApp" class="fsel" aria-label="Filter by app"><option value="">All apps</option></select>
+        <select id="fStatus" class="fsel" aria-label="Filter by status">
+          <option value="">Any status</option><option value="active">Running or queued</option>
+          <option value="waiting">Waiting to submit</option><option value="finished">Finished</option><option value="failed">Failed</option></select>
+        <select id="fSystem" class="fsel" aria-label="Filter by system"><option value="">All systems</option></select>
+        <span class="spacer"></span><span class="updated" id="jCount"></span>
+      </div>
+      <div class="scroll" style="max-height:640px"><table class="dt" id="jobsTable"></table></div>
+    </div>
+  </div>
+
+  <div class="rgrid" id="sweepView" hidden>
     <div class="card2">
       <h3>Sweeps</h3>
       <p class="sub">Running first.</p>
@@ -584,6 +615,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
         </div>
       </div>
     </div>
+  </div>
   </div>
 </div></section>
 
@@ -718,9 +750,79 @@ $('resubBtn').addEventListener('click', async () => {
   catch (e) { $('actErr').textContent = 'Could not resubmit: ' + e.message; }
 });
 
+/* ---- All jobs: every TAPIS job of every app, sortable and filterable ---- */
+let JOBS = [], sortKey = 'submitted_at', sortDir = -1, jobsTimer = null, view = 'all';
+const FILTERS = {app:'', status:'', system:''};
+const STATUS_GROUP = s => isDone(s) ? 'finished' : isFail(s) ? 'failed' : s === 'NOT_SUBMITTED' ? 'waiting' : 'active';
+const dur = j => j.submitted_at && j.ended_at ? (new Date(j.ended_at) - new Date(j.submitted_at)) / 1000
+               : j.submitted_at && !isDone(j.status) && !isFail(j.status) ? (Date.now() - new Date(j.submitted_at)) / 1000 : null;
+const fmtDur = s => s == null ? '–' : s < 90 ? Math.round(s) + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1) + ' h';
+const COLS = [
+  ['app', 'App'], ['sweep', 'Sweep'], ['name', 'TAPIS job'], ['where', 'System / queue'], ['run_type', 'Type'],
+  ['status', 'Status'], ['submitted_at', 'Submitted'], ['duration', 'Duration'], ['uuid', 'TAPIS UUID']];
+function jobVal(j, k){
+  if (k === 'app') return APPNAMES[j.app_id] || j.app_id || '';
+  if (k === 'where') return j.system_id + (j.queue ? ' / ' + j.queue : '');
+  if (k === 'duration') return dur(j) ?? -1;
+  if (k === 'status') return ['active', 'waiting', 'failed', 'finished'].indexOf(STATUS_GROUP(j.status)) + ':' + j.status;
+  return j[k] ?? '';
+}
+async function loadJobs(){
+  JOBS = await api('/api/jobs');
+  const opts = (key, label) => [...new Set(JOBS.map(key))].filter(Boolean).sort()
+    .map(v => `<option value="${esc(v)}">${esc(label(v))}</option>`).join('');
+  const keep = id => $(id).value;
+  const a = keep('fApp'), st = keep('fStatus'), sy = keep('fSystem');
+  $('fApp').innerHTML = '<option value="">All apps</option>' + opts(j => j.app_id, v => APPNAMES[v] || v);
+  $('fSystem').innerHTML = '<option value="">All systems</option>' + opts(j => j.system_id, v => v);
+  $('fApp').value = a; $('fStatus').value = st; $('fSystem').value = sy;
+  renderJobs();
+  clearTimeout(jobsTimer);
+  if (view === 'all' && JOBS.some(j => STATUS_GROUP(j.status) === 'active' || STATUS_GROUP(j.status) === 'waiting'))
+    jobsTimer = setTimeout(() => loadJobs().catch(() => {}), 10000);
+}
+function renderJobs(){
+  const rows = JOBS.filter(j => (!FILTERS.app || j.app_id === FILTERS.app) && (!FILTERS.system || j.system_id === FILTERS.system)
+                             && (!FILTERS.status || STATUS_GROUP(j.status) === FILTERS.status));
+  rows.sort((x, y) => { const a = jobVal(x, sortKey), b = jobVal(y, sortKey);
+    return (a < b ? -1 : a > b ? 1 : 0) * sortDir; });
+  const g = {}; for (const j of JOBS) g[STATUS_GROUP(j.status)] = (g[STATUS_GROUP(j.status)] || 0) + 1;
+  $('aTotal').textContent = JOBS.length; $('aActive').textContent = g.active || 0;
+  $('aDone').textContent = g.finished || 0; $('aFail').textContent = g.failed || 0;
+  $('jobsTable').innerHTML = `<tr>${COLS.map(([k, l]) => `<th><button class="sortb" data-k="${k}" aria-sort="${sortKey === k ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'}">${l}${sortKey === k ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>` +
+    (rows.length ? rows.map(j => `<tr>
+      <td>${esc(APPNAMES[j.app_id] || j.app_id || '')}</td>
+      <td><a class="swlink" href="#${esc(j.sweep_id)}" data-id="${esc(j.sweep_id)}">${esc(j.sweep)}</a></td>
+      <td class="mono">${esc(j.name)}</td>
+      <td>${esc(j.system_id)}${j.queue ? `<span class="am"> / ${esc(j.queue)}</span>` : ''}</td>
+      <td>${esc(j.run_type)}</td>
+      <td>${pill(JOB, j.status)}${j.error ? `<div class="err">${esc(j.error)}</div>` : ''}</td>
+      <td class="updated">${esc(ago(j.submitted_at))}</td>
+      <td class="num">${fmtDur(dur(j))}</td>
+      <td class="uuid">${esc(j.uuid || '–')}</td></tr>`).join('')
+    : `<tr><td colspan="${COLS.length}" class="updated">${JOBS.length ? 'No jobs match these filters.' : 'No profiling jobs yet. Start a sweep on the Profiling page.'}</td></tr>`);
+  $('jobsTable').querySelectorAll('.sortb').forEach(b => b.addEventListener('click', () => {
+    if (sortKey === b.dataset.k) sortDir = -sortDir; else { sortKey = b.dataset.k; sortDir = b.dataset.k === 'submitted_at' || b.dataset.k === 'duration' ? -1 : 1; }
+    renderJobs(); }));
+  $('jobsTable').querySelectorAll('.swlink').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); openSweep(a.dataset.id); }));
+  $('jCount').textContent = `${rows.length} of ${JOBS.length} jobs`;
+}
+[['fApp', 'app'], ['fStatus', 'status'], ['fSystem', 'system']].forEach(([id, k]) =>
+  $(id).addEventListener('change', () => { FILTERS[k] = $(id).value; renderJobs(); }));
+function setView(v){
+  view = v;
+  document.querySelectorAll('.vtab').forEach(b => b.setAttribute('aria-selected', b.dataset.v === v));
+  $('allView').hidden = v !== 'all'; $('sweepView').hidden = v !== 'sweep';
+  if (v === 'all') { clearTimeout(timer); loadJobs().catch(() => {}); try { history.replaceState(null, '', location.pathname); } catch (e) {} }
+  else clearTimeout(jobsTimer);
+}
+document.querySelectorAll('.vtab').forEach(b => b.addEventListener('click', () => {
+  setView(b.dataset.v); if (b.dataset.v === 'sweep' && !current && SWEEPS[0]) select(SWEEPS[0].id); }));
+function openSweep(id){ setView('sweep'); select(id); }
+
 /* ---- TAPIS login (the HARP server holds the token) ---- */
 function showLogin(msg){
-  clearTimeout(timer);
+  clearTimeout(timer); clearTimeout(jobsTimer);
   $('loginPanel').hidden = false; $('appView').hidden = true; $('who').hidden = true;
   $('loginErr').textContent = msg || '';
 }
@@ -732,8 +834,8 @@ async function showApps(me){
   catch (e) { if (e.status === 401) return showLogin('Session expired. Log in again.');
               $('swlist').innerHTML = `<div class="empty" style="border:none">Could not load: ${esc(e.message)}</div>`; return; }
   const want = location.hash.slice(1);
-  const pick = SWEEPS.find(s => s.id === want) || SWEEPS[0];
-  if (pick) select(pick.id);
+  const pick = SWEEPS.find(s => s.id === want);
+  if (pick) openSweep(pick.id); else setView('all');
 }
 $('loginForm').addEventListener('submit', async ev => {
   ev.preventDefault();

@@ -28,8 +28,13 @@ class FakeGateway:
 
     def get_system(self, system_id):
         return {"id": system_id, "host": "h", "can_exec": system_id != "storage", "default_queue": "serial",
-                "queues": [{"name": "serial", "max_cores": 40, "max_memory_mb": 1, "max_minutes": 60, "max_jobs_per_user": 2}],
+                "description": "", "system_type": "LINUX", "batch_scheduler": "SLURM", "runtimes": ["SINGULARITY"],
+                "queues": [{"name": "serial", "hpc_queue": "serial", "default": True, "max_cores": 40,
+                            "max_memory_mb": 1, "max_minutes": 60, "max_jobs_per_user": 2}],
                 "job_working_dir": "HOST_EVAL($SCRATCH)", "root_dir": "/"}
+
+    def exec_systems(self):
+        return [self.get_system(s["id"]) for s in self.list_systems() if s["can_exec"]]
 
     def list_apps(self):
         return [{"id": "harp-sweep-euler", "version": "1.0.0", "image": "docker://x", "runtime": "SINGULARITY",

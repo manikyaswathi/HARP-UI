@@ -146,6 +146,10 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
     def systems(gw: TapisGateway = Depends(gateway)):
         return tapis(gw.list_systems)
 
+    @app.get("/api/tapis/exec-systems")
+    def exec_systems(gw: TapisGateway = Depends(gateway)):
+        return tapis(gw.exec_systems)
+
     @app.get("/api/tapis/systems/{system_id}")
     def system(system_id: str, gw: TapisGateway = Depends(gateway)):
         return tapis(gw.get_system, system_id)
@@ -185,6 +189,53 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
         return {"summary": summary,
                 "jobs": [{"name": j["name"], "system_id": j["system_id"], "run_type": j["run_type"],
                           "combinations": [c["parameters"] for c in j["combinations"]]} for j in jobs]}
+
+    @app.post("/api/campaigns/batch/preview")
+    def preview_batch(specs: list = Body(...), gw: TapisGateway = Depends(gateway)):
+        """Check several sweeps at once; each comes back with its summary or its error."""
+        out = []
+        for spec in specs:
+            try:
+                _, jobs, summary = manager.preview(spec)
+                out.append({"name": spec.get("name"), "ok": True, "summary": summary})
+            except (SpecError, ValueError) as e:
+                out.append({"name": spec.get("name"), "ok": False, "error": str(e)})
+        return out
+
+    @app.post("/api/campaigns/batch")
+    def create_batch(specs: list = Body(...), gw: TapisGateway = Depends(gateway)):
+        """Launch several sweeps. Nothing is submitted unless every sweep is valid."""
+        if not specs:
+            raise HTTPException(400, "no sweeps to submit")
+        for spec in specs:
+            try:
+                manager.preview(spec)
+            except (SpecError, ValueError) as e:
+                raise HTTPException(400, f"sweep {spec.get('name')!r}: {e}")
+        created = []
+        for spec in specs:
+            try:
+                created.append(campaign_view(manager.create(spec, gw), include_jobs=False))
+            except TapisError as e:
+                raise HTTPException(502, f"TAPIS refused sweep {spec.get('name')!r} after "
+                                         f"{len(created)} were submitted: {e}")
+        return created
+
+    @app.get("/api/jobs")
+    def all_jobs(gw: TapisGateway = Depends(gateway)):
+        """Every TAPIS job of every sweep, for the jobs table."""
+        rows = []
+        for c in manager.list(gw.username):
+            queue_of = {t["key"]: t.get("queue") for t in c["spec"]["targets"]}
+            app_of = {t["key"]: t["app_id"] for t in c["spec"]["targets"]}
+            for j in c["jobs"]:
+                rows.append({"name": j["name"], "sweep": c["spec"]["name"], "sweep_id": c["id"],
+                             "app_id": app_of.get(j["target"]), "system_id": j["system_id"],
+                             "queue": queue_of.get(j["target"]), "run_type": j["run_type"],
+                             "combinations": len(j["combinations"]), "status": j["status"],
+                             "uuid": j["uuid"], "error": j["error"],
+                             "submitted_at": j["submitted_at"], "ended_at": j["ended_at"]})
+        return rows
 
     @app.post("/api/campaigns")
     def create(spec: dict = Body(...), gw: TapisGateway = Depends(gateway)):

@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Profile data &mdash; iScheduler</title>
+<title>Profiled apps &mdash; iScheduler</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -425,8 +425,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <div class="nav-links">
     <a href="index.html">Overview</a>
     <a href="profiling.html">Profiling</a>
-    <a href="runs.html">Runs</a>
-    <a href="profile-data.html" aria-current="page">Profile data</a>
+    <a href="runs.html">Profiling jobs</a>
+    <a href="profile-data.html" aria-current="page">Profiled apps</a>
   </div>
   <div class="who" id="who" hidden>
     <span class="mono" id="whoName"></span>
@@ -482,14 +482,18 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 @media(max-width:900px){.rgrid{grid-template-columns:1fr}}
 .appitem .ar .st{display:inline-block;margin-top:5px}
 .swlink{color:var(--navy);border-bottom:1px solid var(--line)}
+.ptables{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.ptables h4{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--teal-700);margin:0 0 6px}
+.dt .sortb{font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;background:none;border:none;padding:0;cursor:pointer}
+.dt .sortb:hover{color:var(--navy)}
 .swlink:hover{border-bottom-color:var(--teal);color:var(--teal-700)}
 .rgrid .appitem .an,.rgrid .appitem .am{display:block}
 </style>
 
 <header class="page-head"><div class="wrap-p">
   <div class="eyebrow">HARP &middot; Generate</div>
-  <h1>Profile data</h1>
-  <p>Everything gathered for each app, ready for building its estimators.</p>
+  <h1>Profiled apps</h1>
+  <p>What profiling measured for each app: every execution, where it ran and how long it took.</p>
 </div></header>
 
 <section><div class="wrap-p">
@@ -516,35 +520,37 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     </div>
 
     <div id="detail">
-      <div class="empty" id="detailEmpty">Select an app to see its profile data.</div>
+      <div class="empty" id="detailEmpty">Select an app to see its executions.</div>
       <div id="detailBody" hidden>
         <div class="metrics4">
-          <div class="mt"><div class="v" id="mCamp">0</div><div class="l">Sweeps</div></div>
-          <div class="mt"><div class="v" id="mJobs">0</div><div class="l">Jobs completed</div></div>
-          <div class="mt"><div class="v" id="mRows">0</div><div class="l">Runs collected</div></div>
-          <div class="mt"><div class="v" id="mWall">&ndash;</div><div class="l">Median walltime</div></div>
+          <div class="mt"><div class="v" id="mExec">0</div><div class="l">Executions</div></div>
+          <div class="mt"><div class="v" id="mSys">0</div><div class="l">Systems</div></div>
+          <div class="mt"><div class="v" id="mParams">0</div><div class="l">Parameters varied</div></div>
+          <div class="mt"><div class="v" id="mWall">&ndash;</div><div class="l">Median time</div></div>
         </div>
 
         <div class="card2">
-          <div class="chipbar"><h3 style="margin:0">Sweeps</h3><span class="spacer"></span>
-            <span class="updated" id="updated"></span></div>
-          <div class="scroll"><table class="dt" id="campTable"></table></div>
-        </div>
-
-        <div class="card2">
-          <h3>Walltime by run type</h3>
+          <h3>Time by run type</h3>
           <p class="sub">Time per run. SD = scaled-down, FS = full-scale, test_data = held out.</p>
           <div class="scroll"><table class="dt" id="typeTable"></table></div>
         </div>
 
         <div class="card2">
-          <h3>Walltime by hardware</h3>
+          <h3>Time by system</h3>
           <p class="sub">Median time per run on each system.</p>
           <div class="scroll"><table class="dt" id="hwTable"></table></div>
         </div>
 
         <div class="card2">
-          <div class="chipbar"><h3 style="margin:0">Profiling data</h3><span class="spacer"></span>
+          <h3>Time by parameter</h3>
+          <p class="sub">Median time for each value of every parameter that was varied.</p>
+          <div class="ptables" id="paramTables"></div>
+        </div>
+
+        <div class="card2">
+          <div class="chipbar"><h3 style="margin:0">Executions</h3><span class="spacer"></span>
+            <span class="updated" id="updated"></span>
+            <button class="dlbtn" id="colsBtn" aria-pressed="false">Show all columns</button>
             <button class="dlbtn" id="dlBtn">Download CSV</button></div>
           <div class="chipbar" id="filters"></div>
           <div class="scroll" style="max-height:520px"><table class="dt" id="dataTable"></table></div>
@@ -636,29 +642,24 @@ async function refresh(){
 }
 
 function render(){
-  const P = profile, cs = P.campaigns;
+  const P = profile;
   const walls = P.rows.map(r => parseFloat(r.walltime)).filter(Number.isFinite);
-  const jd = cs.reduce((n,c) => n + (c.job_counts.FINISHED || 0), 0);
-  const jt = cs.reduce((n,c) => n + c.jobs_total, 0);
-  $('mCamp').textContent = cs.length;
-  $('mJobs').innerHTML = `${jd}<small> / ${jt}</small>`;
-  $('mRows').textContent = P.total_rows.toLocaleString();
+  const varied = P.columns.filter(c => /^run_/.test(c) && c !== 'run_config' && c !== 'run_type'
+    && new Set(P.rows.map(r => r[c])).size > 1);
+  $('mExec').textContent = P.total_rows.toLocaleString();
+  $('mSys').textContent = new Set(P.rows.map(r => r.system).filter(Boolean)).size;
+  $('mParams').textContent = varied.length;
   $('mWall').textContent = fmtS(median(walls));
 
-  // sweeps: progress per sweep
-  const perSweep = {};
-  for (const r of P.rows) perSweep[r.campaign] = (perSweep[r.campaign] || 0) + 1;
-  $('campTable').innerHTML = `<tr><th>Sweep</th><th>Status</th><th>Jobs</th><th class="num">Runs</th><th>Started</th></tr>` +
-    cs.map(c => {
-      const k = c.job_counts, f = k.FINISHED || 0, x = (k.FAILED||0) + (k.SUBMIT_FAILED||0) + (k.CANCELLED||0);
-      const r = c.jobs_total - f - x, pct = n => (100 * n / Math.max(1, c.jobs_total)).toFixed(1) + '%';
-      return `<tr><td><a href="runs.html#${esc(c.id)}" class="swlink"><b>${esc(c.name)}</b></a></td><td>${stPill(c.status)}</td>
-        <td><div class="prog" title="${f} finished, ${x} failed, ${r} queued or running">
-              <i class="f" style="width:${pct(f)}"></i><i class="x" style="width:${pct(x)}"></i><i class="r" style="width:${pct(r)}"></i></div>
-            <span class="updated">${f} ok${x ? ' · ' + x + ' failed' : ''}${r ? ' · ' + r + ' left' : ''}</span></td>
-        <td class="num">${(perSweep[c.name] || 0).toLocaleString()}</td>
-        <td class="updated">${esc(ago(c.created_at))}</td></tr>`;
-    }).join('');
+  // time by parameter value
+  const numSort = (a, b) => (isNaN(+a) || isNaN(+b)) ? String(a).localeCompare(String(b)) : +a - +b;
+  $('paramTables').innerHTML = varied.length ? varied.map(c => {
+    const g = {};
+    for (const r of P.rows) { const w = parseFloat(r.walltime); if (Number.isFinite(w)) (g[r[c]] ||= []).push(w); }
+    return `<div><h4>${esc(c.replace(/^run_/, ''))}</h4><div class="scroll"><table class="dt">
+      <tr><th>Value</th><th class="num">Runs</th><th class="num">Median</th></tr>
+      ${Object.keys(g).sort(numSort).map(v => `<tr><td><b>${esc(v)}</b></td><td class="num">${g[v].length}</td><td class="num">${fmtS(median(g[v]))}</td></tr>`).join('')}
+    </table></div></div>`; }).join('') : '<p class="updated">No parameter took more than one value yet.</p>';
 
   // walltime by run type
   const types = {};
@@ -693,25 +694,42 @@ function render(){
   $('missing').textContent = P.missing.length ? 'Could not read data for: ' + P.missing.map(m => m.campaign).join(', ') : '';
 }
 
+let allCols = false, dSort = null, dDir = 1;
 function renderData(){
   const P = profile;
-  const rows = P.rows.filter(r => filter === 'all' || r.run_type === filter);
-  const cols = P.columns;
+  let rows = P.rows.filter(r => filter === 'all' || r.run_type === filter);
+  const focus = ['system', 'run_type', ...P.columns.filter(c => /^run_/.test(c) && c !== 'run_config' && c !== 'run_type'),
+                 'sys_tot_cores_count', 'sys_gpu_name', 'walltime'].filter(c => P.columns.includes(c));
+  const cols = allCols ? P.columns : focus;
   const numeric = c => c === 'walltime' || /^sys_.*(count|mhz|bytes|mb)$/.test(c) || P.rows.slice(0, 50).every(r => r[c] === '' || r[c] == null || !isNaN(+r[c]));
-  const head = cols.map(c => `<th class="${numeric(c) ? 'num' : ''}">${esc(c === 'run_config' || c === 'run_type' ? c : c.replace(/^run_/, ''))}</th>`).join('');
+  const label = c => c === 'walltime' ? 'time (s)' : c === 'run_config' || c === 'run_type' ? c : c === 'sys_tot_cores_count' ? 'cores'
+                   : c === 'sys_gpu_name' ? 'gpu' : c.replace(/^run_/, '');
+  if (dSort && cols.includes(dSort)) {
+    const n = numeric(dSort);
+    rows = [...rows].sort((x, y) => { const a = x[dSort] ?? '', b = y[dSort] ?? '';
+      return (n ? (+a) - (+b) : String(a).localeCompare(String(b))) * dDir; });
+  }
+  const head = cols.map(c => `<th class="${numeric(c) ? 'num' : ''}"><button class="sortb" data-c="${esc(c)}">${esc(label(c))}${dSort === c ? (dDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('');
   const body = rows.slice(0, shown).map(r => '<tr>' + cols.map(c => {
     let v = r[c] ?? '';
     if (c === 'walltime' && v !== '') v = (+v).toFixed(3);
     if (/_bytes$/.test(c) && v !== '' && !isNaN(+v)) v = (+v / 2**30).toFixed(1) + ' GiB';
     return `<td class="${numeric(c) ? 'num' : ''}${c === 'walltime' ? ' wt' : ''}">${esc(v)}</td>`;
   }).join('') + '</tr>').join('');
-  $('dataTable').innerHTML = rows.length ? `<tr>${head}</tr>${body}` : '<tr><td class="updated">No runs collected yet.</td></tr>';
+  $('dataTable').innerHTML = rows.length ? `<tr>${head}</tr>${body}` : '<tr><td class="updated">No executions collected yet.</td></tr>';
+  $('dataTable').querySelectorAll('.sortb').forEach(b => b.addEventListener('click', () => {
+    if (dSort === b.dataset.c) dDir = -dDir; else { dSort = b.dataset.c; dDir = b.dataset.c === 'walltime' ? -1 : 1; }
+    renderData(); }));
   const capped = P.total_rows > P.rows.length ? ` (first ${P.rows.length.toLocaleString()} of ${P.total_rows.toLocaleString()}; download the CSV for all)` : '';
   $('more').innerHTML = rows.length > shown
-    ? `Showing ${shown.toLocaleString()} of ${rows.length.toLocaleString()} runs${capped} <button class="linkbtn" id="moreBtn">Show ${Math.min(PAGE, rows.length - shown)} more</button>`
-    : rows.length ? `${rows.length.toLocaleString()} runs${capped}` : '';
+    ? `Showing ${shown.toLocaleString()} of ${rows.length.toLocaleString()} executions${capped} <button class="linkbtn" id="moreBtn">Show ${Math.min(PAGE, rows.length - shown)} more</button>`
+    : rows.length ? `${rows.length.toLocaleString()} executions${capped}` : '';
   const mb = $('moreBtn'); if (mb) mb.addEventListener('click', () => { shown += PAGE; renderData(); });
 }
+$('colsBtn').addEventListener('click', () => {
+  allCols = !allCols; $('colsBtn').setAttribute('aria-pressed', allCols);
+  $('colsBtn').textContent = allCols ? 'Show key columns' : 'Show all columns'; renderData();
+});
 
 $('dlBtn').addEventListener('click', async () => {
   if (!current) return;

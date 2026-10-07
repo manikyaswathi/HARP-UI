@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Demo: Runs &mdash; iScheduler</title>
+<title>Demo: Profiling jobs &mdash; iScheduler</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -531,13 +531,19 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   ];
 
   // ---- TAPIS execution systems -------------------------------------------------
+  // As TAPIS describes them: system + batchLogicalQueues (LogicalQueue fields).
+  const Q = (name, hpc, o) => ({name, hpc_queue:hpc, description:'', default:false, max_jobs:-1, min_nodes:1,
+    min_cores:1, min_memory_mb:1, min_minutes:1, ...o});
   const SYSTEMS = [
-    {id:'pitzer', host:'pitzer.osc.edu', can_exec:true, queues:[
-      {name:'serial', max_cores:40, max_minutes:10080, max_jobs_per_user:4},
-      {name:'gpuserial', max_cores:48, max_minutes:4320, max_jobs_per_user:2}]},
-    {id:'cardinal', host:'cardinal.osc.edu', can_exec:true, queues:[
-      {name:'cpu', max_cores:96, max_minutes:10080, max_jobs_per_user:4},
-      {name:'gpu', max_cores:96, max_minutes:4320, max_jobs_per_user:2}]}];
+    {id:'pitzer', host:'pitzer.osc.edu', description:'Pitzer cluster, Ohio Supercomputer Center', system_type:'LINUX',
+     enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'serial',
+     queues:[Q('serial','serial',{default:true, max_nodes:1, max_cores:40, max_memory_mb:160000, max_minutes:10080, max_jobs_per_user:4}),
+             Q('parallel','parallel',{min_nodes:2, max_nodes:81, max_cores:40, max_memory_mb:160000, max_minutes:5760, max_jobs_per_user:2}),
+             Q('gpuserial-40core','gpuserial-40core',{description:'2x V100 per node', max_nodes:1, max_cores:40, max_memory_mb:160000, max_minutes:5760, max_jobs_per_user:2})]},
+    {id:'cardinal', host:'cardinal.osc.edu', description:'Cardinal cluster, Ohio Supercomputer Center', system_type:'LINUX',
+     enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'cpu',
+     queues:[Q('cpu','cpu',{default:true, max_nodes:1, max_cores:96, max_memory_mb:515000, max_minutes:10080, max_jobs_per_user:4}),
+             Q('gpu','gpu',{description:'4x H100 per node', max_nodes:1, max_cores:96, max_memory_mb:1030000, max_minutes:4320, max_jobs_per_user:2})]}];
   const HWOF = id => HW[id] || HW.pitzer;
 
   // A sweep launched from the page: jobs move through TAPIS states over ~a minute.
@@ -548,7 +554,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     let i = 0;
     for (const p of combos) for (const t of spec.targets) {
       jobs.push({name:`${name}-${spec.run_sets[0].run_type}-${String(i).padStart(4,'0')}`, system_id:t.system_id,
-        target:`${t.system_id}|${t.queue}`, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
+        target:`${t.system_id}|${t.queue}`, queue:t.queue, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
         uuid:null, error:null, submitted_at:null, ended_at:null});
       plan.push({p, t, at: 1500 + i * 1200, run: 6000 + i * 1500, end: 14000 + i * 2500}); i++;
     }
@@ -622,6 +628,29 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     if (path === '/api/tapis/apps') return later(json(200, APPS));
     SWEEPS.forEach(advance);
     if (path === '/api/tapis/systems') return later(json(200, SYSTEMS.map(({queues, ...x}) => x)));
+    if (path === '/api/tapis/exec-systems') return later(json(200, SYSTEMS));
+    const check = spec => {
+      if (!spec.command) return 'command is required';
+      if (!spec.targets || !spec.targets.length) return 'at least one target system (hardware) is required';
+      const ph = [...spec.command.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
+      const missing = ph.filter(x => !(x in spec.run_sets[0].parameters));
+      return missing.length ? `run_sets[0] has no values for command placeholders ${JSON.stringify(missing)}` : '';
+    };
+    if (path === '/api/campaigns/batch/preview') return later(json(200, (Array.isArray(body) ? body : []).map(sp => {
+      const err = check(sp); if (err) return {name:sp.name, ok:false, error:err};
+      const n = cartesian(sp.run_sets[0].parameters).length;
+      return {name:sp.name, ok:true, summary:{combinations:n, jobs:n * sp.targets.length, total_runs:n * sp.targets.length * sp.repetitions}}; })));
+    if (path === '/api/campaigns/batch') {
+      for (const sp of body) { const err = check(sp); if (err) return later(json(400, {detail:`sweep '${sp.name}': ${err}`})); }
+      const made = body.map((sp, i) => { const sw = launched(sp, Date.now() + i * 4000); SWEEPS.unshift(sw);
+        try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]'); saved.push({spec:sp, created:sw.live.created});
+              sessionStorage.setItem(LKEY, JSON.stringify(saved)); } catch (e) {}
+        return {...sw.view}; });
+      return later(json(200, made));
+    }
+    if (path === '/api/jobs') return later(json(200, SWEEPS.flatMap(sw => sw.jobs.map(j => ({...j,
+      sweep:sw.view.name, sweep_id:sw.view.id, app_id:sw.view.app_ids[0],
+      queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null})))));
     let sy = path.match(/^\/api\/tapis\/systems\/([^/]+)$/);
     if (sy) { const x = SYSTEMS.find(y => y.id === sy[1]); return later(x ? json(200, x) : json(404, {detail:'no such system'})); }
     if (path === '/api/campaigns' && (opts.method || 'GET') === 'POST') {
@@ -682,8 +711,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <div class="nav-links">
     <a href="index.html">Overview</a>
     <a href="profiling.html">Profiling</a>
-    <a href="runs.html" aria-current="page">Runs</a>
-    <a href="profile-data.html">Profile data</a>
+    <a href="runs.html" aria-current="page">Profiling jobs</a>
+    <a href="profile-data.html">Profiled apps</a>
   </div>
   <div class="who" id="who" hidden>
     <span class="mono" id="whoName"></span>
@@ -776,12 +805,17 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .sweephead{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:14px}
 .sweephead h2{font-size:22px;color:var(--navy);margin:0}
 .sweephead .spacer{flex:1}
+.fsel{width:auto;min-width:150px;font-size:13px;padding:7px 10px}
+.sortb{font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;background:none;border:none;padding:0;cursor:pointer}
+.sortb:hover{color:var(--navy)}
+#jobsTable td .err{color:#A23A3A;font-size:11.5px;white-space:normal;max-width:240px;margin-top:3px}
+#jobsTable .swlink{color:var(--navy);border-bottom:1px solid var(--line)}
 </style>
 
 <header class="page-head"><div class="wrap-p">
   <div class="eyebrow">HARP &middot; Generate</div>
-  <h1>Runs</h1>
-  <p>Live status of each profiling sweep. Every job is one TAPIS job on one machine.</p>
+  <h1>Profiling jobs</h1>
+  <p>Every TAPIS job your profiling sweeps submitted, for all apps. Each job runs one sweep combination on one machine.</p>
 </div></header>
 
 <section><div class="wrap-p">
@@ -800,7 +834,33 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     </form>
   </div>
 
-  <div class="rgrid" id="appView" hidden>
+  <div id="appView" hidden>
+  <div class="tabbar">
+    <button class="tabx vtab" data-v="all" aria-selected="true">All jobs</button>
+    <button class="tabx vtab" data-v="sweep" aria-selected="false">By sweep</button>
+  </div>
+
+  <div id="allView">
+    <div class="metrics4">
+      <div class="mt"><div class="v" id="aTotal">0</div><div class="l">TAPIS jobs</div></div>
+      <div class="mt"><div class="v" id="aActive">0</div><div class="l">Running or queued</div></div>
+      <div class="mt"><div class="v" id="aDone">0</div><div class="l">Finished</div></div>
+      <div class="mt"><div class="v" id="aFail">0</div><div class="l">Failed</div></div>
+    </div>
+    <div class="card2">
+      <div class="chipbar">
+        <select id="fApp" class="fsel" aria-label="Filter by app"><option value="">All apps</option></select>
+        <select id="fStatus" class="fsel" aria-label="Filter by status">
+          <option value="">Any status</option><option value="active">Running or queued</option>
+          <option value="waiting">Waiting to submit</option><option value="finished">Finished</option><option value="failed">Failed</option></select>
+        <select id="fSystem" class="fsel" aria-label="Filter by system"><option value="">All systems</option></select>
+        <span class="spacer"></span><span class="updated" id="jCount"></span>
+      </div>
+      <div class="scroll" style="max-height:640px"><table class="dt" id="jobsTable"></table></div>
+    </div>
+  </div>
+
+  <div class="rgrid" id="sweepView" hidden>
     <div class="card2">
       <h3>Sweeps</h3>
       <p class="sub">Running first.</p>
@@ -841,6 +901,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
         </div>
       </div>
     </div>
+  </div>
   </div>
 </div></section>
 
@@ -975,9 +1036,79 @@ $('resubBtn').addEventListener('click', async () => {
   catch (e) { $('actErr').textContent = 'Could not resubmit: ' + e.message; }
 });
 
+/* ---- All jobs: every TAPIS job of every app, sortable and filterable ---- */
+let JOBS = [], sortKey = 'submitted_at', sortDir = -1, jobsTimer = null, view = 'all';
+const FILTERS = {app:'', status:'', system:''};
+const STATUS_GROUP = s => isDone(s) ? 'finished' : isFail(s) ? 'failed' : s === 'NOT_SUBMITTED' ? 'waiting' : 'active';
+const dur = j => j.submitted_at && j.ended_at ? (new Date(j.ended_at) - new Date(j.submitted_at)) / 1000
+               : j.submitted_at && !isDone(j.status) && !isFail(j.status) ? (Date.now() - new Date(j.submitted_at)) / 1000 : null;
+const fmtDur = s => s == null ? '–' : s < 90 ? Math.round(s) + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1) + ' h';
+const COLS = [
+  ['app', 'App'], ['sweep', 'Sweep'], ['name', 'TAPIS job'], ['where', 'System / queue'], ['run_type', 'Type'],
+  ['status', 'Status'], ['submitted_at', 'Submitted'], ['duration', 'Duration'], ['uuid', 'TAPIS UUID']];
+function jobVal(j, k){
+  if (k === 'app') return APPNAMES[j.app_id] || j.app_id || '';
+  if (k === 'where') return j.system_id + (j.queue ? ' / ' + j.queue : '');
+  if (k === 'duration') return dur(j) ?? -1;
+  if (k === 'status') return ['active', 'waiting', 'failed', 'finished'].indexOf(STATUS_GROUP(j.status)) + ':' + j.status;
+  return j[k] ?? '';
+}
+async function loadJobs(){
+  JOBS = await api('/api/jobs');
+  const opts = (key, label) => [...new Set(JOBS.map(key))].filter(Boolean).sort()
+    .map(v => `<option value="${esc(v)}">${esc(label(v))}</option>`).join('');
+  const keep = id => $(id).value;
+  const a = keep('fApp'), st = keep('fStatus'), sy = keep('fSystem');
+  $('fApp').innerHTML = '<option value="">All apps</option>' + opts(j => j.app_id, v => APPNAMES[v] || v);
+  $('fSystem').innerHTML = '<option value="">All systems</option>' + opts(j => j.system_id, v => v);
+  $('fApp').value = a; $('fStatus').value = st; $('fSystem').value = sy;
+  renderJobs();
+  clearTimeout(jobsTimer);
+  if (view === 'all' && JOBS.some(j => STATUS_GROUP(j.status) === 'active' || STATUS_GROUP(j.status) === 'waiting'))
+    jobsTimer = setTimeout(() => loadJobs().catch(() => {}), 10000);
+}
+function renderJobs(){
+  const rows = JOBS.filter(j => (!FILTERS.app || j.app_id === FILTERS.app) && (!FILTERS.system || j.system_id === FILTERS.system)
+                             && (!FILTERS.status || STATUS_GROUP(j.status) === FILTERS.status));
+  rows.sort((x, y) => { const a = jobVal(x, sortKey), b = jobVal(y, sortKey);
+    return (a < b ? -1 : a > b ? 1 : 0) * sortDir; });
+  const g = {}; for (const j of JOBS) g[STATUS_GROUP(j.status)] = (g[STATUS_GROUP(j.status)] || 0) + 1;
+  $('aTotal').textContent = JOBS.length; $('aActive').textContent = g.active || 0;
+  $('aDone').textContent = g.finished || 0; $('aFail').textContent = g.failed || 0;
+  $('jobsTable').innerHTML = `<tr>${COLS.map(([k, l]) => `<th><button class="sortb" data-k="${k}" aria-sort="${sortKey === k ? (sortDir > 0 ? 'ascending' : 'descending') : 'none'}">${l}${sortKey === k ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>` +
+    (rows.length ? rows.map(j => `<tr>
+      <td>${esc(APPNAMES[j.app_id] || j.app_id || '')}</td>
+      <td><a class="swlink" href="#${esc(j.sweep_id)}" data-id="${esc(j.sweep_id)}">${esc(j.sweep)}</a></td>
+      <td class="mono">${esc(j.name)}</td>
+      <td>${esc(j.system_id)}${j.queue ? `<span class="am"> / ${esc(j.queue)}</span>` : ''}</td>
+      <td>${esc(j.run_type)}</td>
+      <td>${pill(JOB, j.status)}${j.error ? `<div class="err">${esc(j.error)}</div>` : ''}</td>
+      <td class="updated">${esc(ago(j.submitted_at))}</td>
+      <td class="num">${fmtDur(dur(j))}</td>
+      <td class="uuid">${esc(j.uuid || '–')}</td></tr>`).join('')
+    : `<tr><td colspan="${COLS.length}" class="updated">${JOBS.length ? 'No jobs match these filters.' : 'No profiling jobs yet. Start a sweep on the Profiling page.'}</td></tr>`);
+  $('jobsTable').querySelectorAll('.sortb').forEach(b => b.addEventListener('click', () => {
+    if (sortKey === b.dataset.k) sortDir = -sortDir; else { sortKey = b.dataset.k; sortDir = b.dataset.k === 'submitted_at' || b.dataset.k === 'duration' ? -1 : 1; }
+    renderJobs(); }));
+  $('jobsTable').querySelectorAll('.swlink').forEach(a => a.addEventListener('click', ev => { ev.preventDefault(); openSweep(a.dataset.id); }));
+  $('jCount').textContent = `${rows.length} of ${JOBS.length} jobs`;
+}
+[['fApp', 'app'], ['fStatus', 'status'], ['fSystem', 'system']].forEach(([id, k]) =>
+  $(id).addEventListener('change', () => { FILTERS[k] = $(id).value; renderJobs(); }));
+function setView(v){
+  view = v;
+  document.querySelectorAll('.vtab').forEach(b => b.setAttribute('aria-selected', b.dataset.v === v));
+  $('allView').hidden = v !== 'all'; $('sweepView').hidden = v !== 'sweep';
+  if (v === 'all') { clearTimeout(timer); loadJobs().catch(() => {}); try { history.replaceState(null, '', location.pathname); } catch (e) {} }
+  else clearTimeout(jobsTimer);
+}
+document.querySelectorAll('.vtab').forEach(b => b.addEventListener('click', () => {
+  setView(b.dataset.v); if (b.dataset.v === 'sweep' && !current && SWEEPS[0]) select(SWEEPS[0].id); }));
+function openSweep(id){ setView('sweep'); select(id); }
+
 /* ---- TAPIS login (the HARP server holds the token) ---- */
 function showLogin(msg){
-  clearTimeout(timer);
+  clearTimeout(timer); clearTimeout(jobsTimer);
   $('loginPanel').hidden = false; $('appView').hidden = true; $('who').hidden = true;
   $('loginErr').textContent = msg || '';
 }
@@ -989,8 +1120,8 @@ async function showApps(me){
   catch (e) { if (e.status === 401) return showLogin('Session expired. Log in again.');
               $('swlist').innerHTML = `<div class="empty" style="border:none">Could not load: ${esc(e.message)}</div>`; return; }
   const want = location.hash.slice(1);
-  const pick = SWEEPS.find(s => s.id === want) || SWEEPS[0];
-  if (pick) select(pick.id);
+  const pick = SWEEPS.find(s => s.id === want);
+  if (pick) openSweep(pick.id); else setView('all');
 }
 $('loginForm').addEventListener('submit', async ev => {
   ev.preventDefault();

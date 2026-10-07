@@ -73,6 +73,19 @@ which is the name the existing **build** phase looks for. Runs that fail go to
 
 ## Using the UI
 
+**iScheduler pages** (repository root, served by this server):
+
+| Page | URL | What it does |
+|---|---|---|
+| Profiling | `/profiling` | Five steps: pick a TAPIS app, configure one or more sweeps, choose TAPIS systems and queues for each sweep (queue limits come from the system's `batchLogicalQueues`), preview, then submit. Each sweep x queue becomes its own TAPIS jobs. |
+| Profiling jobs | `/runs` | Every TAPIS job of every app in one sortable, filterable table, plus a per-sweep view grouped by hardware with cancel and resubmit. |
+| Profiled apps | `/profile-data` | Per app: every execution with its parameters, system and time, and median time by run type, system and parameter value. CSV export. |
+
+API used by these pages: `/api/tapis/exec-systems` (systems with queues), `/api/campaigns/batch/preview`,
+`/api/campaigns/batch` (all-or-nothing submit), `/api/jobs`, `/api/apps/<id>/profile`.
+`DEMO/ui/` has offline copies with sample data.
+
+
 The iScheduler profiling page (`profiling.html` at the repo root) is served at `/profiling`. It logs in to
 TAPIS through this server and lists your TAPIS apps; an app's sweep parameters come from the `harp`
 block in its TAPIS `notes` (the app notebook writes it). The page below is the full sweep console at `/`.

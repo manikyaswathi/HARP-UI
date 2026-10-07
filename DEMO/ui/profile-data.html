@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Demo: Profile data &mdash; iScheduler</title>
+<title>Demo: Profiled apps &mdash; iScheduler</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -531,13 +531,19 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   ];
 
   // ---- TAPIS execution systems -------------------------------------------------
+  // As TAPIS describes them: system + batchLogicalQueues (LogicalQueue fields).
+  const Q = (name, hpc, o) => ({name, hpc_queue:hpc, description:'', default:false, max_jobs:-1, min_nodes:1,
+    min_cores:1, min_memory_mb:1, min_minutes:1, ...o});
   const SYSTEMS = [
-    {id:'pitzer', host:'pitzer.osc.edu', can_exec:true, queues:[
-      {name:'serial', max_cores:40, max_minutes:10080, max_jobs_per_user:4},
-      {name:'gpuserial', max_cores:48, max_minutes:4320, max_jobs_per_user:2}]},
-    {id:'cardinal', host:'cardinal.osc.edu', can_exec:true, queues:[
-      {name:'cpu', max_cores:96, max_minutes:10080, max_jobs_per_user:4},
-      {name:'gpu', max_cores:96, max_minutes:4320, max_jobs_per_user:2}]}];
+    {id:'pitzer', host:'pitzer.osc.edu', description:'Pitzer cluster, Ohio Supercomputer Center', system_type:'LINUX',
+     enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'serial',
+     queues:[Q('serial','serial',{default:true, max_nodes:1, max_cores:40, max_memory_mb:160000, max_minutes:10080, max_jobs_per_user:4}),
+             Q('parallel','parallel',{min_nodes:2, max_nodes:81, max_cores:40, max_memory_mb:160000, max_minutes:5760, max_jobs_per_user:2}),
+             Q('gpuserial-40core','gpuserial-40core',{description:'2x V100 per node', max_nodes:1, max_cores:40, max_memory_mb:160000, max_minutes:5760, max_jobs_per_user:2})]},
+    {id:'cardinal', host:'cardinal.osc.edu', description:'Cardinal cluster, Ohio Supercomputer Center', system_type:'LINUX',
+     enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'cpu',
+     queues:[Q('cpu','cpu',{default:true, max_nodes:1, max_cores:96, max_memory_mb:515000, max_minutes:10080, max_jobs_per_user:4}),
+             Q('gpu','gpu',{description:'4x H100 per node', max_nodes:1, max_cores:96, max_memory_mb:1030000, max_minutes:4320, max_jobs_per_user:2})]}];
   const HWOF = id => HW[id] || HW.pitzer;
 
   // A sweep launched from the page: jobs move through TAPIS states over ~a minute.
@@ -548,7 +554,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     let i = 0;
     for (const p of combos) for (const t of spec.targets) {
       jobs.push({name:`${name}-${spec.run_sets[0].run_type}-${String(i).padStart(4,'0')}`, system_id:t.system_id,
-        target:`${t.system_id}|${t.queue}`, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
+        target:`${t.system_id}|${t.queue}`, queue:t.queue, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
         uuid:null, error:null, submitted_at:null, ended_at:null});
       plan.push({p, t, at: 1500 + i * 1200, run: 6000 + i * 1500, end: 14000 + i * 2500}); i++;
     }
@@ -622,6 +628,29 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     if (path === '/api/tapis/apps') return later(json(200, APPS));
     SWEEPS.forEach(advance);
     if (path === '/api/tapis/systems') return later(json(200, SYSTEMS.map(({queues, ...x}) => x)));
+    if (path === '/api/tapis/exec-systems') return later(json(200, SYSTEMS));
+    const check = spec => {
+      if (!spec.command) return 'command is required';
+      if (!spec.targets || !spec.targets.length) return 'at least one target system (hardware) is required';
+      const ph = [...spec.command.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
+      const missing = ph.filter(x => !(x in spec.run_sets[0].parameters));
+      return missing.length ? `run_sets[0] has no values for command placeholders ${JSON.stringify(missing)}` : '';
+    };
+    if (path === '/api/campaigns/batch/preview') return later(json(200, (Array.isArray(body) ? body : []).map(sp => {
+      const err = check(sp); if (err) return {name:sp.name, ok:false, error:err};
+      const n = cartesian(sp.run_sets[0].parameters).length;
+      return {name:sp.name, ok:true, summary:{combinations:n, jobs:n * sp.targets.length, total_runs:n * sp.targets.length * sp.repetitions}}; })));
+    if (path === '/api/campaigns/batch') {
+      for (const sp of body) { const err = check(sp); if (err) return later(json(400, {detail:`sweep '${sp.name}': ${err}`})); }
+      const made = body.map((sp, i) => { const sw = launched(sp, Date.now() + i * 4000); SWEEPS.unshift(sw);
+        try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]'); saved.push({spec:sp, created:sw.live.created});
+              sessionStorage.setItem(LKEY, JSON.stringify(saved)); } catch (e) {}
+        return {...sw.view}; });
+      return later(json(200, made));
+    }
+    if (path === '/api/jobs') return later(json(200, SWEEPS.flatMap(sw => sw.jobs.map(j => ({...j,
+      sweep:sw.view.name, sweep_id:sw.view.id, app_id:sw.view.app_ids[0],
+      queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null})))));
     let sy = path.match(/^\/api\/tapis\/systems\/([^/]+)$/);
     if (sy) { const x = SYSTEMS.find(y => y.id === sy[1]); return later(x ? json(200, x) : json(404, {detail:'no such system'})); }
     if (path === '/api/campaigns' && (opts.method || 'GET') === 'POST') {
@@ -682,8 +711,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <div class="nav-links">
     <a href="index.html">Overview</a>
     <a href="profiling.html">Profiling</a>
-    <a href="runs.html">Runs</a>
-    <a href="profile-data.html" aria-current="page">Profile data</a>
+    <a href="runs.html">Profiling jobs</a>
+    <a href="profile-data.html" aria-current="page">Profiled apps</a>
   </div>
   <div class="who" id="who" hidden>
     <span class="mono" id="whoName"></span>
@@ -739,14 +768,18 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 @media(max-width:900px){.rgrid{grid-template-columns:1fr}}
 .appitem .ar .st{display:inline-block;margin-top:5px}
 .swlink{color:var(--navy);border-bottom:1px solid var(--line)}
+.ptables{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px}
+.ptables h4{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--teal-700);margin:0 0 6px}
+.dt .sortb{font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;background:none;border:none;padding:0;cursor:pointer}
+.dt .sortb:hover{color:var(--navy)}
 .swlink:hover{border-bottom-color:var(--teal);color:var(--teal-700)}
 .rgrid .appitem .an,.rgrid .appitem .am{display:block}
 </style>
 
 <header class="page-head"><div class="wrap-p">
   <div class="eyebrow">HARP &middot; Generate</div>
-  <h1>Profile data</h1>
-  <p>Everything gathered for each app, ready for building its estimators.</p>
+  <h1>Profiled apps</h1>
+  <p>What profiling measured for each app: every execution, where it ran and how long it took.</p>
 </div></header>
 
 <section><div class="wrap-p">
@@ -773,35 +806,37 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     </div>
 
     <div id="detail">
-      <div class="empty" id="detailEmpty">Select an app to see its profile data.</div>
+      <div class="empty" id="detailEmpty">Select an app to see its executions.</div>
       <div id="detailBody" hidden>
         <div class="metrics4">
-          <div class="mt"><div class="v" id="mCamp">0</div><div class="l">Sweeps</div></div>
-          <div class="mt"><div class="v" id="mJobs">0</div><div class="l">Jobs completed</div></div>
-          <div class="mt"><div class="v" id="mRows">0</div><div class="l">Runs collected</div></div>
-          <div class="mt"><div class="v" id="mWall">&ndash;</div><div class="l">Median walltime</div></div>
+          <div class="mt"><div class="v" id="mExec">0</div><div class="l">Executions</div></div>
+          <div class="mt"><div class="v" id="mSys">0</div><div class="l">Systems</div></div>
+          <div class="mt"><div class="v" id="mParams">0</div><div class="l">Parameters varied</div></div>
+          <div class="mt"><div class="v" id="mWall">&ndash;</div><div class="l">Median time</div></div>
         </div>
 
         <div class="card2">
-          <div class="chipbar"><h3 style="margin:0">Sweeps</h3><span class="spacer"></span>
-            <span class="updated" id="updated"></span></div>
-          <div class="scroll"><table class="dt" id="campTable"></table></div>
-        </div>
-
-        <div class="card2">
-          <h3>Walltime by run type</h3>
+          <h3>Time by run type</h3>
           <p class="sub">Time per run. SD = scaled-down, FS = full-scale, test_data = held out.</p>
           <div class="scroll"><table class="dt" id="typeTable"></table></div>
         </div>
 
         <div class="card2">
-          <h3>Walltime by hardware</h3>
+          <h3>Time by system</h3>
           <p class="sub">Median time per run on each system.</p>
           <div class="scroll"><table class="dt" id="hwTable"></table></div>
         </div>
 
         <div class="card2">
-          <div class="chipbar"><h3 style="margin:0">Profiling data</h3><span class="spacer"></span>
+          <h3>Time by parameter</h3>
+          <p class="sub">Median time for each value of every parameter that was varied.</p>
+          <div class="ptables" id="paramTables"></div>
+        </div>
+
+        <div class="card2">
+          <div class="chipbar"><h3 style="margin:0">Executions</h3><span class="spacer"></span>
+            <span class="updated" id="updated"></span>
+            <button class="dlbtn" id="colsBtn" aria-pressed="false">Show all columns</button>
             <button class="dlbtn" id="dlBtn">Download CSV</button></div>
           <div class="chipbar" id="filters"></div>
           <div class="scroll" style="max-height:520px"><table class="dt" id="dataTable"></table></div>
@@ -893,29 +928,24 @@ async function refresh(){
 }
 
 function render(){
-  const P = profile, cs = P.campaigns;
+  const P = profile;
   const walls = P.rows.map(r => parseFloat(r.walltime)).filter(Number.isFinite);
-  const jd = cs.reduce((n,c) => n + (c.job_counts.FINISHED || 0), 0);
-  const jt = cs.reduce((n,c) => n + c.jobs_total, 0);
-  $('mCamp').textContent = cs.length;
-  $('mJobs').innerHTML = `${jd}<small> / ${jt}</small>`;
-  $('mRows').textContent = P.total_rows.toLocaleString();
+  const varied = P.columns.filter(c => /^run_/.test(c) && c !== 'run_config' && c !== 'run_type'
+    && new Set(P.rows.map(r => r[c])).size > 1);
+  $('mExec').textContent = P.total_rows.toLocaleString();
+  $('mSys').textContent = new Set(P.rows.map(r => r.system).filter(Boolean)).size;
+  $('mParams').textContent = varied.length;
   $('mWall').textContent = fmtS(median(walls));
 
-  // sweeps: progress per sweep
-  const perSweep = {};
-  for (const r of P.rows) perSweep[r.campaign] = (perSweep[r.campaign] || 0) + 1;
-  $('campTable').innerHTML = `<tr><th>Sweep</th><th>Status</th><th>Jobs</th><th class="num">Runs</th><th>Started</th></tr>` +
-    cs.map(c => {
-      const k = c.job_counts, f = k.FINISHED || 0, x = (k.FAILED||0) + (k.SUBMIT_FAILED||0) + (k.CANCELLED||0);
-      const r = c.jobs_total - f - x, pct = n => (100 * n / Math.max(1, c.jobs_total)).toFixed(1) + '%';
-      return `<tr><td><a href="runs.html#${esc(c.id)}" class="swlink"><b>${esc(c.name)}</b></a></td><td>${stPill(c.status)}</td>
-        <td><div class="prog" title="${f} finished, ${x} failed, ${r} queued or running">
-              <i class="f" style="width:${pct(f)}"></i><i class="x" style="width:${pct(x)}"></i><i class="r" style="width:${pct(r)}"></i></div>
-            <span class="updated">${f} ok${x ? ' · ' + x + ' failed' : ''}${r ? ' · ' + r + ' left' : ''}</span></td>
-        <td class="num">${(perSweep[c.name] || 0).toLocaleString()}</td>
-        <td class="updated">${esc(ago(c.created_at))}</td></tr>`;
-    }).join('');
+  // time by parameter value
+  const numSort = (a, b) => (isNaN(+a) || isNaN(+b)) ? String(a).localeCompare(String(b)) : +a - +b;
+  $('paramTables').innerHTML = varied.length ? varied.map(c => {
+    const g = {};
+    for (const r of P.rows) { const w = parseFloat(r.walltime); if (Number.isFinite(w)) (g[r[c]] ||= []).push(w); }
+    return `<div><h4>${esc(c.replace(/^run_/, ''))}</h4><div class="scroll"><table class="dt">
+      <tr><th>Value</th><th class="num">Runs</th><th class="num">Median</th></tr>
+      ${Object.keys(g).sort(numSort).map(v => `<tr><td><b>${esc(v)}</b></td><td class="num">${g[v].length}</td><td class="num">${fmtS(median(g[v]))}</td></tr>`).join('')}
+    </table></div></div>`; }).join('') : '<p class="updated">No parameter took more than one value yet.</p>';
 
   // walltime by run type
   const types = {};
@@ -950,25 +980,42 @@ function render(){
   $('missing').textContent = P.missing.length ? 'Could not read data for: ' + P.missing.map(m => m.campaign).join(', ') : '';
 }
 
+let allCols = false, dSort = null, dDir = 1;
 function renderData(){
   const P = profile;
-  const rows = P.rows.filter(r => filter === 'all' || r.run_type === filter);
-  const cols = P.columns;
+  let rows = P.rows.filter(r => filter === 'all' || r.run_type === filter);
+  const focus = ['system', 'run_type', ...P.columns.filter(c => /^run_/.test(c) && c !== 'run_config' && c !== 'run_type'),
+                 'sys_tot_cores_count', 'sys_gpu_name', 'walltime'].filter(c => P.columns.includes(c));
+  const cols = allCols ? P.columns : focus;
   const numeric = c => c === 'walltime' || /^sys_.*(count|mhz|bytes|mb)$/.test(c) || P.rows.slice(0, 50).every(r => r[c] === '' || r[c] == null || !isNaN(+r[c]));
-  const head = cols.map(c => `<th class="${numeric(c) ? 'num' : ''}">${esc(c === 'run_config' || c === 'run_type' ? c : c.replace(/^run_/, ''))}</th>`).join('');
+  const label = c => c === 'walltime' ? 'time (s)' : c === 'run_config' || c === 'run_type' ? c : c === 'sys_tot_cores_count' ? 'cores'
+                   : c === 'sys_gpu_name' ? 'gpu' : c.replace(/^run_/, '');
+  if (dSort && cols.includes(dSort)) {
+    const n = numeric(dSort);
+    rows = [...rows].sort((x, y) => { const a = x[dSort] ?? '', b = y[dSort] ?? '';
+      return (n ? (+a) - (+b) : String(a).localeCompare(String(b))) * dDir; });
+  }
+  const head = cols.map(c => `<th class="${numeric(c) ? 'num' : ''}"><button class="sortb" data-c="${esc(c)}">${esc(label(c))}${dSort === c ? (dDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('');
   const body = rows.slice(0, shown).map(r => '<tr>' + cols.map(c => {
     let v = r[c] ?? '';
     if (c === 'walltime' && v !== '') v = (+v).toFixed(3);
     if (/_bytes$/.test(c) && v !== '' && !isNaN(+v)) v = (+v / 2**30).toFixed(1) + ' GiB';
     return `<td class="${numeric(c) ? 'num' : ''}${c === 'walltime' ? ' wt' : ''}">${esc(v)}</td>`;
   }).join('') + '</tr>').join('');
-  $('dataTable').innerHTML = rows.length ? `<tr>${head}</tr>${body}` : '<tr><td class="updated">No runs collected yet.</td></tr>';
+  $('dataTable').innerHTML = rows.length ? `<tr>${head}</tr>${body}` : '<tr><td class="updated">No executions collected yet.</td></tr>';
+  $('dataTable').querySelectorAll('.sortb').forEach(b => b.addEventListener('click', () => {
+    if (dSort === b.dataset.c) dDir = -dDir; else { dSort = b.dataset.c; dDir = b.dataset.c === 'walltime' ? -1 : 1; }
+    renderData(); }));
   const capped = P.total_rows > P.rows.length ? ` (first ${P.rows.length.toLocaleString()} of ${P.total_rows.toLocaleString()}; download the CSV for all)` : '';
   $('more').innerHTML = rows.length > shown
-    ? `Showing ${shown.toLocaleString()} of ${rows.length.toLocaleString()} runs${capped} <button class="linkbtn" id="moreBtn">Show ${Math.min(PAGE, rows.length - shown)} more</button>`
-    : rows.length ? `${rows.length.toLocaleString()} runs${capped}` : '';
+    ? `Showing ${shown.toLocaleString()} of ${rows.length.toLocaleString()} executions${capped} <button class="linkbtn" id="moreBtn">Show ${Math.min(PAGE, rows.length - shown)} more</button>`
+    : rows.length ? `${rows.length.toLocaleString()} executions${capped}` : '';
   const mb = $('moreBtn'); if (mb) mb.addEventListener('click', () => { shown += PAGE; renderData(); });
 }
+$('colsBtn').addEventListener('click', () => {
+  allCols = !allCols; $('colsBtn').setAttribute('aria-pressed', allCols);
+  $('colsBtn').textContent = allCols ? 'Show key columns' : 'Show all columns'; renderData();
+});
 
 $('dlBtn').addEventListener('click', async () => {
   if (!current) return;

@@ -104,13 +104,19 @@
   ];
 
   // ---- TAPIS execution systems -------------------------------------------------
+  // As TAPIS describes them: system + batchLogicalQueues (LogicalQueue fields).
+  const Q = (name, hpc, o) => ({name, hpc_queue:hpc, description:'', default:false, max_jobs:-1, min_nodes:1,
+    min_cores:1, min_memory_mb:1, min_minutes:1, ...o});
   const SYSTEMS = [
-    {id:'pitzer', host:'pitzer.osc.edu', can_exec:true, queues:[
-      {name:'serial', max_cores:40, max_minutes:10080, max_jobs_per_user:4},
-      {name:'gpuserial', max_cores:48, max_minutes:4320, max_jobs_per_user:2}]},
-    {id:'cardinal', host:'cardinal.osc.edu', can_exec:true, queues:[
-      {name:'cpu', max_cores:96, max_minutes:10080, max_jobs_per_user:4},
-      {name:'gpu', max_cores:96, max_minutes:4320, max_jobs_per_user:2}]}];
+    {id:'pitzer', host:'pitzer.osc.edu', description:'Pitzer cluster, Ohio Supercomputer Center', system_type:'LINUX',
+     enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'serial',
+     queues:[Q('serial','serial',{default:true, max_nodes:1, max_cores:40, max_memory_mb:160000, max_minutes:10080, max_jobs_per_user:4}),
+             Q('parallel','parallel',{min_nodes:2, max_nodes:81, max_cores:40, max_memory_mb:160000, max_minutes:5760, max_jobs_per_user:2}),
+             Q('gpuserial-40core','gpuserial-40core',{description:'2x V100 per node', max_nodes:1, max_cores:40, max_memory_mb:160000, max_minutes:5760, max_jobs_per_user:2})]},
+    {id:'cardinal', host:'cardinal.osc.edu', description:'Cardinal cluster, Ohio Supercomputer Center', system_type:'LINUX',
+     enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'cpu',
+     queues:[Q('cpu','cpu',{default:true, max_nodes:1, max_cores:96, max_memory_mb:515000, max_minutes:10080, max_jobs_per_user:4}),
+             Q('gpu','gpu',{description:'4x H100 per node', max_nodes:1, max_cores:96, max_memory_mb:1030000, max_minutes:4320, max_jobs_per_user:2})]}];
   const HWOF = id => HW[id] || HW.pitzer;
 
   // A sweep launched from the page: jobs move through TAPIS states over ~a minute.
@@ -121,7 +127,7 @@
     let i = 0;
     for (const p of combos) for (const t of spec.targets) {
       jobs.push({name:`${name}-${spec.run_sets[0].run_type}-${String(i).padStart(4,'0')}`, system_id:t.system_id,
-        target:`${t.system_id}|${t.queue}`, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
+        target:`${t.system_id}|${t.queue}`, queue:t.queue, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
         uuid:null, error:null, submitted_at:null, ended_at:null});
       plan.push({p, t, at: 1500 + i * 1200, run: 6000 + i * 1500, end: 14000 + i * 2500}); i++;
     }
@@ -195,6 +201,29 @@
     if (path === '/api/tapis/apps') return later(json(200, APPS));
     SWEEPS.forEach(advance);
     if (path === '/api/tapis/systems') return later(json(200, SYSTEMS.map(({queues, ...x}) => x)));
+    if (path === '/api/tapis/exec-systems') return later(json(200, SYSTEMS));
+    const check = spec => {
+      if (!spec.command) return 'command is required';
+      if (!spec.targets || !spec.targets.length) return 'at least one target system (hardware) is required';
+      const ph = [...spec.command.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
+      const missing = ph.filter(x => !(x in spec.run_sets[0].parameters));
+      return missing.length ? `run_sets[0] has no values for command placeholders ${JSON.stringify(missing)}` : '';
+    };
+    if (path === '/api/campaigns/batch/preview') return later(json(200, (Array.isArray(body) ? body : []).map(sp => {
+      const err = check(sp); if (err) return {name:sp.name, ok:false, error:err};
+      const n = cartesian(sp.run_sets[0].parameters).length;
+      return {name:sp.name, ok:true, summary:{combinations:n, jobs:n * sp.targets.length, total_runs:n * sp.targets.length * sp.repetitions}}; })));
+    if (path === '/api/campaigns/batch') {
+      for (const sp of body) { const err = check(sp); if (err) return later(json(400, {detail:`sweep '${sp.name}': ${err}`})); }
+      const made = body.map((sp, i) => { const sw = launched(sp, Date.now() + i * 4000); SWEEPS.unshift(sw);
+        try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]'); saved.push({spec:sp, created:sw.live.created});
+              sessionStorage.setItem(LKEY, JSON.stringify(saved)); } catch (e) {}
+        return {...sw.view}; });
+      return later(json(200, made));
+    }
+    if (path === '/api/jobs') return later(json(200, SWEEPS.flatMap(sw => sw.jobs.map(j => ({...j,
+      sweep:sw.view.name, sweep_id:sw.view.id, app_id:sw.view.app_ids[0],
+      queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null})))));
     let sy = path.match(/^\/api\/tapis\/systems\/([^/]+)$/);
     if (sy) { const x = SYSTEMS.find(y => y.id === sy[1]); return later(x ? json(200, x) : json(404, {detail:'no such system'})); }
     if (path === '/api/campaigns' && (opts.method || 'GET') === 'POST') {

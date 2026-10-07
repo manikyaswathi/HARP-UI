@@ -108,14 +108,36 @@ class TapisGateway:
                 for s in systems]
 
     def get_system(self, system_id):
+        """A system and its batch queues, as TAPIS defines them (LogicalQueue)."""
         s = self._call(self.client.systems.getSystem, systemId=system_id)
-        queues = [{"name": _get(q, "name"), "max_cores": _get(q, "maxCoresPerNode"),
-                   "max_memory_mb": _get(q, "maxMemoryMB"), "max_minutes": _get(q, "maxMinutes"),
-                   "max_jobs_per_user": _get(q, "maxJobsPerUser")}
+        default = _get(s, "batchDefaultLogicalQueue")
+        queues = [{"name": _get(q, "name"), "hpc_queue": _get(q, "hpcQueueName"),
+                   "description": _get(q, "description"), "default": _get(q, "name") == default,
+                   "max_jobs": _get(q, "maxJobs"), "max_jobs_per_user": _get(q, "maxJobsPerUser"),
+                   "min_nodes": _get(q, "minNodeCount"), "max_nodes": _get(q, "maxNodeCount"),
+                   "min_cores": _get(q, "minCoresPerNode"), "max_cores": _get(q, "maxCoresPerNode"),
+                   "min_memory_mb": _get(q, "minMemoryMB"), "max_memory_mb": _get(q, "maxMemoryMB"),
+                   "min_minutes": _get(q, "minMinutes"), "max_minutes": _get(q, "maxMinutes")}
                   for q in (_get(s, "batchLogicalQueues") or [])]
-        return {"id": _get(s, "id"), "host": _get(s, "host"), "can_exec": bool(_get(s, "canExec")),
-                "default_queue": _get(s, "batchDefaultLogicalQueue"), "queues": queues,
+        return {"id": _get(s, "id"), "host": _get(s, "host"), "description": _get(s, "description") or "",
+                "system_type": _get(s, "systemType"), "enabled": _get(s, "enabled", True) is not False,
+                "can_exec": bool(_get(s, "canExec")), "can_run_batch": bool(_get(s, "canRunBatch")),
+                "batch_scheduler": _get(s, "batchScheduler"),
+                "runtimes": [_get(r, "runtimeType") for r in (_get(s, "jobRuntimes") or [])],
+                "default_queue": default, "queues": queues,
                 "job_working_dir": _get(s, "jobWorkingDir"), "root_dir": _get(s, "rootDir")}
+
+    def exec_systems(self):
+        """Every system the user can run jobs on, each with its queues."""
+        out = []
+        for s in self.list_systems():
+            if not s["can_exec"]:
+                continue
+            try:
+                out.append(self.get_system(s["id"]))
+            except TapisError as e:
+                out.append({**s, "queues": [], "error": str(e)})
+        return out
 
     def list_apps(self):
         apps = self._call(self.client.apps.getApps, listType="ALL", limit=-1, select="allAttributes")
