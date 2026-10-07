@@ -89,8 +89,16 @@ Open `https://<server-hostname>:8443/`. The whole UI is one page, `profiling.htm
 |---|---|
 | 1 Configure | Pick a TAPIS app from the dropdown, set up a sweep (run type, repetitions, timeout, single or list values per parameter), tick TAPIS systems and queues and open each one to set its hardware configurations: cores per job, memory and max minutes, with the queue's TAPIS limits shown. Add several configurations to profile one queue with different hardware. Add the sweep to the plan; repeat for more sweeps or apps. The plan is kept in the browser until it is submitted. |
 | 2 Review & submit | The server checks every sweep against TAPIS and shows exactly what each job will ask for. Pick the results folder (any TAPIS system) and an allocation per system, confirm, submit. Nothing is submitted unless every sweep is valid. |
-| 3 Jobs | All sweeps with progress and cancel; every TAPIS job with its runs done (e.g. `2 / 5`), sortable and filterable. Refreshes while jobs run. |
-| 4 Profiled data | Pick an app from the dropdown: every execution with its parameters, hardware and time; median time by run type, hardware and parameter value; CSV export. **Build an estimator** runs the build phase from here (below). |
+| 3 Profiled data & models | Pick an app from the dropdown: every execution with its parameters, hardware and time; median time by run type, hardware and parameter value; CSV export. **Build an estimator** runs the build phase from here (below) and lists the trained models. |
+| 4 Jobs | All sweeps with progress and cancel; every TAPIS job, profiling and build, with its type, hardware and runs done (e.g. `2 / 5`), sortable and filterable. Refreshes while jobs run. |
+
+The **?** buttons explain the terms: SD (scaled-down), FS (full-scale) and test_data runs; sweeps and campaigns (one
+submitted sweep is one campaign: the server's record of its TAPIS jobs and its results folder); the models; the
+training sets; where a build runs; how models are scored.
+
+**Each user sees only their own work.** Sweeps, jobs, profiled data and builds belong to the TAPIS user *and*
+tenant that created them (`alice@icicle.tapis.io`); everything is read through that user's own TAPIS token, and the
+plan and allocations the page keeps in the browser are kept per user too.
 
 Log in with your TAPIS tenant (for example `https://icicle.tapis.io`) and your TAPIS username and password. The
 page sends them over HTTPS to this server, which gets a token with `tapipy`, drops the password straight away and
@@ -105,23 +113,30 @@ job ends it reads the archived `harp_job_summary.json` for the final count. The 
 
 ### Build an estimator (the build phase, from the Profiled data tab)
 
-1. **Pool sweeps.** Tick the app's sweeps to learn from. Training needs SD, FS and test_data runs (at least 2, 4
-   and 1), so one sweep of each run type, or sweeps that mix them.
-2. **Standardize.** The server reads those sweeps' profiling rows through TAPIS and writes them in the format the
-   pipeline reads (`run_config, run_type, sys_*, run_<param>, walltime`). It adds what each job was given
-   (`sys_alloc_cores`, `sys_alloc_mem_mb`) so the models can learn from the hardware configurations, turns
-   true/false into 1/0, and leaves out runs without a time and columns that are not filled in every run (the
-   pipeline cannot handle gaps). The page shows the run counts per type, what the models will learn from, and
-   what was left out; **Download training CSV** gives you the file.
-3. **Build.** The server runs the pipeline's own build modules on this machine (`pipeline/modules/pipeline.py`:
-   `data_preprocessor`, which removes outliers, scales and runs PCA, then `model_trainer`, which trains LR, NN and DTR
-   on SD, SD+25FS, SD+50FS and SD+75FS, with and without padding). The dataset, the PCA dataset, `model_commons.csv` and
-   every model (`.pkl`, `.h5`) are copied through TAPIS to `<folder>/builds/<app>_<timestamp>/`. The page shows
-   each model's average error and how often it predicts too low, best first.
+1. **Sweeps to learn from.** Tick the app's sweeps. Training needs SD, FS and test_data runs (at least 2, 4 and 1).
+   The card says whether there is enough; **Data checks** shows how the data was cleaned: the server writes the
+   sweeps' rows in the format the pipeline reads (`run_config, run_type, sys_*, run_<param>, walltime`), adds what each
+   job was given (`sys_alloc_cores`, `sys_alloc_mem_mb`), turns true/false into 1/0, and leaves out runs without a time
+   and columns not filled in every run. **Download training CSV** gives you the file.
+2. **Models to build.** Any of LR (linear regression), NN (neural network) and DTR (decision tree), trained on any of
+   SD only, SD+25FS, SD+50FS, SD+75FS. Each comes padded and unpadded.
+3. **Where.** Run the build as a **TAPIS job** of the HARP build app on a system/queue you pick (1 node, 4 cores,
+   up to 60 minutes, capped by the queue; your allocation from Review is used), or on **this computer**. Pick the
+   TAPIS folder for the models.
 
-The server runs the build with its own Python (`HARP_BUILD_PYTHON` to use another), which needs
-`requirements-build.txt` (pandas < 3, scikit-learn, TensorFlow); `scripts/run_local.sh` installs it. Builds run one
-at a time and are kept in `~/.harp_server/builds/`.
+Either way `job_runner/harp_build_runner.py` runs the pipeline's own build modules (`pipeline/modules/pipeline.py`:
+`data_preprocessor` = outliers, scaling, PCA; `model_trainer`), and the results land in
+`<folder>/builds/<app>_<timestamp>/`: the training CSV, `full_dataset_pca.csv`, `model_commons.csv` (every score),
+`models/<model>_<training set>_<padded yes/no>_<time>.pkl|.h5` and `harp_build_summary.json`. As a TAPIS job the
+server stages the training CSV as a file input (`<folder>/builds/.../input/`), TAPIS archives the job's output folder
+there, and the job shows in **Jobs** as a build job. **Trained models** lists each build with its best model and
+scores (average error and how often it predicts too low, on the test_data runs).
+
+**The build app.** `DockerFiles/Dockerfile_HARP_Build` (pipeline + runner, pandas < 3, scikit-learn, TensorFlow CPU)
+is built and pushed by the GitHub workflow as `ghcr.io/<owner>/harp-build:1.0.0`. Register it with
+`Notebooks/Create_HARP_Sweep_App_TAPIS.ipynb` and `APP = "build"`; its notes carry `role: "build"`, which is how the
+server finds it (it is not listed as an app to profile). For builds on this computer the server needs
+`requirements-build.txt`; `scripts/run_local.sh` installs it.
 
 ### API
 
@@ -137,7 +152,8 @@ at a time and are kept in `~/.harp_server/builds/`.
 | `GET /api/jobs` | Every TAPIS job, with hardware and runs done. |
 | `GET /api/apps/<id>/profile`, `GET /api/apps/<id>/profile.csv` | An app's profiled data, merged across its sweeps. |
 | `POST /api/apps/<id>/training-data`, `GET /api/apps/<id>/training-data.csv?sweeps=a,b` | Pool and standardize sweeps for the build phase. |
-| `POST /api/apps/<id>/builds`, `GET /api/builds?app_id=` | Build models from those sweeps; builds with their steps and scores. |
+| `GET /api/build-options` | The models and training sets HARP can build, and the TAPIS build app if registered. |
+| `POST /api/apps/<id>/builds`, `GET /api/builds?app_id=` | Build models from those sweeps (`models`, `training_sets`, `run_on`: a TAPIS system/queue or this computer); builds with their status and scores. |
 
 A plan looks like:
 

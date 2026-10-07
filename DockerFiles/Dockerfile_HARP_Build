@@ -1,0 +1,16 @@
+# HARP build job for TAPIS: trains the estimator models (the pipeline's build phase)
+# from a standardized profiling CSV that the HARP server stages as a TAPIS file input.
+#   docker build -f DockerFiles/Dockerfile_HARP_Build -t <hub>/harp-build:1.0.0 .
+# Run like TAPIS does:
+#   docker run --rm -v $PWD/in:/TapisInput -v $PWD/out:/TapisOutput <hub>/harp-build:1.0.0 <base64 spec>
+
+FROM python:3.11-slim
+
+# pandas < 3: the pipeline's preprocessor relies on in-place column replace
+RUN pip3 install --no-cache-dir "pandas>=2,<3" scikit-learn tensorflow-cpu h5py
+
+ADD pipeline /opt/harp/pipeline
+ADD job_runner/harp_build_runner.py /opt/harp/harp_build_runner.py
+ENV HARP_PIPELINE_HOME=/opt/harp/pipeline
+
+ENTRYPOINT ["python3", "/opt/harp/harp_build_runner.py"]

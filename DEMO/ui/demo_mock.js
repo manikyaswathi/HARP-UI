@@ -21,6 +21,8 @@
        {name:'imgsz',arg:'--imgsz',kind:'int',default:'640'},
        {name:'batch',arg:'--batch',kind:'int',default:'8'},
        {name:'device',arg:'--device',kind:'string',default:'auto'}])},
+    {id:'harp-build-swathi', version:'1.0.0', runtime:'SINGULARITY', image:'docker://ghcr.io/manikyaswathi/harp-build:1.0.0',
+     app_args:[], notes:{harp:{label:'HARP build', role:'build'}}},
     {id:'megadetector-batch', version:'5.0', runtime:'DOCKER',
      image:'docker.io/microsoft/megadetector:5.0', notes:{},
      app_args:[{name:'batch',arg:'--batch'},{name:'imgsz',arg:'--imgsz'},{name:'threshold',arg:'--threshold'}]}
@@ -213,7 +215,7 @@
     const h = (a.notes && a.notes.harp) || {};
     let params = Array.isArray(h.params) ? h.params : [];
     if (!params.length && h.command) params = [...h.command.matchAll(/\{(\w+)\}/g)].map(m => ({name:m[1], arg:`{${m[1]}}`}));
-    return {id:a.id, version:a.version, label:h.label || a.id, image:a.image || '', runtime:a.runtime || 'SINGULARITY',
+    return {id:a.id, version:a.version, label:h.label || a.id, role: h.role === 'build' ? 'build' : 'profile', image:a.image || '', runtime:a.runtime || 'SINGULARITY',
       description:a.description || '', command:h.command || '', workdir:h.workdir || '',
       params: params.map(p => ({name:p.name, arg:p.arg || '', kind:p.kind || 'string', default: p.default == null ? '' : String(p.default)}))};
   }
@@ -306,11 +308,14 @@
     return out;
   }
   function buildNow(b){
-    const t = Date.now() - b.t0, steps = [['preprocess', 2500], ['train', 9000], ['upload', 11000]];
+    const t = Date.now() - b.t0, steps = [['preprocess', 2500], ['train', 9000], ['save', 11000]];
+    if (b.job) b.job.status = t >= 11000 ? 'FINISHED' : t >= 4000 ? 'RUNNING' : t >= 1500 ? 'QUEUED' : 'PENDING';
+    if (b.job && t >= 11000 && !b.job.ended_at) b.job.ended_at = new Date().toISOString();
     let prev = 0;
     for (const [k, end] of steps) { b.steps[k] = t >= end ? 'done' : t >= prev ? 'running' : 'waiting'; if (t >= prev && t < end) b.step = k; prev = end; }
     if (t >= 11000 && b.status !== 'DONE') {
-      b.status = 'DONE'; b.ended_at = new Date().toISOString(); b.metrics = fakeMetrics(b.seed);
+      b.status = 'DONE'; b.ended_at = new Date().toISOString();
+      b.metrics = fakeMetrics(b.seed).filter(m => b.models.includes(m.RegModel) && b.training_sets.includes(m.DataSet));
       b.best = [...b.metrics].sort((x, y) => x.MAPE - y.MAPE)[0];
       b.files = [b.dataset_file, 'pipeline_config.json', 'full_dataset_pca.csv', 'model_commons.csv', ...b.metrics.map(m => 'models/' + m.MODEL_NAME + (m.RegModel === 'NN' ? '.h5' : '.pkl'))];
     } else if (b.status !== 'DONE') b.status = 'RUNNING';
@@ -347,11 +352,15 @@
         return {...sw.view}; });
       return later(json(200, made));
     }
-    if (path === '/api/jobs') return later(json(200, SWEEPS.flatMap(sw => sw.jobs.map((j, k) => ({...j, ...runsOf(sw, j, k),
+    if (path === '/api/jobs') return later(json(200, [...BUILDS.filter(b => b.job).map(b => { buildNow(b); return {kind:'build', name:b.job.name,
+        sweep:`build ${b.name}`, sweep_id:null, build_id:b.id, app_id:b.app_id, system_id:b.job.system_id, queue:b.job.queue,
+        cores_per_node:4, memory_mb:16384, run_type:'build', combinations:0, runs_total:0, progress:null, status:b.job.status,
+        uuid:b.job.uuid, error:null, submitted_at:b.job.submitted_at, ended_at:b.job.ended_at}; }),
+      ...SWEEPS.flatMap(sw => sw.jobs.map((j, k) => ({...j, ...runsOf(sw, j, k), kind:'profiling',
       sweep:sw.view.name, sweep_id:sw.view.id, app_id:sw.view.app_ids[0],
       queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null,
       cores_per_node: j.cores_per_node || (sw.view.hardware.find(h => h.key === j.target) || {}).cores_per_node || null,
-      memory_mb: j.memory_mb || (sw.view.hardware.find(h => h.key === j.target) || {}).memory_mb || null})))));
+      memory_mb: j.memory_mb || (sw.view.hardware.find(h => h.key === j.target) || {}).memory_mb || null})))]));
     if (path === '/api/campaigns') return Promise.resolve(json(200, SWEEPS.map(s => s.view)));
     let c = path.match(/^\/api\/campaigns\/([^/]+)\/cancel$/);
     if (c) {
@@ -379,10 +388,20 @@
       const stamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '_');
       const b = {id:'b' + (BUILDS.length + 1), t0:Date.now(), seed:7 + BUILDS.length * 13, app_id:bm[1], name, created_at:new Date().toISOString(), ended_at:null,
         sweeps:body.sweeps, storage:body.storage, dest:`${body.storage.path.replace(/\/$/, '')}/builds/${name}_${stamp}`, dataset_file:`${name}_${stamp}.csv`,
-        status:'QUEUED', step:'preprocess', steps:{pool:'done', standardize:'done', preprocess:'waiting', train:'waiting', upload:'waiting'},
-        metrics:[], best:null, error:null, report:rep, files:[], log:[]};
+        status:'QUEUED', step:'preprocess', steps:{pool:'done', standardize:'done', preprocess:'waiting', train:'waiting', save:'waiting'},
+        metrics:[], best:null, error:null, report:rep, files:[], log:[],
+        models: body.models || ['LR','NN','DTR'], training_sets: body.training_sets || ['SD','SD+25FS','SD+50FS','SD+75FS'], where:{mode:'local'}, job:null};
+      const ro = body.run_on || {mode:'local'};
+      if (ro.mode === 'tapis') {
+        b.where = {mode:'tapis', system_id:ro.system_id, queue:ro.queue, cores_per_node:4, memory_mb:16384, max_minutes:60};
+        b.job = {uuid:`${(uuidN++).toString(16)}b1d-5e2f-4a3b-9c00-${String(BUILDS.length).padStart(12,'0')}-007`, name:`harp-build-${name}-${b.id}`,
+                 status:'PENDING', system_id:ro.system_id, queue:ro.queue, submitted_at:new Date().toISOString(), ended_at:null};
+      }
       BUILDS.unshift(b); return later(json(200, buildNow(b)));
     }
+    if (path === '/api/build-options') return later(json(200, {models:{LR:'Linear regression', NN:'Neural network', DTR:'Decision tree'},
+      training_sets:{SD:'SD only', 'SD+25FS':'SD + 25% of FS', 'SD+50FS':'SD + 50% of FS', 'SD+75FS':'SD + 75% of FS'},
+      build_app:{id:'harp-build-swathi', version:'1.0.0', image:'docker://ghcr.io/manikyaswathi/harp-build:1.0.0'}}));
     if (path.startsWith('/api/builds')) { const q = new URLSearchParams(path.split('?')[1] || '').get('app_id');
       return later(json(200, BUILDS.filter(b => !q || b.app_id === q).map(buildNow))); }
     let m = path.match(/^\/api\/apps\/(.+)\/profile\.csv$/);

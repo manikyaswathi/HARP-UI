@@ -613,6 +613,25 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .bsteprow .done{background:var(--ok-50);color:var(--ok)}.bsteprow .running{background:var(--teal-50);color:var(--teal-700)}
 .bsteprow .failed{background:#FBE9E9;color:#A23A3A}
 .best{border:1px solid #BFDCCB;background:var(--ok-50);border-radius:8px;padding:8px 10px;margin:8px 0;line-height:1.5}
+.help{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;margin-left:6px;
+  border:1px solid #b9c7cd;background:#fff;color:var(--teal-700);font:600 11px/1 "Space Grotesk",sans-serif;cursor:pointer;vertical-align:middle;padding:0;flex:none}
+.help:hover,.help[aria-expanded="true"]{background:var(--teal);border-color:var(--teal);color:#fff}
+.helppop{position:fixed;z-index:80;max-width:min(360px,calc(100vw - 32px));background:#fff;border:1px solid var(--line);border-radius:10px;
+  box-shadow:0 14px 36px -12px rgba(17,41,63,.35);padding:12px 14px;font-size:13px;line-height:1.55;color:var(--ink)}
+.helppop p{margin:0 0 8px}.helppop p:last-child{margin:0}.helppop b{color:var(--navy)}
+.helppop code{font-family:"JetBrains Mono",monospace;font-size:11px;background:#F3F5F6;padding:1px 4px;border-radius:4px}
+.bready{font-size:12.5px;margin:8px 0 4px;line-height:1.5}
+.bready.ok{color:var(--ok)}.bready.no{color:#A23A3A}
+.bdet summary{cursor:pointer;font-size:12.5px;color:var(--teal-700);font-weight:600;margin:4px 0}
+.bdet[open] summary{margin-bottom:8px}
+.bopts{display:flex;flex-direction:column;gap:6px}
+.bopt{display:grid;grid-template-columns:18px 1fr;gap:2px 8px;align-items:start;font-size:13px;cursor:pointer;padding:7px 9px;border:1px solid var(--line);border-radius:8px}
+.bopt.on{border-color:var(--teal);background:var(--teal-50)}
+.bopt input{margin:2px 0 0;width:15px;height:15px;accent-color:var(--teal)}
+.bopt b{color:var(--navy);font-weight:600}.bopt .am{grid-column:2;font-size:11.5px;color:var(--muted)}
+.bsub2{display:flex;align-items:center;font-family:"JetBrains Mono",monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:12px 0 6px}
+.bmhead{margin:18px 0 0}
+.bwhere{font-size:12px;color:var(--muted)}
 #sweepTable td:first-child{white-space:normal;word-break:break-word;min-width:170px;max-width:240px}
 #sweepTable td:nth-child(5){white-space:normal;min-width:110px;max-width:180px}
 #jobsTable td:nth-child(2){white-space:normal;word-break:break-word;max-width:190px}
@@ -667,8 +686,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     <div class="tabs4" role="tablist" aria-label="Profiling">
       <button class="t4" role="tab" id="tab-configure" data-p="configure" aria-selected="true"><span class="k">1</span>Configure</button>
       <button class="t4" role="tab" id="tab-review" data-p="review" aria-selected="false"><span class="k">2</span>Review &amp; submit <b class="bdg" id="bPlan">0</b></button>
-      <button class="t4" role="tab" id="tab-jobs" data-p="jobs" aria-selected="false"><span class="k">3</span>Jobs <b class="bdg live" id="bActive">0</b></button>
-      <button class="t4" role="tab" id="tab-data" data-p="data" aria-selected="false"><span class="k">4</span>Profiled data</button>
+      <button class="t4" role="tab" id="tab-data" data-p="data" aria-selected="false"><span class="k">3</span>Profiled data &amp; models</button>
+      <button class="t4" role="tab" id="tab-jobs" data-p="jobs" aria-selected="false"><span class="k">4</span>Jobs <b class="bdg live" id="bActive">0</b></button>
     </div>
 
     <!-- 1. CONFIGURE ------------------------------------------------------ -->
@@ -683,11 +702,11 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
           </div>
 
           <div class="card2" id="sweepCard" hidden>
-            <div class="chead"><h3>Sweep</h3>
+            <div class="chead"><h3>Sweep</h3><button type="button" class="help" data-help="sweep" aria-label="What is a sweep, and a campaign?" aria-expanded="false">?</button>
               <input class="ti swname" id="swName" aria-label="Sweep name" autocomplete="off">
               <span class="pill" id="swCombos"></span></div>
             <div class="three">
-              <div class="field"><label class="lbl" for="swType">Run type</label>
+              <div class="field"><label class="lbl" for="swType">Run type</label><button type="button" class="help" data-help="runtypes" aria-label="What are SD, FS and test_data?" aria-expanded="false">?</button>
                 <select id="swType"><option value="SD">SD &middot; scaled-down</option><option value="FS">FS &middot; full-scale</option><option value="test_data">test_data &middot; held out</option></select></div>
               <div class="field"><label class="lbl" for="swReps">Repetitions</label><input class="ti" id="swReps" type="number" min="1" value="1"></div>
               <div class="field"><label class="lbl" for="swTimeout">Timeout per run (min)</label><input class="ti" id="swTimeout" type="number" min="1" value="20"></div>
@@ -760,14 +779,15 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
         <div class="mt"><div class="v" id="jFail">0</div><div class="l">Failed</div></div>
       </div>
       <div class="card2">
-        <div class="chead"><h3>Sweeps</h3><span class="spacer"></span><span class="updated" id="jUpdated"></span></div>
+        <div class="chead"><h3>Sweeps</h3><button type="button" class="help" data-help="sweep" aria-label="What is a sweep, and a campaign?" aria-expanded="false">?</button><span class="spacer"></span><span class="updated" id="jUpdated"></span></div>
         <div class="scroll"><table class="dt" id="sweepTable"></table></div>
         <p class="loginerr" id="sweepErr"></p>
       </div>
       <div class="card2">
         <div class="chead"><h3>TAPIS jobs</h3><span class="spacer"></span>
           <select id="fApp" class="fsel" aria-label="Filter by app"></select>
-          <select id="fStatus" class="fsel" aria-label="Filter by status">
+          <select id="fKind" class="fsel" aria-label="Job type"><option value="">All job types</option><option value="profiling">Profiling jobs</option><option value="build">Build jobs</option></select>
+            <select id="fStatus" class="fsel" aria-label="Filter by status">
             <option value="">Any status</option><option value="active">Running or queued</option>
             <option value="waiting">Waiting to submit</option><option value="finished">Finished</option><option value="failed">Failed</option></select>
           <select id="fSystem" class="fsel" aria-label="Filter by system"></select>
@@ -793,27 +813,31 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
           <div class="mt"><div class="v" id="dWall">&ndash;</div><div class="l">Median time</div></div>
         </div>
         <div class="card2" id="buildCard">
-          <div class="chead"><h3>Build an estimator</h3><span class="am">HARP build phase</span></div>
-          <p class="sub">Pool the sweeps to learn from, standardize them into the build phase's format, then train
-            linear regression, neural network and decision tree models with the HARP pipeline.</p>
+          <div class="chead"><h3>Build an estimator</h3><button type="button" class="help" data-help="models" aria-label="Which models can HARP build?" aria-expanded="false">?</button><span class="am">HARP build phase</span></div>
+          <p class="sub">Train models that predict how long a run of this app takes, from its profiled sweeps.</p>
           <div class="bsteps">
-            <section class="bstep"><h4><span class="bn">1</span>Pool sweeps</h4>
-              <p class="bhelp">Training needs SD runs, FS runs and test_data runs of this app: one sweep of each run type, or more.</p>
-              <div id="bSweeps"></div></section>
-            <section class="bstep"><h4><span class="bn">2</span>Standardize</h4>
-              <div id="bStd"><p class="updated">Pick sweeps to see the training data.</p></div></section>
-            <section class="bstep"><h4><span class="bn">3</span>Build</h4>
+            <section class="bstep"><h4><span class="bn">1</span>Sweeps to learn from<button type="button" class="help" data-help="runtypes" aria-label="What are SD, FS and test_data?" aria-expanded="false">?</button></h4>
+              <div id="bSweeps"></div>
+              <p class="bready" id="bReady"></p>
+              <details class="bdet"><summary>Data checks</summary><div id="bStd"></div></details></section>
+            <section class="bstep"><h4><span class="bn">2</span>Models to build<button type="button" class="help" data-help="models" aria-label="Which models can HARP build?" aria-expanded="false">?</button></h4>
+              <div class="bopts" id="bModels"></div>
+              <p class="bsub2">Trained on<button type="button" class="help" data-help="trainsets" aria-label="What are the training sets?" aria-expanded="false">?</button></p>
+              <div class="bopts" id="bSets"></div></section>
+            <section class="bstep"><h4><span class="bn">3</span>Where<button type="button" class="help" data-help="runon" aria-label="Where does a build run?" aria-expanded="false">?</button></h4>
               <div class="bdest">
+                <div class="field"><label class="lbl" for="bRun">Run the build on</label><select id="bRun" class="ti"></select></div>
                 <div class="field"><label class="lbl" for="bSys">Save models on</label><select id="bSys" class="ti"></select></div>
                 <div class="field"><label class="lbl" for="bPath">Folder</label><input id="bPath" class="ti" placeholder="/fs/scratch/PAS0000/harp_runs" autocomplete="off"></div>
               </div>
               <div class="actions"><button class="btn btn-navy" id="buildBtn" type="button" disabled>Build models</button>
                 <span class="updated" id="buildMsg"></span></div></section>
           </div>
-          <div id="bRuns"></div>
+          <div class="chead bmhead"><h3>Trained models</h3><button type="button" class="help" data-help="scores" aria-label="How are models scored?" aria-expanded="false">?</button></div>
+          <div id="bRuns"><p class="updated">No models built for this app yet.</p></div>
         </div>
         <div class="dgrid">
-          <div class="card2"><h3>Time by run type</h3><p class="sub">SD scaled-down, FS full-scale, test_data held out.</p>
+          <div class="card2"><div class="chead"><h3>Time by run type</h3><button type="button" class="help" data-help="runtypes" aria-label="What are SD, FS and test_data?" aria-expanded="false">?</button></div><p class="sub">SD scaled-down, FS full-scale, test_data held out.</p>
             <div class="scroll"><table class="dt" id="typeTable"></table></div></div>
           <div class="card2"><h3>Time by hardware</h3><p class="sub">Median time per run, per system, queue and configuration.</p>
             <div class="scroll"><table class="dt" id="hwTable"></table></div></div>
@@ -861,8 +885,10 @@ async function api(path, opts = {}) {
 }
 function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600); }
-const store = {get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
-               set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }};
+// Kept per TAPIS user (and tenant), so someone else logging in on this browser never sees your plan.
+let USERKEY = '';
+const store = {get(k, d){ try { return JSON.parse(localStorage.getItem(k + USERKEY)) ?? d; } catch (e) { return d; } },
+               set(k, v){ try { localStorage.setItem(k + USERKEY, JSON.stringify(v)); } catch (e) {} }};
 const initials = s => s.split(/[\s_-]+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
 const median = xs => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
@@ -888,7 +914,7 @@ async function loadApps(){
   CAMPS = camps;
   const runsByApp = {};
   for (const c of camps) for (const id of c.app_ids || []) runsByApp[id] = (runsByApp[id] || 0) + (c.result ? c.result.rows : 0);
-  APPS = apps.map(a => toApp(a, runsByApp)).sort((x, y) => x.label.localeCompare(y.label));
+  APPS = apps.filter(a => a.role !== 'build').map(a => toApp(a, runsByApp))   // the build app is not profiled.sort((x, y) => x.label.localeCompare(y.label));
 }
 const appName = id => (APPS.find(a => a.id === id) || {}).label || id;
 const qlist = s => s.queues && s.queues.length ? s.queues : [{name: '', default: true}];
@@ -1242,7 +1268,7 @@ const group = s => isDone(s) ? 'finished' : isFail(s) ? 'failed' : s === 'NOT_SU
 const dur = j => j.submitted_at && j.ended_at ? (new Date(j.ended_at) - new Date(j.submitted_at)) / 1000
                : j.submitted_at && group(j.status) === 'active' ? (Date.now() - new Date(j.submitted_at)) / 1000 : null;
 const fmtDur = s => s == null ? '–' : s < 90 ? Math.round(s) + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1) + ' h';
-const FSET = {app: '', status: '', system: '', sweep: ''};
+const FSET = {kind: '', app: '', status: '', system: '', sweep: ''};
 let jSort = 'submitted_at', jDir = -1, confirmCancel = null;
 
 async function loadJobs(){
@@ -1288,23 +1314,23 @@ function renderJobs(){
   $('fApp').innerHTML = opts(JOBS.map(j => j.app_id), appName, 'All apps');
   $('fSystem').innerHTML = opts(JOBS.map(j => j.system_id), v => v, 'All systems');
   $('fSweep').innerHTML = opts(JOBS.map(j => j.sweep_id), id => (CAMPS.find(c => c.id === id) || {}).name || id, 'All sweeps');
-  for (const [id, k] of [['fApp', 'app'], ['fStatus', 'status'], ['fSystem', 'system'], ['fSweep', 'sweep']]) $(id).value = FSET[k];
+  for (const [id, k] of [['fKind', 'kind'], ['fApp', 'app'], ['fStatus', 'status'], ['fSystem', 'system'], ['fSweep', 'sweep']]) $(id).value = FSET[k];
 
   // jobs table
   const val = (j, k) => k === 'app' ? appName(j.app_id) : k === 'where' ? j.system_id + '/' + (j.queue || '')
     : k === 'duration' ? (dur(j) ?? -1) : k === 'runs' ? (j.runs_total ? runsDone(j) / j.runs_total : -1) : k === 'status' ? ['active', 'waiting', 'failed', 'finished'].indexOf(group(j.status)) + j.status : (j[k] ?? '');
-  const rows = JOBS.filter(j => (!FSET.app || j.app_id === FSET.app) && (!FSET.system || j.system_id === FSET.system)
+  const rows = JOBS.filter(j => (!FSET.kind || (j.kind || 'profiling') === FSET.kind) && (!FSET.app || j.app_id === FSET.app) && (!FSET.system || j.system_id === FSET.system)
       && (!FSET.sweep || j.sweep_id === FSET.sweep) && (!FSET.status || group(j.status) === FSET.status))
     .sort((a, b) => { const x = val(a, jSort), y = val(b, jSort); return (x < y ? -1 : x > y ? 1 : 0) * jDir; });
-  const COLS = [['app', 'App'], ['sweep', 'Sweep'], ['name', 'TAPIS job'], ['where', 'System / queue'], ['run_type', 'Type'],
+  const COLS = [['kind', 'Job type'], ['app', 'App'], ['sweep', 'Sweep / build'], ['name', 'TAPIS job'], ['where', 'System / queue'], ['run_type', 'Run type'],
                 ['status', 'Status'], ['runs', 'Runs done'], ['submitted_at', 'Submitted'], ['duration', 'Duration'], ['uuid', 'TAPIS UUID']];
   $('jobsTable').innerHTML = `<tr>${COLS.map(([k, l]) => `<th${k === 'duration' || k === 'runs' ? ' class="num"' : ''}><button class="sortb" data-k="${k}">${l}${jSort === k ? (jDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>` +
-    (rows.length ? rows.slice(0, 500).map(j => `<tr><td>${esc(appName(j.app_id))}</td><td>${esc(j.sweep)}</td><td class="uuid">${esc(j.name)}</td>
+    (rows.length ? rows.slice(0, 500).map(j => `<tr><td>${j.kind === 'build' ? '<span class="pill done">build</span>' : '<span class="pill none">profiling</span>'}</td><td>${esc(appName(j.app_id))}</td><td>${esc(j.sweep)}</td><td class="uuid">${esc(j.name)}</td>
       <td>${esc(j.system_id)}${j.queue ? ` <span class="am">/ ${esc(j.queue)}</span>` : ''}${j.cores_per_node ? ` <span class="am">· ${j.cores_per_node} cores${j.memory_mb ? ' · ' + esc(fmtMem(j.memory_mb)) : ''}</span>` : ''}</td><td>${esc(j.run_type)}</td>
       <td>${pill(JOB_ST, j.status)}${j.error ? `<div class="err">${esc(j.error)}</div>` : ''}</td>
       <td class="num">${runsCell(j)}</td>
       <td class="updated">${esc(ago(j.submitted_at))}</td><td class="num">${fmtDur(dur(j))}</td><td class="uuid">${esc(j.uuid || '–')}</td></tr>`).join('')
-    : `<tr><td colspan="10" class="updated">${JOBS.length ? 'No jobs match these filters.' : 'No TAPIS jobs yet.'}</td></tr>`);
+    : `<tr><td colspan="11" class="updated">${JOBS.length ? 'No jobs match these filters.' : 'No TAPIS jobs yet.'}</td></tr>`);
   $('jobsTable').querySelectorAll('.sortb').forEach(b => b.addEventListener('click', () => {
     if (jSort === b.dataset.k) jDir = -jDir; else { jSort = b.dataset.k; jDir = ['submitted_at', 'duration'].includes(jSort) ? -1 : 1; }
     renderJobs(); }));
@@ -1319,7 +1345,7 @@ function runsCell(j){
   const tip = p && p.current ? `running ${p.current}` : known && p.updated_at ? `updated ${ago(p.updated_at)}` : 'no progress reported yet';
   return `<span title="${esc(tip)}">${txt}</span>${bad ? ` <span class="am">· ${bad} failed</span>` : ''}${known ? bar(d - bad, bad, j.runs_total) : ''}`;
 }
-[['fApp', 'app'], ['fStatus', 'status'], ['fSystem', 'system'], ['fSweep', 'sweep']].forEach(([id, k]) =>
+[['fKind', 'kind'], ['fApp', 'app'], ['fStatus', 'status'], ['fSystem', 'system'], ['fSweep', 'sweep']].forEach(([id, k]) =>
   $(id).addEventListener('change', () => { FSET[k] = $(id).value; renderJobs(); }));
 async function cancelSweep(id){
   confirmCancel = null; $('sweepErr').textContent = '';
@@ -1353,11 +1379,14 @@ async function loadProfile(){
   $('dataBody').hidden = false; renderProfile();
   $('dUpdated').textContent = 'updated ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 }
-/* ---- build phase: pool sweeps -> standardize -> HARP pipeline build -------- */
+/* ---- build phase: sweeps -> (cleaned) training data -> models, as a TAPIS job or here ---- */
 const BSEL = {};                 // app id -> ids of the sweeps picked for training
-let bCheck = null, bTimer = null, bPoll = null, BUILDS = [];
+let bCheck = null, bTimer = null, bPoll = null, BUILDS = [], BOPTS = null;
+const BMOD = new Set(), BSETS = new Set();
 const RT_ORDER = ['SD', 'FS', 'test_data'];
-function renderBuild(){
+async function renderBuild(){
+  if (!BOPTS) { try { BOPTS = await api('/api/build-options'); } catch (e) { BOPTS = {models: {}, training_sets: {}, build_app: null}; }
+    Object.keys(BOPTS.models).forEach(m => BMOD.add(m)); Object.keys(BOPTS.training_sets).forEach(t => BSETS.add(t)); }
   const camps = prof.campaigns || [];
   const counts = {}; for (const r of prof.rows) counts[r.campaign] = (counts[r.campaign] || 0) + 1;
   if (!BSEL[dApp]) BSEL[dApp] = new Set(camps.filter(c => !ACTIVE.includes(c.status) && (c.result ? c.result.rows : counts[c.name])).map(c => c.id));
@@ -1371,11 +1400,24 @@ function renderBuild(){
   $('bSweeps').querySelectorAll('[data-bs]').forEach(el => el.addEventListener('change', () => {
     el.checked ? sel.add(el.dataset.bs) : sel.delete(el.dataset.bs);
     el.closest('.bsw').classList.toggle('on', el.checked); checkTraining(); }));
-  if (!$('bSys').options.length || $('bSys').dataset.src !== $('storeSys').innerHTML.length + '') {
-    $('bSys').innerHTML = $('storeSys').innerHTML; $('bSys').dataset.src = $('storeSys').innerHTML.length + '';
+  const opt = (set, key, title, sub) => `<label class="bopt${set.has(key) ? ' on' : ''}"><input type="checkbox" value="${esc(key)}" ${set.has(key) ? 'checked' : ''}>
+    <b>${esc(title)}</b>${sub ? `<span class="am">${esc(sub)}</span>` : ''}</label>`;
+  const MODEL_SUB = {LR: 'fast, simple baseline', NN: 'fits curves; needs more data', DTR: 'handles thresholds and jumps'};
+  $('bModels').innerHTML = Object.entries(BOPTS.models).map(([k, v]) => opt(BMOD, k, `${k} · ${v}`, MODEL_SUB[k])).join('');
+  $('bSets').innerHTML = Object.entries(BOPTS.training_sets).map(([k, v]) => opt(BSETS, k, v)).join('');
+  for (const [id, set] of [['bModels', BMOD], ['bSets', BSETS]])
+    $(id).querySelectorAll('input').forEach(el => el.addEventListener('change', () => {
+      el.checked ? set.add(el.value) : set.delete(el.value); el.closest('.bopt').classList.toggle('on', el.checked); buildReady(); }));
+  if (!$('bSys').options.length) {
+    $('bSys').innerHTML = $('storeSys').innerHTML;
     const saved = store.get('harp-build-dest', null) || store.get('harp-launch', {});
     if (saved.storeSys) $('bSys').value = saved.storeSys;
     if (!$('bPath').value && saved.store) $('bPath').value = saved.store;
+    const ba = BOPTS.build_app, queues = SYSTEMS.flatMap(s => qlist(s).map(q => ({s, q})));
+    $('bRun').innerHTML = queues.map(({s, q}) => `<option value="tapis|${esc(s.id)}|${esc(q.name || '')}" ${ba ? '' : 'disabled'}>${esc(s.id)} / ${esc(q.name || 'default')} · TAPIS job</option>`).join('')
+      + '<option value="local">This computer (the HARP server)</option>';
+    $('bRun').value = ba && saved.run && [...$('bRun').options].some(o => o.value === saved.run && !o.disabled) ? saved.run
+      : ba && queues.length ? $('bRun').options[0].value : 'local';
   }
   checkTraining(); loadBuilds();
 }
@@ -1383,45 +1425,55 @@ function checkTraining(){
   clearTimeout(bTimer); bTimer = setTimeout(async () => {
     const app = dApp, ids = [...(BSEL[app] || [])];
     bCheck = null; buildReady();
-    if (!ids.length) { $('bStd').innerHTML = '<p class="updated">Pick at least one sweep.</p>'; return; }
-    $('bStd').innerHTML = '<p class="updated">Standardizing&hellip;</p>';
+    if (!ids.length) { $('bReady').className = 'bready no'; $('bReady').textContent = 'Pick at least one sweep.'; $('bStd').innerHTML = ''; return; }
+    $('bReady').className = 'bready'; $('bReady').textContent = 'Checking the data…';
     try {
       const r = await api('/api/apps/' + encodeURIComponent(app) + '/training-data', {method: 'POST', body: {sweeps: ids}});
       if (app !== dApp) return;
       bCheck = r; renderStd(r, ids);
-    } catch (e) { $('bStd').innerHTML = `<p class="bprob">Could not standardize: ${esc(e.message)}</p>`; }
+    } catch (e) { $('bReady').className = 'bready no'; $('bReady').textContent = 'Could not read the sweeps: ' + e.message; }
     buildReady();
   }, 250);
 }
 function renderStd(r, ids){
-  const cov = RT_ORDER.map(t => { const n = r.by_run_type[t] || 0, ok = n >= r.minimum[t];
-    return `<div class="${ok ? 'ok' : 'no'}"><div class="v">${n.toLocaleString()}</div><div class="l">${esc(t)} · need ${r.minimum[t]}+</div></div>`; }).join('');
+  const n = t => (r.by_run_type[t] || 0).toLocaleString();
+  $('bReady').className = 'bready ' + (r.ready ? 'ok' : 'no');
+  $('bReady').innerHTML = r.ready ? `Ready: ${n('SD')} SD, ${n('FS')} FS and ${n('test_data')} test runs.`
+    : esc(r.problems.join('; ').replace(/^./, c => c.toUpperCase())) + '.';
+  const cov = RT_ORDER.map(t => { const k = r.by_run_type[t] || 0, ok = k >= r.minimum[t];
+    return `<div class="${ok ? 'ok' : 'no'}"><div class="v">${k.toLocaleString()}</div><div class="l">${esc(t)} · need ${r.minimum[t]}+</div></div>`; }).join('');
   const code = xs => xs.map(x => `<code>${esc(x)}</code>`).join(' ');
   const dropC = Object.entries(r.dropped_columns || {}), dropR = Object.entries(r.dropped_rows || {});
   $('bStd').innerHTML = `<div class="cov">${cov}</div>
-    <p class="blist"><b>${r.rows_out.toLocaleString()}</b> runs · learns from ${r.varied_features.length ? code(r.varied_features) : 'nothing yet'}</p>
-    ${r.constant_columns.length ? `<p class="blist am">Same in every run (kept, no signal): ${code(r.constant_columns)}</p>` : ''}
+    <p class="blist">Learns from ${r.varied_features.length ? code(r.varied_features) : 'nothing yet'}</p>
+    ${r.constant_columns.length ? `<p class="blist am">Same in every run (no signal): ${code(r.constant_columns)}</p>` : ''}
     ${dropC.length ? `<p class="blist am">Left out (the pipeline needs every column filled): ${dropC.map(([c, why]) => `<code>${esc(c)}</code> (${esc(why)})`).join(', ')}</p>` : ''}
-    ${dropR.length ? `<p class="blist am">Runs left out: ${dropR.map(([why, n]) => `${n} (${esc(why)})`).join(', ')}</p>` : ''}
+    ${dropR.length ? `<p class="blist am">Runs left out: ${dropR.map(([why, k]) => `${k} (${esc(why)})`).join(', ')}</p>` : ''}
     ${(r.unreadable || []).length ? `<p class="bprob">Could not read: ${esc(r.unreadable.map(m => m.campaign).join(', '))}</p>` : ''}
-    ${r.problems.map(p => `<p class="bprob">${esc(p)}</p>`).join('')}
     <button class="dlbtn" type="button" id="bCsv">Download training CSV</button>`;
   $('bCsv').addEventListener('click', () => downloadFile('/api/apps/' + encodeURIComponent(dApp) + '/training-data.csv?sweeps=' +
     encodeURIComponent(ids.join(',')), dApp + '_training.csv').catch(e => toast('Download failed: ' + e.message)));
 }
 function buildReady(){
-  const path = $('bPath').value.trim(), busy = BUILDS.some(b => ['QUEUED', 'RUNNING'].includes(b.status));
-  const prob = !bCheck ? 'Waiting for the training data.' : !bCheck.ready ? 'Not enough data yet (step 2).'
+  const path = $('bPath').value.trim(), busy = BUILDS.some(b => ['QUEUED', 'RUNNING'].includes(b.status) && (b.where || {}).mode !== 'tapis');
+  const local = $('bRun').value === 'local';
+  const prob = !bCheck ? 'Waiting for the sweeps.' : !bCheck.ready ? 'Not enough data yet (step 1).'
+    : !BMOD.size || !BSETS.size ? 'Pick at least one model and one training set.'
     : !$('bSys').value ? 'Pick where to save the models.' : !path.startsWith('/') ? 'Give an absolute folder, starting with /.'
-    : busy ? 'A build is running.' : '';
-  $('buildBtn').disabled = !!prob; $('buildMsg').textContent = prob;
+    : busy && local ? 'A build is already running on this computer.' : '';
+  $('buildBtn').disabled = !!prob;
+  $('buildMsg').textContent = prob || (!BOPTS || BOPTS.build_app ? '' : 'Register the HARP build app (app notebook, APP = "build") to run builds as TAPIS jobs.');
 }
-['bPath', 'bSys'].forEach(id => $(id).addEventListener('input', buildReady));
+['bPath', 'bSys', 'bRun'].forEach(id => $(id).addEventListener('input', buildReady));
 $('buildBtn').addEventListener('click', async () => {
-  const body = {sweeps: [...BSEL[dApp]], storage: {system_id: $('bSys').value, path: $('bPath').value.trim()}};
-  store.set('harp-build-dest', {storeSys: body.storage.system_id, store: body.storage.path});
+  const [mode, system_id, queue] = $('bRun').value.split('|');
+  const body = {sweeps: [...BSEL[dApp]], storage: {system_id: $('bSys').value, path: $('bPath').value.trim()},
+    models: [...BMOD], training_sets: [...BSETS],
+    run_on: mode === 'tapis' ? {mode, system_id, queue: queue || null, scheduler_options: ALLOC[system_id] || null} : {mode: 'local'}};
+  store.set('harp-build-dest', {storeSys: body.storage.system_id, store: body.storage.path, run: $('bRun').value});
   $('buildBtn').disabled = true; $('buildMsg').textContent = 'Starting…';
-  try { await api('/api/apps/' + encodeURIComponent(dApp) + '/builds', {method: 'POST', body}); toast('Build started.'); await loadBuilds(); }
+  try { await api('/api/apps/' + encodeURIComponent(dApp) + '/builds', {method: 'POST', body});
+        toast(mode === 'tapis' ? 'Build job submitted to TAPIS. Follow it on Jobs.' : 'Build started on this computer.'); await loadBuilds(); refreshBadge(); }
   catch (e) { $('buildMsg').textContent = e.message; $('buildBtn').disabled = false; }
 });
 async function loadBuilds(){
@@ -1430,25 +1482,28 @@ async function loadBuilds(){
   try { BUILDS = await api('/api/builds?app_id=' + encodeURIComponent(app)); } catch (e) { return; }
   if (app !== dApp) return;
   renderBuilds(); buildReady();
-  if (panel === 'data' && BUILDS.some(b => ['QUEUED', 'RUNNING'].includes(b.status))) bPoll = setTimeout(loadBuilds, 3000);
+  if (panel === 'data' && BUILDS.some(b => ['QUEUED', 'RUNNING'].includes(b.status))) bPoll = setTimeout(loadBuilds, 4000);
 }
 const fmtP = v => v == null ? '–' : (+v).toFixed(v < 10 ? 1 : 0) + '%';
 function renderBuilds(){
-  const STEP = {pool: 'pool', standardize: 'standardize', preprocess: 'scale + PCA', train: 'train', upload: 'save to TAPIS'};
-  const BST = {QUEUED: ['wait', 'queued'], RUNNING: ['run', 'building'], DONE: ['done', 'done'], FAILED: ['bad', 'failed']};
-  $('bRuns').innerHTML = BUILDS.slice(0, 5).map((b, i) => {
-    const steps = Object.entries(b.steps).map(([k, v]) => `<span class="${esc(v)}">${esc(STEP[k] || k)}</span>`).join('');
+  const BST = {QUEUED: ['wait', 'queued'], RUNNING: ['run', 'training'], DONE: ['done', 'done'], FAILED: ['bad', 'failed']};
+  if (!BUILDS.length) { $('bRuns').innerHTML = '<p class="updated">No models built for this app yet.</p>'; return; }
+  $('bRuns').innerHTML = BUILDS.slice(0, 6).map((b, i) => {
+    const w = b.where || {}, j = b.job;
+    const where = w.mode === 'tapis' ? `TAPIS job on ${esc(w.system_id)}${w.queue ? '/' + esc(w.queue) : ''}${j ? ` · ${pill(JOB_ST, j.status)}` : ''}` : 'on this computer';
+    const what = `${(b.models || []).join(', ')} · ${(b.training_sets || []).length} training set${(b.training_sets || []).length === 1 ? '' : 's'}`;
     const top = [...b.metrics].filter(m => m.MAPE != null).sort((x, y) => x.MAPE - y.MAPE).slice(0, 6);
     const best = b.best ? `<div class="best"><b>Best: ${esc(b.best.RegModel)}</b> trained on ${esc(b.best.DataSet)}${b.best.ADJ_FACTOR > 1 ? `, padded ×${(+b.best.ADJ_FACTOR).toFixed(2)}` : ''}
-        · off by <b>${fmtP(b.best.MAPE)}</b> on average on test_data · too low for ${fmtP(b.best.UPP)} of runs</div>` : '';
+        · off by <b>${fmtP(b.best.MAPE)}</b> on average on the test runs · too low for ${fmtP(b.best.UPP)} of them</div>` : '';
     const table = top.length && i === 0 ? `<div class="scroll"><table class="dt"><tr><th>Model</th><th>Trained on</th><th class="num">Padding</th>
         <th class="num">Avg error</th><th class="num">Too low</th><th class="num">MAE (s)</th></tr>` +
       top.map(m => `<tr${m === top[0] ? ' class="sel"' : ''}><td><b>${esc(m.RegModel)}</b></td><td>${esc(m.DataSet)}</td>
         <td class="num">${m.ADJ_FACTOR > 1 ? '×' + (+m.ADJ_FACTOR).toFixed(2) : '–'}</td><td class="num">${fmtP(m.MAPE)}</td>
         <td class="num">${fmtP(m.UPP)}</td><td class="num">${m.MAE == null ? '–' : (+m.MAE).toPrecision(3)}</td></tr>`).join('') + '</table></div>' : '';
-    return `<div class="brun"><div class="bt"><b>${esc(b.name)}</b>${pill(BST, b.status)}<span class="updated">${esc(ago(b.created_at))} · ${b.sweeps.length} sweep${b.sweeps.length === 1 ? '' : 's'} · ${(b.report || {}).rows_out || 0} runs</span></div>
-      <div class="bsteprow">${steps}</div>${b.error ? `<p class="bprob">${esc(b.error)}</p>` : ''}${best}${table}
-      ${b.status === 'DONE' ? `<p class="blist am">Saved to <code>${esc(b.storage.system_id)}:${esc(b.dest)}</code> (${b.files.length} files: dataset, models, model_commons.csv)</p>` : ''}</div>`; }).join('');
+    return `<div class="brun"><div class="bt"><b>${esc(b.name)}</b>${pill(BST, b.status)}<span class="updated">${esc(ago(b.created_at))} · ${esc(what)}</span></div>
+      <div class="bwhere">${where} · from ${b.sweeps.length} sweep${b.sweeps.length === 1 ? '' : 's'}, ${(b.report || {}).rows_out || 0} runs</div>
+      ${b.error ? `<p class="bprob">${esc(b.error)}</p>` : ''}${best}${table}
+      ${b.status === 'DONE' ? `<p class="blist am">${b.metrics.length} models saved to <code>${esc(b.storage.system_id)}:${esc(b.dest)}</code></p>` : ''}</div>`; }).join('');
 }
 
 function renderProfile(){
@@ -1538,6 +1593,48 @@ document.querySelector('.tabs4').addEventListener('keydown', ev => {
   const n = tabs[(i + (ev.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; show(n.dataset.p); n.focus();
 });
 
+/* ================================================================== help */
+const HELP = {
+  runtypes: `<p><b>SD · scaled-down</b>: small, quick versions of the problem (small inputs, few epochs). The models learn from these.</p>
+    <p><b>FS · full-scale</b>: the real sizes you care about. Some are mixed into training (SD+25FS, SD+50FS, SD+75FS) and a quarter checks the models while they train.</p>
+    <p><b>test_data · held out</b>: runs kept aside to score the finished models; they are never trained on.</p>
+    <p>A build needs at least 2 SD, 4 FS and 1 test_data run.</p>`,
+  sweep: `<p><b>Sweep</b>: one app, one run type and the parameter values to try, run on the queues and hardware configurations you tick. Every combination on every configuration is one TAPIS job, repeated as often as you ask.</p>
+    <p><b>Campaign</b>: what the server calls a submitted sweep. It submits and follows the sweep's TAPIS jobs and keeps their results together in one folder, <code>&lt;results folder&gt;/&lt;sweep&gt;-&lt;id&gt;/</code>. The word comes from Cheetah, which HARP used before, where a campaign file lists the sweeps to run. Here one sweep is one campaign.</p>`,
+  models: `<p>HARP's build phase trains three kinds of model that predict a run's time from its parameters and hardware:</p>
+    <p><b>LR · linear regression</b>: a weighted sum of the inputs. Fast, simple, a good baseline.</p>
+    <p><b>NN · neural network</b>: two hidden layers (128 and 64 units, TensorFlow). Can fit curved relationships; needs more data.</p>
+    <p><b>DTR · decision tree</b>: splits the inputs into ranges. Handles jumps and thresholds well.</p>
+    <p>Each is trained on every training set you pick, with and without padding, and scored on the test_data runs.</p>`,
+  trainsets: `<p>What each model learns from: <b>SD only</b>, or SD plus <b>25%</b>, <b>50%</b> or <b>75%</b> of the FS runs. More FS usually means better predictions at full scale.</p>
+    <p>Every model also comes <b>padded</b>: its predictions are multiplied by a factor learned from the FS runs it did not train on, so it predicts too low less often. That matters when the prediction becomes a job's time limit.</p>`,
+  runon: `<p><b>A TAPIS system</b>: the build runs as a TAPIS job of the HARP build app (one node, 4 cores, up to an hour) and shows up in <b>Jobs</b>. TAPIS copies the models to the folder you pick.</p>
+    <p><b>This computer</b>: the HARP server runs the build itself, then saves the models to that folder through TAPIS. No queue wait.</p>
+    <p>Either way the training data is cleaned first: runs without a time, and columns not filled in every run, are left out (see <b>Data checks</b>).</p>`,
+  scores: `<p>Each model is scored on the <b>test_data</b> runs it never saw:</p>
+    <p><b>Avg error</b>: how far off the predicted time is, on average, as a percentage (MAPE). Lower is better.</p>
+    <p><b>Too low</b>: how often it predicts less time than the run took. Too low means a job would be stopped before it finishes, so padded models trade a little accuracy for fewer of these.</p>
+    <p>Files are saved as <code>models/&lt;model&gt;_&lt;training set&gt;_&lt;padded yes/no&gt;_&lt;time&gt;</code> (.pkl, or .h5 for NN), with every score in <code>model_commons.csv</code>.</p>`,
+};
+let helpBtn = null;
+const helpPop = Object.assign(document.createElement('div'), {className: 'helppop', hidden: true, id: 'helpPop'});
+helpPop.setAttribute('role', 'dialog'); document.body.appendChild(helpPop);
+function closeHelp(){ if (helpBtn) helpBtn.setAttribute('aria-expanded', 'false'); helpBtn = null; helpPop.hidden = true; }
+document.addEventListener('click', ev => {
+  const b = ev.target.closest('.help');
+  if (b) { ev.preventDefault(); ev.stopPropagation();
+    if (helpBtn === b) return closeHelp();
+    closeHelp(); helpBtn = b; b.setAttribute('aria-expanded', 'true');
+    helpPop.innerHTML = HELP[b.dataset.help] || ''; helpPop.setAttribute('aria-label', b.getAttribute('aria-label')); helpPop.hidden = false;
+    const r = b.getBoundingClientRect(), w = helpPop.offsetWidth, h = helpPop.offsetHeight;
+    helpPop.style.left = Math.max(16, Math.min(r.left - 12, innerWidth - w - 16)) + 'px';
+    helpPop.style.top = (r.bottom + 8 + h > innerHeight && r.top - h - 8 > 0 ? r.top - h - 8 : r.bottom + 8) + 'px';
+    return; }
+  if (!ev.target.closest('.helppop')) closeHelp();
+}, true);
+document.addEventListener('keydown', ev => { if (ev.key === 'Escape' && helpBtn) { const b = helpBtn; closeHelp(); b.focus(); } });
+addEventListener('scroll', closeHelp, {passive: true});
+
 /* ================================================================= login */
 function showLogin(msg){
   clearTimeout(jobsTimer); clearTimeout(badgeTimer);
@@ -1545,6 +1642,10 @@ function showLogin(msg){
   $('loginErr').textContent = msg || '';
 }
 async function showApp(me){
+  USERKEY = ':' + me.username + '@' + me.base_url.replace(/^https?:\/\//, '');
+  PLAN = store.get('harp-plan', []); planSeq = PLAN.reduce((n, p) => Math.max(n, p.id), 0);
+  ALLOC = store.get('harp-alloc', {}); for (const k in BSEL) delete BSEL[k]; dApp = null; prof = null;
+  $('bPath').value = ''; $('bSys').innerHTML = ''; $('store').value = '';
   $('loginPanel').hidden = true; $('appView').hidden = false; $('who').hidden = false;
   $('whoName').textContent = me.username + ' @ ' + me.base_url.replace('https://', '');
   $('appSel').innerHTML = '<option>Loading your TAPIS apps…</option>'; $('appSel').disabled = true;
@@ -1568,7 +1669,7 @@ $('loginForm').addEventListener('submit', async ev => {
 });
 $('logoutBtn').addEventListener('click', async () => {
   await api('/api/logout', {method: 'POST'}).catch(() => {});
-  app = null; SW = null; showLogin();
+  app = null; SW = null; PLAN = []; ALLOC = {}; USERKEY = ''; showLogin();
 });
 (async () => { try { showApp(await api('/api/me')); } catch (e) { showLogin(); } })();
 </script>

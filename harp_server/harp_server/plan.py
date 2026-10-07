@@ -35,7 +35,9 @@ def harp_app(a):
     params = h.get("params") if isinstance(h.get("params"), list) else []
     if not params and command:
         params = [{"name": n, "arg": "{%s}" % n} for n in re.findall(r"\{(\w+)\}", command)]
-    return {"id": a.get("id"), "version": a.get("version"), "label": h.get("label") or a.get("id"),
+    # role "build": the HARP build app (trains the estimators); anything else is an app to profile
+    role = "build" if h.get("role") == "build" else "profile"
+    return {"id": a.get("id"), "version": a.get("version"), "label": h.get("label") or a.get("id"), "role": role,
             "image": a.get("image") or "", "runtime": a.get("runtime") or "SINGULARITY",
             "description": a.get("description") or "", "command": command, "workdir": h.get("workdir") or "",
             "params": [{"name": p["name"], "arg": p.get("arg") or "", "kind": p.get("kind") or "string",

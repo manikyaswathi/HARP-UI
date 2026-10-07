@@ -14,6 +14,9 @@ from .RegressionModels import decision_tree_regressor, neural_net, linear_regres
 
 REG_MODELS = ["LR", "NN", "DTR"]
 DS_COFIG = ["SD", "SD+25FS", "SD+50FS", "SD+75FS"]
+# Optional subsets, e.g. HARP_MODELS="LR,DTR" HARP_TRAINING_SETS="SD,SD+75FS" (default: all of them)
+REG_MODELS = [m for m in os.environ.get("HARP_MODELS", ",".join(REG_MODELS)).split(",") if m in REG_MODELS] or REG_MODELS
+DS_COFIG = [d for d in os.environ.get("HARP_TRAINING_SETS", ",".join(DS_COFIG)).split(",") if d in DS_COFIG] or DS_COFIG
 
 
 class ModelTrainer(PipelineModule):

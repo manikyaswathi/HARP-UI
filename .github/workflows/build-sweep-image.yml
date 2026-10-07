@@ -4,6 +4,7 @@
 #
 # Images: ghcr.io/<owner>/harp-sweep-eulernumber:1.0.0
 #         ghcr.io/<owner>/harp-sweep-yolo:1.0.0   (Ultralytics YOLO, CPU + GPU)
+#         ghcr.io/<owner>/harp-build:1.0.0        (the build phase: trains the estimators)
 # Use it in the TAPIS app as  containerImage: docker://ghcr.io/<owner>/harp-sweep-eulernumber:1.0.0
 # (make the package public once, so OSC/TACC can pull it without a login)
 name: Build HARP sweep image
@@ -16,6 +17,8 @@ on:
       - "examples/02-yolo/**"
       - "DockerFiles/Dockerfile_App_EulerNumber_Sweep"
       - "DockerFiles/Dockerfile_App_YOLO_Sweep"
+      - "DockerFiles/Dockerfile_HARP_Build"
+      - "pipeline/**"
       - ".github/workflows/build-sweep-image.yml"
   workflow_dispatch:
 
@@ -113,3 +116,47 @@ jobs:
           echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
           docker tag "${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}" "$DOCKERHUB_USERNAME/${YOLO_IMAGE}:${IMAGE_TAG}"
           docker push "$DOCKERHUB_USERNAME/${YOLO_IMAGE}:${IMAGE_TAG}"
+
+  build-harp-build:
+    runs-on: ubuntu-latest
+    env:
+      BUILD_IMAGE: harp-build
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image names
+        id: names
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "ghcr=ghcr.io/${owner}/${BUILD_IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: docker build -f DockerFiles/Dockerfile_HARP_Build -t "${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}" .
+
+      - name: Smoke test (train LR and DTR from a small profiling CSV, like a TAPIS job, with no network)
+        run: |
+          mkdir -p in out && chmod 777 out
+          python3 - <<'PY'
+          import csv, random
+          random.seed(3); rows = []
+          for rt, ns in (("SD", [10, 100, 1000]), ("FS", [5000, 10000, 20000, 40000]), ("test_data", [3000, 15000])):
+              for m in ("pow", "factorial"):
+                  for n in ns:
+                      for cores in (8, 40):
+                          w = (0.002 * (n / 1000) ** 0.5 if m == "pow" else 0.02 * (n / 1000) ** 1.2) * (40 / cores) ** 0.3
+                          rows.append({"run_config": f"j{len(rows)}", "run_type": rt, "sys_alloc_cores": cores,
+                                       "run_method": m, "run_n": n, "walltime": round(w * random.uniform(.95, 1.05), 6)})
+          with open("in/ci_2026_01_01_00_00_00.csv", "w", newline="") as f:
+              w = csv.DictWriter(f, fieldnames=list(rows[0])); w.writeheader(); w.writerows(rows)
+          PY
+          spec=$(python3 -c "import base64,json; print(base64.urlsafe_b64encode(json.dumps({'name':'ci','dataset_file':'ci_2026_01_01_00_00_00.csv','models':['LR','DTR'],'training_sets':['SD','SD+75FS']}).encode()).decode())")
+          docker run --rm --network none -v "$PWD/in:/TapisInput" -v "$PWD/out:/TapisOutput" "${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}" "$spec"
+          cat out/model_commons.csv
+          ls out/models
+          test "$(ls out/models/*.pkl | wc -l)" -eq 8
+
+      - name: Push to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}"
+          echo "### Pushed \`${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"

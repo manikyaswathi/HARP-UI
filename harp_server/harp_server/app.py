@@ -14,9 +14,10 @@ from contextlib import asynccontextmanager
 from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
-from .campaign import ACTIVE_CAMPAIGN_STATUSES, PROFILE_FILE_NAME, CampaignManager, CampaignStore, campaign_view
-from .build import BuildManager, build_view, standardize, to_csv
-from .plan import build_plan, harp_app, is_gpu
+from .campaign import ACTIVE_CAMPAIGN_STATUSES, PROFILE_FILE_NAME, CampaignManager, CampaignStore, campaign_view, owner_of
+from .build import MODELS, TRAINING_SETS, BuildManager, build_view, standardize, to_csv
+from .plan import build_plan, harp_app, is_gpu, resolve_target
+from .sweep import SpecError
 from .tapis_gateway import TapisError, TapisGateway
 
 # The profiling page lives at the repository root.
@@ -68,6 +69,7 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
     app = FastAPI(title="HARP sweep server", lifespan=lifespan)
     app.state.manager = manager
     app.state.builds = builds
+    manager.tickers.append(builds.tick)
     allow_http = os.environ.get("HARP_ALLOW_HTTP") == "1"
 
     @app.middleware("http")
@@ -99,7 +101,7 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
             raise HTTPException(502, f"TAPIS: {e}")
 
     def owned(cid, gw):
-        c = manager.get(cid, gw.username)
+        c = manager.get(cid, owner_of(gw))
         if c is None:
             raise HTTPException(404, "campaign not found")
         return c
@@ -212,7 +214,7 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
     def all_jobs(gw: TapisGateway = Depends(gateway)):
         """Every TAPIS job of every sweep, for the jobs table."""
         rows = []
-        for c in manager.list(gw.username):
+        for c in manager.list(owner_of(gw)):
             target_of = {t["key"]: t for t in c["spec"]["targets"]}
             for j in c["jobs"]:
                 t = target_of.get(j["target"], {})
@@ -223,13 +225,23 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
                              "combinations": len(j["combinations"]), "status": j["status"],
                              "runs_total": len(j["combinations"]) * c["spec"]["repetitions"],
                              "progress": j.get("progress"),
-                             "uuid": j["uuid"], "error": j["error"],
+                             "uuid": j["uuid"], "error": j["error"], "kind": "profiling",
                              "submitted_at": j["submitted_at"], "ended_at": j["ended_at"]})
+        for b in builds.list(owner_of(gw)):
+            if not b.get("job"):
+                continue
+            j, w = b["job"], b["where"]
+            rows.append({"name": j["name"], "sweep": f"build {b['name']}", "sweep_id": None, "build_id": b["id"],
+                         "app_id": b["app_id"], "system_id": j["system_id"], "queue": j.get("queue"),
+                         "cores_per_node": w.get("cores_per_node"), "memory_mb": w.get("memory_mb"),
+                         "run_type": "build", "combinations": 0, "status": j["status"], "runs_total": 0,
+                         "progress": None, "uuid": j["uuid"], "error": b["error"] if b["status"] == "FAILED" else None,
+                         "kind": "build", "submitted_at": j["submitted_at"], "ended_at": j.get("ended_at")})
         return rows
 
     @app.get("/api/campaigns")
     def list_campaigns(gw: TapisGateway = Depends(gateway)):
-        return [campaign_view(c, include_jobs=False) for c in manager.list(gw.username)]
+        return [campaign_view(c, include_jobs=False) for c in manager.list(owner_of(gw))]
 
     @app.post("/api/campaigns/{cid}/cancel")
     def cancel(cid: str, gw: TapisGateway = Depends(gateway)):
@@ -243,7 +255,7 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
     csv_cache = {}  # (system, path) -> bytes; a merged campaign CSV never changes
 
     def app_campaigns(app_id, gw):
-        return [c for c in manager.list(gw.username)
+        return [c for c in manager.list(owner_of(gw))
                 if app_id in {t["app_id"] for t in c["spec"]["targets"]}]
 
     def hardware_label(t):
@@ -345,23 +357,59 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
         return Response(to_csv(header, table), media_type="text/csv",
                         headers={"Content-Disposition": f'attachment; filename="{safe}_training.csv"'})
 
+    BUILD_CORES, BUILD_MINUTES = 4, 60   # a build job's defaults, capped by the queue
+
+    @app.get("/api/build-options")
+    def build_options(gw: TapisGateway = Depends(gateway)):
+        """The models HARP can build, and the TAPIS build app (if one is registered) to run them."""
+        apps = [harp_app(a) for a in tapis(gw.list_apps)]
+        build_app = next((a for a in apps if a["role"] == "build"), None)
+        return {"models": MODELS, "training_sets": TRAINING_SETS,
+                "build_app": {k: build_app[k] for k in ("id", "version", "image")} if build_app else None}
+
     @app.post("/api/apps/{app_id}/builds")
     def start_build(app_id: str, body: dict = Body(...), gw: TapisGateway = Depends(gateway)):
-        """Standardize the chosen sweeps and build models with the HARP pipeline; results go to TAPIS."""
+        """Standardize the chosen sweeps and build models with the HARP pipeline, as a TAPIS job
+        with the HARP build app or on this computer; results go to a TAPIS folder."""
         storage = body.get("storage") or {}
         if not storage.get("system_id") or not str(storage.get("path", "")).startswith("/"):
             raise HTTPException(400, "pick a TAPIS system and an absolute folder for the models")
+        models = [m for m in body.get("models") or list(MODELS) if m in MODELS]
+        sets = [t for t in body.get("training_sets") or list(TRAINING_SETS) if t in TRAINING_SETS]
+        if not models or not sets:
+            raise HTTPException(400, "pick at least one model and one training set")
         header, table, report = training_data(app_id, body.get("sweeps"), gw)
         if not report["ready"]:
             raise HTTPException(400, "not enough data to build: " + "; ".join(report["problems"]))
-        label = next((a["label"] for a in map(harp_app, tapis(gw.list_apps)) if a["id"] == app_id), app_id)
-        b = builds.start(gw.username, app_id, label, body["sweeps"], header, table, report,
-                         {"system_id": storage["system_id"], "path": storage["path"].strip()}, gw)
+        apps = [harp_app(a) for a in tapis(gw.list_apps)]
+        label = next((a["label"] for a in apps if a["id"] == app_id), app_id)
+        run_on = body.get("run_on") or {"mode": "local"}
+        where = {"mode": "local"}
+        if run_on.get("mode") == "tapis":
+            build_app = next((a for a in apps if a["role"] == "build"), None)
+            if build_app is None:
+                raise HTTPException(400, "no HARP build app in TAPIS yet: register it with the app notebook (APP = 'build')")
+            try:
+                system = tapis(gw.get_system, run_on.get("system_id"))
+                q = next((x for x in system.get("queues") or [] if x.get("name") == run_on.get("queue")), {})
+                cores = min(BUILD_CORES, q.get("max_cores") or BUILD_CORES)
+                t = resolve_target(system, run_on.get("queue"), {"cores": cores, "max_minutes": min(BUILD_MINUTES, q.get("max_minutes") or BUILD_MINUTES)},
+                                   1, BUILD_MINUTES, 1, run_on.get("scheduler_options"))
+            except SpecError as e:
+                raise HTTPException(400, str(e))
+            where = {"mode": "tapis", "app_id": build_app["id"], "app_version": build_app["version"], **{
+                k: t[k] for k in ("system_id", "queue", "cores_per_node", "memory_mb", "max_minutes", "scheduler_options")}}
+        try:
+            b = builds.start(owner_of(gw), app_id, label, body["sweeps"], header, table, report,
+                             {"system_id": storage["system_id"], "path": storage["path"].strip()}, gw,
+                             models=models, training_sets=sets, where=where)
+        except TapisError as e:
+            raise HTTPException(502, f"TAPIS refused the build: {e}")
         return build_view(b)
 
     @app.get("/api/builds")
     def list_builds(app_id: str = "", gw: TapisGateway = Depends(gateway)):
-        return [build_view(b) for b in builds.list(gw.username, app_id or None)]
+        return [build_view(b) for b in builds.list(owner_of(gw), app_id or None)]
 
     # ------------------------------------------------------------------ page
     @app.get("/")

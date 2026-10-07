@@ -13,6 +13,7 @@ import threading
 import time
 import uuid as uuidlib
 from datetime import datetime, timezone
+from urllib.parse import urlparse
 
 from .sweep import plan_jobs, summarize, validate_spec
 from .tapis_gateway import TERMINAL_STATUSES, TapisError
@@ -125,20 +126,32 @@ class CampaignStore:
         return campaigns
 
 
+def owner_of(gateway):
+    """Who owns a sweep: the TAPIS user *and* tenant, so alice@tacc and alice@icicle never share."""
+    return f"{gateway.username}@{urlparse(gateway.base_url).hostname or gateway.base_url}"
+
+
 class CampaignManager:
     def __init__(self, store: CampaignStore, poll_interval=15):
         self.store = store
         self.poll_interval = poll_interval
         self.campaigns = store.load_all()
-        self.gateways = {}  # owner username -> latest logged-in TapisGateway
+        self.gateways = {}  # owner (user@tenant) -> latest logged-in TapisGateway
         self._lock = threading.RLock()
         self._stop = threading.Event()
         self._thread = None
+        self.tickers = []   # other things to follow on each poll, e.g. build jobs: fn(gateways)
 
     # ------------------------------------------------------------- sessions
     def register_gateway(self, gateway):
+        owner = owner_of(gateway)
         with self._lock:
-            self.gateways[gateway.username] = gateway
+            self.gateways[owner] = gateway
+            # sweeps saved before owners included the tenant belong to the first matching login
+            for c in self.campaigns.values():
+                if c["owner"] == gateway.username:
+                    c["owner"] = owner
+                    self.store.save(c)
 
     # ------------------------------------------------------------ campaigns
     def preview(self, raw_spec):
@@ -155,7 +168,7 @@ class CampaignManager:
         for job in jobs:
             job.update({"archive_dir": f"{campaign_dir}/jobs/{job['name']}", "status": NOT_SUBMITTED,
                         "uuid": None, "error": None, "submitted_at": None, "ended_at": None})
-        campaign = {"id": cid, "owner": gateway.username, "created_at": _now(), "status": RUNNING,
+        campaign = {"id": cid, "owner": owner_of(gateway), "created_at": _now(), "status": RUNNING,
                     "spec": spec, "summary": summary, "campaign_dir": campaign_dir, "jobs": jobs,
                     "result": None, "error": None, "events": []}
         # Write the spec to storage first: this fails fast if the location is not writable.
@@ -216,6 +229,8 @@ class CampaignManager:
                 except Exception as e:  # never let one campaign kill the poller
                     self._event(campaign, f"poller error: {e}")
                     self.store.save(campaign)
+        for fn in self.tickers:
+            fn(dict(self.gateways))
 
     def _advance(self, campaign):
         gateway = self.gateways.get(campaign["owner"])

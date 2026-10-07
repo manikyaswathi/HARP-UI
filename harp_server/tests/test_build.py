@@ -125,3 +125,83 @@ def test_build_runs_the_harp_pipeline_and_saves_models_to_tapis(ctx):
     assert any(p.endswith(".pkl") for p in uploaded) and any(p.endswith(".h5") for p in uploaded)
     listed = client.get("/api/builds", params={"app_id": "harp-sweep-euler"}).json()
     assert listed[0]["id"] == b["id"] and listed[0]["status"] == "DONE"
+
+
+BUILD_APP = {"id": "harp-build-alice", "version": "1.0.0", "image": "docker://ghcr.io/x/harp-build:1.0.0",
+             "runtime": "SINGULARITY", "description": "", "app_args": [],
+             "notes": {"harp": {"label": "HARP build", "role": "build"}}}
+
+
+def test_build_runs_as_a_tapis_job_with_the_build_app(ctx, tmp_path):
+    client, manager, builds, gw = ctx
+    random.seed(2)
+    ids = [sweep(manager, gw, "sd", "SD", [10, 100, 1000]), sweep(manager, gw, "fs", "FS", [5000, 10000, 20000]),
+           sweep(manager, gw, "test", "test_data", [3000, 15000])]
+    body = {"sweeps": ids, "storage": {"system_id": "storage", "path": "/scratch/m"}, "models": ["LR", "DTR"],
+            "training_sets": ["SD", "SD+75FS"], "run_on": {"mode": "tapis", "system_id": "pitzer", "queue": "serial",
+                                                          "scheduler_options": "-A PAS2271"}}
+    r = client.post("/api/apps/harp-sweep-euler/builds", json=body)
+    assert r.status_code == 400 and "no HARP build app" in r.json()["detail"]
+
+    base_apps = gw.list_apps
+    gw.list_apps = lambda: base_apps() + [BUILD_APP]
+    opts = client.get("/api/build-options").json()
+    assert opts["build_app"]["id"] == "harp-build-alice" and set(opts["models"]) == {"LR", "NN", "DTR"}
+    assert [a["role"] for a in client.get("/api/tapis/apps").json()] == ["profile", "build"]
+
+    b = client.post("/api/apps/harp-sweep-euler/builds", json=body).json()
+    req = gw.jobs[b["job"]["uuid"]]["request"]
+    assert (req["appId"], req["execSystemId"], req["execSystemLogicalQueue"]) == ("harp-build-alice", "pitzer", "serial")
+    assert (req["nodeCount"], req["coresPerNode"], req["memoryMB"], req["maxMinutes"]) == (1, 4, 16384, 60)
+    assert req["archiveSystemId"] == "storage" and req["archiveSystemDir"] == b["dest"]
+    assert req["parameterSet"]["schedulerOptions"] == [{"arg": "-A PAS2271"}]
+    staged = f"{b['dest']}/input/{b['dataset_file']}"
+    assert req["fileInputs"][0]["sourceUrl"] == f"tapis://storage{staged}" and ("storage", staged) in gw.files
+    spec = json.loads(base64.urlsafe_b64decode(req["parameterSet"]["appArgs"][0]["arg"]))
+    assert spec == {"name": "euler_number", "dataset_file": b["dataset_file"], "models": ["LR", "DTR"],
+                    "training_sets": ["SD", "SD+75FS"]}
+    kinds = {j["kind"] for j in client.get("/api/jobs").json()}
+    assert kinds == {"profiling", "build"}
+
+    # the job runs; TAPIS archives the runner's output folder to the destination
+    out = tmp_path / "out"
+    py = build_python()
+    if py:
+        inp = tmp_path / b["dataset_file"]
+        inp.write_bytes(gw.files[("storage", staged)])
+        runner = os.path.join(os.path.dirname(__file__), "..", "..", "job_runner", "harp_build_runner.py")
+        assert subprocess.run([py, runner, req["parameterSet"]["appArgs"][0]["arg"], "--input", str(inp),
+                               "--output", str(out)], capture_output=True).returncode == 0
+    else:
+        (out / "models").mkdir(parents=True)
+        (out / "model_commons.csv").write_text("DataSet,RegModel,ADJ_FACTOR,MSE,MAE,MAPE,UPP,UP_MAPE,OV_MAPE,MODEL_NAME\n"
+                                               "SD,LR,1.0,0.1,0.2,12.5,40,10,10,LR_SD_no\n")
+        (out / "harp_build_summary.json").write_text(json.dumps({"ok": True, "files": ["model_commons.csv"]}))
+    for f in out.rglob("*"):
+        if f.is_file():
+            gw.files[("storage", f"{b['dest']}/{f.relative_to(out)}")] = f.read_bytes()
+    gw.jobs[b["job"]["uuid"]]["status"] = "FINISHED"
+    manager.tick()
+    done = builds.builds[b["id"]]
+    assert done["status"] == "DONE", done["error"]
+    assert done["best"]["MAPE"] is not None and {m["RegModel"] for m in done["metrics"]} <= {"LR", "DTR"}
+    if py:
+        assert len(done["metrics"]) == 8 and any(f.endswith(".pkl") for f in done["files"])
+    job = next(j for j in client.get("/api/jobs").json() if j["kind"] == "build")
+    assert job["status"] == "FINISHED" and job["system_id"] == "pitzer"
+
+
+def test_failed_build_job_reports_why(ctx):
+    client, manager, builds, gw = ctx
+    ids = [sweep(manager, gw, "sd", "SD", [10, 100]), sweep(manager, gw, "fs", "FS", [5000, 10000]),
+           sweep(manager, gw, "test", "test_data", [3000])]
+    base_apps = gw.list_apps
+    gw.list_apps = lambda: base_apps() + [BUILD_APP]
+    b = client.post("/api/apps/harp-sweep-euler/builds", json={
+        "sweeps": ids, "storage": {"system_id": "storage", "path": "/m"},
+        "run_on": {"mode": "tapis", "system_id": "pitzer", "queue": "serial"}}).json()
+    gw.files[("storage", f"{b['dest']}/harp_build_summary.json")] = json.dumps(
+        {"ok": False, "error": "model_trainer failed"}).encode()
+    gw.jobs[b["job"]["uuid"]]["status"] = "FAILED"
+    manager.tick()
+    assert builds.builds[b["id"]]["status"] == "FAILED" and builds.builds[b["id"]]["error"] == "model_trainer failed"
