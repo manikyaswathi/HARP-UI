@@ -292,6 +292,10 @@ tr.selectable.sel{background:var(--teal-50)}
 .wrap-p{max-width:1180px;margin:0 auto;padding:0 28px}
 .pgrid{display:grid;grid-template-columns:1fr 380px;gap:26px;align-items:start}
 @media(max-width:980px){.pgrid{grid-template-columns:1fr}}
+.pgrid>*{min-width:0}
+.atbl{overflow-x:auto}
+.ahead,.arow{min-width:420px}
+@media(max-width:560px){.wrap-p{padding:0 16px}}
 
 .card2{background:#fff;border:1px solid var(--line);border-radius:var(--r);
   padding:20px 22px;margin-bottom:16px}
