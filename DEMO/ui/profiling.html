@@ -1140,6 +1140,8 @@ function renderAllocs(){
 }
 
 /* ============================================================ 1. configure */
+// Cores per job default to the queue's max cores per node (1 if TAPIS gives no limit).
+const defCores = q => (q && q.max_cores > 0) ? q.max_cores : 1;
 // The sweep being edited. Queues and cores per queue are part of it.
 let app = null, SW = null, PLAN = store.get('harp-plan', []), planSeq = PLAN.reduce((n, p) => Math.max(n, p.id), 0);
 const values = st => { const raw = (st.raw || '').trim(); if (!raw) return [];
@@ -1225,20 +1227,21 @@ function renderSystems(){
       ${(s.runtimes || []).map(r => `<span class="rt dock">${esc(r)}</span>`).join(' ')}
       ${s.error ? `<span class="loginerr">queues unavailable: ${esc(s.error)}</span>` : ''}</div>
     ${qlist(s).map(q => { const k = qkey(s, q), on = SW.queues.includes(k);
-      const cores = SW.cores[k] ?? 1;
+      const cores = SW.cores[k] ?? defCores(q);
       return `<label class="qrow${on ? ' on' : ''}">
         <input type="checkbox" class="qpick" data-k="${esc(k)}" ${on ? 'checked' : ''}>
         <span class="qn">${esc(q.name || 'default queue')}${q.default ? ' <span class="pill done">default</span>' : ''}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}
           ${q.description ? `<span class="am">${esc(q.description)}</span>` : q.hpc_queue && q.hpc_queue !== q.name ? `<span class="am">scheduler: ${esc(q.hpc_queue)}</span>` : ''}</span>
         <span class="lim">${limits(q)}</span>
-        <span class="qc"><span class="qcl">cores / job</span><input type="number" min="1" ${q.max_cores ? `max="${q.max_cores}"` : ''} class="qcores" data-k="${esc(k)}" value="${cores}"
-          aria-label="Cores per job on ${esc(s.id)} ${esc(q.name)}" title="Cores per job"></span>
+        <span class="qc"><span class="qcl">cores / job${q.max_cores ? ` · max ${q.max_cores}` : ''}</span><input type="number" min="1" ${q.max_cores ? `max="${q.max_cores}"` : ''} class="qcores" data-k="${esc(k)}" value="${cores}"
+          aria-label="Cores per job on ${esc(s.id)} ${esc(q.name)}" title="Cores per job. Defaults to the queue's max cores per node."></span>
       </label>`; }).join('')}`).join('');
   $('systems').querySelectorAll('.qpick').forEach(el => el.addEventListener('change', () => {
     SW.queues = el.checked ? [...new Set([...SW.queues, el.dataset.k])] : SW.queues.filter(k => k !== el.dataset.k);
     el.closest('.qrow').classList.toggle('on', el.checked); updateCurrent(); }));
   $('systems').querySelectorAll('.qcores').forEach(el =>
-    el.addEventListener('change', () => { SW.cores[el.dataset.k] = Math.max(1, +el.value || 1); updateCurrent(); }));
+    el.addEventListener('change', () => { const hit = queueByKey(el.dataset.k), mx = hit && hit.q.max_cores;
+      const v = Math.max(1, +el.value || 1); SW.cores[el.dataset.k] = mx ? Math.min(v, mx) : v; el.value = SW.cores[el.dataset.k]; updateCurrent(); }));
 }
 function updateCurrent(){
   if (!app) return;
@@ -1305,7 +1308,7 @@ function specs(){
       run_sets: [{run_type: sw.run_type, parameters: Object.fromEntries(p.app.params.map(x =>
         [x.name, values(sw.params[x.name]).map(v => x.kind === 'int' || x.kind === 'float' ? Number(v) : v)]))}],
       targets: sw.queues.map(k => { const hit = queueByKey(k) || {s: {id: k.split('|')[0]}, q: {name: k.split('|')[1]}};
-        const {s, q} = hit, cores = sw.cores[k] ?? 1;
+        const {s, q} = hit, cores = sw.cores[k] ?? defCores(q);
         return {system_id: s.id, queue: q.name || null, app_id: p.app.id, app_version: p.app.version,
           scheduler_options: ALLOC[s.id] || null, container_args: isGpu(q) ? '--nv' : null, node_count: 1,
           cores_per_node: q.max_cores ? Math.min(cores, q.max_cores) : cores,
@@ -1334,7 +1337,7 @@ async function renderReview(){
       const tail = first ? `<td rowspan="${span}" class="chk" data-plan="${p.id}">checking&hellip;</td>
         <td rowspan="${span}"><button class="rowbtn danger" data-rm="${p.id}" type="button">Remove</button></td>` : '';
       return `<tr>${lead}<td>${esc(k.replace('|', ' / '))}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}</td>
-        <td class="num">${n}</td><td class="num">${n * p.sweep.reps}</td><td class="num">${p.sweep.cores[k] ?? 1}</td>
+        <td class="num">${n}</td><td class="num">${n * p.sweep.reps}</td><td class="num">${p.sweep.cores[k] ?? defCores(q)}</td>
         <td class="num">${fmtMin(Math.min(p.sweep.timeout * p.sweep.reps + 10, q.max_minutes > 0 ? q.max_minutes : Infinity))}</td>${tail}</tr>`; }).join('')
     : `<tr><td class="updated">The plan is empty. Add sweeps on <button class="rowbtn" id="goCfg" type="button">Configure</button>.</td></tr>`;
   const gc = $('goCfg'); if (gc) gc.addEventListener('click', () => show('configure'));
