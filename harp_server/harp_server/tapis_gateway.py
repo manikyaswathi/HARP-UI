@@ -155,11 +155,6 @@ class TapisGateway:
         return out
 
     # ------------------------------------------------------------------- files
-    def list_files(self, system_id, path):
-        items = self._call(self.client.files.listFiles, systemId=system_id, path=path, limit=1000)
-        return [{"name": _get(f, "name"), "path": _get(f, "path"), "type": _get(f, "type"),
-                 "size": _get(f, "size")} for f in items]
-
     def mkdir(self, system_id, path):
         self._call(self.client.files.mkdir, systemId=system_id, path=path)
 
@@ -170,9 +165,6 @@ class TapisGateway:
     def download(self, system_id, path) -> bytes:
         data = self._call(self.client.files.getContents, systemId=system_id, path=path)
         return data if isinstance(data, bytes) else str(data).encode()
-
-    def delete(self, system_id, path):
-        self._call(self.client.files.delete, systemId=system_id, path=path)
 
     # -------------------------------------------------------------------- jobs
     def submit_job(self, request: dict) -> str:
@@ -191,37 +183,3 @@ class TapisGateway:
         job = self._call(self.client.jobs.getJob, jobUuid=uuid)
         return _get(job, "execSystemId"), _get(job, "execSystemOutputDir")
 
-    # --------------------------------------------------------- access checks
-    def check_storage(self, system_id, path):
-        """Prove the storage location is writable and readable through TAPIS."""
-        probe_dir = f"{path.rstrip('/')}/.harp_access_check_{int(time.time())}"
-        steps = []
-        try:
-            self.mkdir(system_id, probe_dir)
-            steps.append("mkdir")
-            self.upload(system_id, f"{probe_dir}/probe.txt", b"harp")
-            steps.append("write")
-            ok = self.download(system_id, f"{probe_dir}/probe.txt") == b"harp"
-            steps.append("read")
-            self.delete(system_id, probe_dir)
-            steps.append("delete")
-            return {"ok": ok, "steps": steps, "error": None if ok else "read back mismatch"}
-        except TapisError as e:
-            return {"ok": False, "steps": steps, "error": str(e)}
-
-    def check_target(self, target):
-        """Prove an execution system and its HARP app are usable through TAPIS."""
-        result = {"system_id": target["system_id"], "ok": False, "error": None}
-        try:
-            system = self.get_system(target["system_id"])
-            if not system["can_exec"]:
-                raise TapisError("system cannot execute jobs (canExec is false)")
-            queue = target.get("queue")
-            if queue and system["queues"] and queue not in [q["name"] for q in system["queues"]]:
-                raise TapisError(f"queue '{queue}' is not defined on this system")
-            self.list_files(target["system_id"], "/")  # proves credentials are registered
-            self._call(self.client.apps.getApp, appId=target["app_id"], appVersion=target["app_version"])
-            result["ok"] = True
-        except TapisError as e:
-            result["error"] = str(e)
-        return result

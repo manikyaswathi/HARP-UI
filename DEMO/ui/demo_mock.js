@@ -206,6 +206,71 @@
     }
     return {runs_total: total, progress: null};
   }
+  // ---- the server's plan rules (harp_server/plan.py), mirrored for the demo ----
+  function harpApp(a){
+    const h = (a.notes && a.notes.harp) || {};
+    let params = Array.isArray(h.params) ? h.params : [];
+    if (!params.length && h.command) params = [...h.command.matchAll(/\{(\w+)\}/g)].map(m => ({name:m[1], arg:`{${m[1]}}`}));
+    return {id:a.id, version:a.version, label:h.label || a.id, image:a.image || '', runtime:a.runtime || 'SINGULARITY',
+      description:a.description || '', command:h.command || '', workdir:h.workdir || '',
+      params: params.map(p => ({name:p.name, arg:p.arg || '', kind:p.kind || 'string', default: p.default == null ? '' : String(p.default)}))};
+  }
+  const isGpuQ = q => /gpu/i.test(`${q.name || ''} ${q.description || ''} ${q.hpc_queue || ''}`);
+  const cap = (v, mx) => mx > 0 ? Math.min(v, mx) : v;
+  function resolveTarget(sys, qn, cfg, reps, timeout, onQueue, alloc){
+    const where = `${sys.id}/${qn || 'default queue'}`, q = (sys.queues || []).find(x => x.name === qn);
+    if (!q) throw `${sys.id} has no queue '${qn}'`;
+    if ((q.min_nodes || 1) > 1) throw `${where} needs at least ${q.min_nodes} nodes; profiling jobs use 1 node`;
+    const cores = cfg.cores || q.max_cores || 1;
+    if (q.max_cores > 0 && cores > q.max_cores) throw `${where} allows at most ${q.max_cores} cores per node; asked for ${cores}`;
+    const mem = cfg.memory_mb || cap(Math.max(4096, cores * 4096), q.max_memory_mb);
+    if (q.max_memory_mb > 0 && mem > q.max_memory_mb) throw `${where} allows at most ${q.max_memory_mb} MB of memory; asked for ${mem}`;
+    const mins = cfg.max_minutes || cap(reps * timeout + 10, q.max_minutes);
+    if (q.max_minutes > 0 && mins > q.max_minutes) throw `${where} allows at most ${q.max_minutes} minutes; asked for ${mins}`;
+    const lim = q.max_jobs_per_user > 0 ? Math.min(q.max_jobs_per_user, 10) : 4;
+    return {system_id:sys.id, queue:qn, node_count:1, cores_per_node:cores, memory_mb:mem, max_minutes:mins,
+      container_args: isGpuQ(q) ? '--nv' : null, scheduler_options: (alloc || '').trim() || null,
+      max_concurrent_jobs: Math.max(1, Math.floor(lim / onQueue))};
+  }
+  function buildPlan(plan){
+    const st = plan.storage || {}, path = (st.path || '').trim();
+    const storage_error = !st.system_id ? 'pick a TAPIS system for the results'
+      : !path.startsWith('/') ? 'the results folder must be an absolute path, e.g. /fs/scratch/PAS0000/harp_runs' : null;
+    const stamp = new Date().toISOString().slice(2, 16).replace(/[-:T]/g, '');
+    const sweeps = plan.sweeps.map(s => {
+      const name = `${s.app_id} / ${s.name}`;
+      try {
+        const app = APPS.map(harpApp).find(a => a.id === s.app_id);
+        if (!app) throw `app '${s.app_id}' is not one of your TAPIS apps`;
+        if (!app.command) throw `${app.label} does not declare its sweep command in its TAPIS notes`;
+        if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,30}$/.test(s.name || '')) throw 'sweep name: letters, digits, - _ . (max 31)';
+        const params = {};
+        for (const p of app.params) {
+          const vals = (s.params[p.name] || []).filter(v => v !== '');
+          if (!vals.length) throw `give '${p.name}' a value`;
+          if ((p.kind === 'int' || p.kind === 'float') && vals.some(v => isNaN(+v))) throw `'${p.name}' needs numbers`;
+          params[p.name] = vals.map(v => p.kind === 'int' || p.kind === 'float' ? Number(v) : v);
+        }
+        if (!s.targets.length) throw 'tick at least one queue';
+        const count = {}; s.targets.forEach(t => count[t.system_id + '|' + t.queue] = (count[t.system_id + '|' + t.queue] || 0) + 1);
+        const seen = new Set();
+        const targets = s.targets.map(t => { const sys = SYSTEMS.find(x => x.id === t.system_id);
+          if (!sys) throw `'${t.system_id}' is not one of your TAPIS execution systems`;
+          const r = resolveTarget(sys, t.queue, t, s.repetitions, s.timeout_min, count[t.system_id + '|' + t.queue], (plan.allocations || {})[t.system_id]);
+          const sig = [r.system_id, r.queue, r.cores_per_node, r.memory_mb, r.max_minutes].join('|');
+          if (seen.has(sig)) throw `${t.system_id}/${t.queue} has two identical configurations`; seen.add(sig);
+          return {...r, app_id:app.id, app_version:app.version}; });
+        const slug = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'app';
+        const spec = {name:`${slug}-${s.name}-${stamp}`.slice(0, 64), application:slug, command:app.command, workdir:app.workdir,
+          repetitions:s.repetitions, run_timeout_sec:s.timeout_min * 60, combos_per_job:1, distribution:'replicate',
+          run_sets:[{run_type:s.run_type, parameters:params}], targets, storage:{system_id:st.system_id, path}};
+        const n = cartesian(params).length;
+        return {name, ok:true, targets, spec, sweep_name:spec.name,
+                summary:{combinations:n, jobs:n * targets.length, total_runs:n * targets.length * s.repetitions}};
+      } catch (e) { return {name, ok:false, error:String(e), targets:[]}; }
+    });
+    return {ok: !storage_error && sweeps.every(x => x.ok), storage_error, sweeps};
+  }
   const realFetch = window.fetch.bind(window);
   window.fetch = function(url, opts = {}){
     const path = decodeURIComponent(String(url));
@@ -221,25 +286,18 @@
     if (path === '/api/logout') { setMe(null); return Promise.resolve(json(200, {ok:true})); }
     if (!me) return Promise.resolve(json(401, {detail:'log in to TAPIS first'}));
     if (path === '/api/me') return Promise.resolve(json(200, me));
-    if (path === '/api/tapis/apps') return later(json(200, APPS));
+    if (path === '/api/tapis/apps') return later(json(200, APPS.map(harpApp)));
     SWEEPS.forEach(advance);
     if (path === '/api/tapis/systems') return later(json(200, [...SYSTEMS.map(({queues, ...x}) => x), ...STORAGE_ONLY]));
-    if (path === '/api/tapis/exec-systems') return later(json(200, SYSTEMS));
-    const check = spec => {
-      if (!spec.command) return 'command is required';
-      if (!spec.targets || !spec.targets.length) return 'at least one target system (hardware) is required';
-      const ph = [...spec.command.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
-      const missing = ph.filter(x => !(x in spec.run_sets[0].parameters));
-      return missing.length ? `run_sets[0] has no values for command placeholders ${JSON.stringify(missing)}` : '';
-    };
-    if (path === '/api/campaigns/batch/preview') return later(json(200, (Array.isArray(body) ? body : []).map(sp => {
-      const err = check(sp); if (err) return {name:sp.name, ok:false, error:err};
-      const n = cartesian(sp.run_sets[0].parameters).length;
-      return {name:sp.name, ok:true, summary:{combinations:n, jobs:n * sp.targets.length, total_runs:n * sp.targets.length * sp.repetitions}}; })));
-    if (path === '/api/campaigns/batch') {
-      for (const sp of body) { const err = check(sp); if (err) return later(json(400, {detail:`sweep '${sp.name}': ${err}`})); }
-      const made = body.map((sp, i) => { const sw = launched(sp, Date.now() + i * 4000); SWEEPS.unshift(sw);
-        try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]'); saved.push({spec:sp, created:sw.live.created});
+    if (path === '/api/tapis/exec-systems') return later(json(200, SYSTEMS.map(x => ({...x, queues: x.queues.map(q => ({...q, gpu: isGpuQ(q)}))}))));
+    if (path === '/api/plan/preview' || path === '/api/plan/submit') {
+      if (!body.sweeps || !body.sweeps.length) return later(json(400, {detail:'the plan has no sweeps'}));
+      const res = buildPlan(body);
+      if (path === '/api/plan/preview') return later(json(200, res));
+      if (res.storage_error) return later(json(400, {detail:res.storage_error}));
+      const bad = res.sweeps.find(x => !x.ok); if (bad) return later(json(400, {detail:`sweep ${bad.name}: ${bad.error}`}));
+      const made = res.sweeps.map((x, i) => { const sw = launched(x.spec, Date.now() + i * 4000); SWEEPS.unshift(sw);
+        try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]'); saved.push({spec:x.spec, created:sw.live.created});
               sessionStorage.setItem(LKEY, JSON.stringify(saved)); } catch (e) {}
         return {...sw.view}; });
       return later(json(200, made));
@@ -249,31 +307,15 @@
       queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null,
       cores_per_node: j.cores_per_node || (sw.view.hardware.find(h => h.key === j.target) || {}).cores_per_node || null,
       memory_mb: j.memory_mb || (sw.view.hardware.find(h => h.key === j.target) || {}).memory_mb || null})))));
-    let sy = path.match(/^\/api\/tapis\/systems\/([^/]+)$/);
-    if (sy) { const x = SYSTEMS.find(y => y.id === sy[1]); return later(x ? json(200, x) : json(404, {detail:'no such system'})); }
-    if (path === '/api/campaigns' && (opts.method || 'GET') === 'POST') {
-      if (!body.storage || !body.storage.path) return later(json(400, {detail:'storage.path is required'}));
-      const sw = launched(body); SWEEPS.unshift(sw);
-      try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]');
-            saved.push({spec: body, created: sw.live.created}); sessionStorage.setItem(LKEY, JSON.stringify(saved)); } catch (e) {}
-      return later(json(200, {...sw.view, jobs:sw.jobs}));
-    }
     if (path === '/api/campaigns') return Promise.resolve(json(200, SWEEPS.map(s => s.view)));
-    let c = path.match(/^\/api\/campaigns\/([^/]+)(\/(cancel|resubmit))?$/);
+    let c = path.match(/^\/api\/campaigns\/([^/]+)\/cancel$/);
     if (c) {
       const sw = SWEEPS.find(x => x.view.id === c[1]);
       if (!sw) return Promise.resolve(json(404, {detail:'campaign not found'}));
       const now = new Date().toISOString();
-      if (c[3] === 'cancel') {
-        for (const j of sw.jobs) if (!['FINISHED','FAILED'].includes(j.status)) Object.assign(j, {status:'CANCELLED', ended_at:now});
-        sw.view.status = 'CANCELLED'; sw.view.events.push({at:now, message:'cancelled by user'}); recount(sw);
-      } else if (c[3] === 'resubmit') {
-        let n = 0;
-        for (const j of sw.jobs) if (['FAILED','CANCELLED'].includes(j.status)) { Object.assign(j, {status:'NOT_SUBMITTED', uuid:null, error:null, ended_at:null}); n++; }
-        sw.view.status = 'RUNNING'; sw.view.events.push({at:now, message:`resubmitting ${n} jobs`}); recount(sw);
-        return later(json(200, {resubmitted:n}));
-      }
-      return later(json(200, {...sw.view, jobs:sw.jobs}));
+      for (const j of sw.jobs) if (!['FINISHED','FAILED'].includes(j.status)) Object.assign(j, {status:'CANCELLED', ended_at:now});
+      sw.view.status = 'CANCELLED'; sw.view.events.push({at:now, message:'cancelled by user'}); recount(sw);
+      return later(json(200, sw.view));
     }
     let m = path.match(/^\/api\/apps\/(.+)\/profile\.csv$/);
     if (m) { const p = profileOf(m[1]);

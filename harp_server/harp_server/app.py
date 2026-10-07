@@ -1,6 +1,6 @@
 """
-HARP sweep server: a web UI + REST API for running the generate phase as
-many TAPIS jobs across several systems.
+HARP sweep server: the REST API behind the profiling page (profiling.html),
+running the generate phase as many TAPIS jobs across several systems.
 
 Run with HTTPS:  python3 -m harp_server.serve   (see README for certificates)
 """
@@ -12,16 +12,13 @@ import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse, RedirectResponse
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
-from .campaign import (ACTIVE_CAMPAIGN_STATUSES, PROFILE_FILE_NAME, CampaignManager, CampaignStore,
-                       campaign_view)
-from .sweep import SpecError
+from .campaign import ACTIVE_CAMPAIGN_STATUSES, PROFILE_FILE_NAME, CampaignManager, CampaignStore, campaign_view
+from .plan import build_plan, harp_app, is_gpu
 from .tapis_gateway import TapisError, TapisGateway
 
-STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
-# The iScheduler profiling page lives at the repository root.
+# The profiling page lives at the repository root.
 PROFILING_PAGE = os.environ.get(
     "HARP_PROFILING_PAGE",
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "profiling.html"))
@@ -146,76 +143,65 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
 
     @app.get("/api/tapis/exec-systems")
     def exec_systems(gw: TapisGateway = Depends(gateway)):
-        return tapis(gw.exec_systems)
-
-    @app.get("/api/tapis/systems/{system_id}")
-    def system(system_id: str, gw: TapisGateway = Depends(gateway)):
-        return tapis(gw.get_system, system_id)
+        """Systems the user can run jobs on, each with its queues (TAPIS batchLogicalQueues)."""
+        out = tapis(gw.exec_systems)
+        for s in out:
+            for q in s.get("queues") or []:
+                q["gpu"] = is_gpu(q)
+        return out
 
     @app.get("/api/tapis/apps")
     def apps(gw: TapisGateway = Depends(gateway)):
-        return tapis(gw.list_apps)
-
-    @app.get("/api/tapis/files")
-    def files(system_id: str, path: str = "/", gw: TapisGateway = Depends(gateway)):
-        return tapis(gw.list_files, system_id, path)
-
-    @app.post("/api/tapis/mkdir")
-    def mkdir(body: dict = Body(...), gw: TapisGateway = Depends(gateway)):
-        tapis(gw.mkdir, body["system_id"], body["path"])
-        return {"ok": True}
-
-    @app.post("/api/tapis/check")
-    def check(body: dict = Body(...), gw: TapisGateway = Depends(gateway)):
-        """Test every location the campaign will touch, through TAPIS."""
-        storage = body.get("storage") or {}
-        result = {"targets": [gw.check_target({"app_version": "1.0.0", **t}) for t in body.get("targets", [])],
-                  "storage": None}
-        if storage.get("system_id") and storage.get("path"):
-            result["storage"] = gw.check_storage(storage["system_id"], storage["path"])
-        result["ok"] = (all(t["ok"] for t in result["targets"]) and bool(result["targets"])
-                        and bool(result["storage"] and result["storage"]["ok"]))
-        return result
+        """The user's TAPIS apps with their sweep parameters (from the app notes)."""
+        return [harp_app(a) for a in tapis(gw.list_apps)]
 
     # ------------------------------------------------------------ campaigns
-    @app.post("/api/campaigns/preview")
-    def preview(spec: dict = Body(...), gw: TapisGateway = Depends(gateway)):
+    def plan_or_400(plan, gw):
+        if not isinstance(plan, dict):
+            raise HTTPException(400, "send the plan as a JSON object")
+        if not plan.get("sweeps"):
+            raise HTTPException(400, "the plan has no sweeps")
+        return tapis(build_plan, plan, gw)
+
+    def checked(item):
+        """A built sweep, also run through the campaign validator and splitter."""
+        if "error" in item:
+            return {"name": item["name"], "ok": False, "error": item["error"], "targets": item["targets"]}
+        spec = item["spec"]
+        if not (spec["storage"]["system_id"] and spec["storage"]["path"].startswith("/")):
+            # the results folder is reported on its own (storage_error); check the sweep without it
+            spec = {**spec, "storage": {"system_id": "unset", "path": "/unset"}}
         try:
-            _, jobs, summary = manager.preview(spec)
-        except (SpecError, ValueError) as e:
-            raise HTTPException(400, str(e))
-        return {"summary": summary,
-                "jobs": [{"name": j["name"], "system_id": j["system_id"], "run_type": j["run_type"],
-                          "combinations": [c["parameters"] for c in j["combinations"]]} for j in jobs]}
+            _, _, summary = manager.preview(spec)
+        except ValueError as e:
+            return {"name": item["name"], "ok": False, "error": str(e), "targets": item["targets"]}
+        return {"name": item["name"], "ok": True, "summary": summary, "targets": item["targets"],
+                "sweep_name": item["spec"]["name"]}
 
-    @app.post("/api/campaigns/batch/preview")
-    def preview_batch(specs: list = Body(...), gw: TapisGateway = Depends(gateway)):
-        """Check several sweeps at once; each comes back with its summary or its error."""
-        out = []
-        for spec in specs:
-            try:
-                _, jobs, summary = manager.preview(spec)
-                out.append({"name": spec.get("name"), "ok": True, "summary": summary})
-            except (SpecError, ValueError) as e:
-                out.append({"name": spec.get("name"), "ok": False, "error": str(e)})
-        return out
+    @app.post("/api/plan/preview")
+    def preview_plan(plan: dict = Body(...), gw: TapisGateway = Depends(gateway)):
+        """Check every sweep of the plan against TAPIS (apps, systems, queue limits).
+        Each comes back with its summary and the exact hardware each job will ask for."""
+        built, storage_error = plan_or_400(plan, gw)
+        sweeps = [checked(b) for b in built]
+        return {"ok": not storage_error and all(x["ok"] for x in sweeps),
+                "storage_error": storage_error, "sweeps": sweeps}
 
-    @app.post("/api/campaigns/batch")
-    def create_batch(specs: list = Body(...), gw: TapisGateway = Depends(gateway)):
-        """Launch several sweeps. Nothing is submitted unless every sweep is valid."""
-        if not specs:
-            raise HTTPException(400, "no sweeps to submit")
-        for spec in specs:
-            try:
-                manager.preview(spec)
-            except (SpecError, ValueError) as e:
-                raise HTTPException(400, f"sweep {spec.get('name')!r}: {e}")
+    @app.post("/api/plan/submit")
+    def submit_plan(plan: dict = Body(...), gw: TapisGateway = Depends(gateway)):
+        """Launch every sweep of the plan. Nothing is submitted unless every sweep is valid."""
+        built, storage_error = plan_or_400(plan, gw)
+        if storage_error:
+            raise HTTPException(400, storage_error)
+        for x in map(checked, built):
+            if not x["ok"]:
+                raise HTTPException(400, f"sweep {x['name']}: {x['error']}")
         created = []
-        for spec in specs:
+        for b in built:
             try:
-                created.append(campaign_view(manager.create(spec, gw), include_jobs=False))
+                created.append(campaign_view(manager.create(b["spec"], gw), include_jobs=False))
             except TapisError as e:
-                raise HTTPException(502, f"TAPIS refused sweep {spec.get('name')!r} after "
+                raise HTTPException(502, f"TAPIS refused sweep {b['name']} after "
                                          f"{len(created)} were submitted: {e}")
         return created
 
@@ -238,23 +224,9 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
                              "submitted_at": j["submitted_at"], "ended_at": j["ended_at"]})
         return rows
 
-    @app.post("/api/campaigns")
-    def create(spec: dict = Body(...), gw: TapisGateway = Depends(gateway)):
-        try:
-            c = manager.create(spec, gw)
-        except (SpecError, ValueError) as e:
-            raise HTTPException(400, str(e))
-        except TapisError as e:
-            raise HTTPException(502, f"TAPIS storage is not writable: {e}")
-        return campaign_view(c)
-
     @app.get("/api/campaigns")
     def list_campaigns(gw: TapisGateway = Depends(gateway)):
         return [campaign_view(c, include_jobs=False) for c in manager.list(gw.username)]
-
-    @app.get("/api/campaigns/{cid}")
-    def get_campaign(cid: str, gw: TapisGateway = Depends(gateway)):
-        return campaign_view(owned(cid, gw))
 
     @app.post("/api/campaigns/{cid}/cancel")
     def cancel(cid: str, gw: TapisGateway = Depends(gateway)):
@@ -263,24 +235,6 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
             raise HTTPException(409, f"campaign is already {c['status']}")
         manager.cancel(c)
         return campaign_view(c)
-
-    @app.post("/api/campaigns/{cid}/resubmit")
-    def resubmit(cid: str, gw: TapisGateway = Depends(gateway)):
-        c = owned(cid, gw)
-        if c["status"] in ACTIVE_CAMPAIGN_STATUSES:
-            raise HTTPException(409, "wait for the campaign to finish before resubmitting")
-        return {"resubmitted": manager.resubmit_failed(c)}
-
-    @app.get("/api/campaigns/{cid}/csv")
-    def download_csv(cid: str, gw: TapisGateway = Depends(gateway)):
-        c = owned(cid, gw)
-        path = (c.get("result") or {}).get("csv_path")
-        if not path:
-            raise HTTPException(404, "no merged profiling CSV yet")
-        data = tapis(gw.download, c["spec"]["storage"]["system_id"], path)
-        name = path.rsplit("/", 1)[-1]
-        return Response(data, media_type="text/csv",
-                        headers={"Content-Disposition": f'attachment; filename="{name}"'})
 
     # ------------------------------------------------------- per-app results
     csv_cache = {}  # (system, path) -> bytes; a merged campaign CSV never changes
@@ -356,33 +310,14 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
         return Response(out.getvalue(), media_type="text/csv",
                         headers={"Content-Disposition": f'attachment; filename="{safe}_profile.csv"'})
 
-    # ------------------------------------------------------------------ UI
-    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
-
-    def page(path):
-        if not os.path.isfile(path):
-            raise HTTPException(404, f"{os.path.basename(path)} not found")
-        return FileResponse(path, headers={"Content-Security-Policy": PROFILING_CSP})
-
+    # ------------------------------------------------------------------ page
+    @app.get("/")
     @app.get("/profiling")
     @app.get("/profiling.html")
     def profiling_page():
-        return page(PROFILING_PAGE)
-
-    # Jobs and profiled data are tabs of the profiling page now.
-    @app.get("/runs")
-    @app.get("/runs.html")
-    def runs_page():
-        return RedirectResponse("/profiling#jobs")
-
-    @app.get("/profile-data")
-    @app.get("/profile-data.html")
-    def profile_data_page():
-        return RedirectResponse("/profiling#data")
-
-    @app.get("/")
-    def index():
-        return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+        if not os.path.isfile(PROFILING_PAGE):
+            raise HTTPException(404, "profiling.html not found")
+        return FileResponse(PROFILING_PAGE, headers={"Content-Security-Policy": PROFILING_CSP})
 
     return app
 

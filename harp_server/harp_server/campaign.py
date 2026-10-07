@@ -195,22 +195,6 @@ class CampaignManager:
             self._event(campaign, "cancelled by user")
             self.store.save(campaign)
 
-    def resubmit_failed(self, campaign):
-        with self._lock:
-            count = 0
-            for job in campaign["jobs"]:
-                if job["status"] in ("FAILED", "CANCELLED", SUBMIT_FAILED):
-                    job.update({"status": NOT_SUBMITTED, "uuid": None, "error": None,
-                                "submitted_at": None, "ended_at": None, "progress": None, "exec_output": None})
-                    count += 1
-            if count:
-                campaign["status"] = RUNNING
-                campaign["result"] = None
-                self._event(campaign, f"resubmitting {count} jobs")
-                self.store.save(campaign)
-            return count
-
-    # ---------------------------------------------------------- the engine
     def start(self):
         if self._thread is None:
             self._thread = threading.Thread(target=self._loop, name="harp-poller", daemon=True)

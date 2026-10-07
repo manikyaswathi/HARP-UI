@@ -99,7 +99,7 @@ def test_full_lifecycle_throttles_tracks_and_merges(setup):
     assert len(manifest["jobs"]) == 4
 
 
-def test_failed_jobs_give_done_with_errors_and_can_be_resubmitted(setup):
+def test_failed_jobs_give_done_with_errors(setup):
     gw, manager = setup
     c = manager.create(euler_spec(targets=[euler_spec()["targets"][0] | {"max_concurrent_jobs": 10}]), gw)
     manager.tick()
@@ -110,14 +110,6 @@ def test_failed_jobs_give_done_with_errors_and_can_be_resubmitted(setup):
     manager.tick()
     assert c["status"] == "DONE_WITH_ERRORS"
     assert c["result"]["rows"] == 1
-
-    assert manager.resubmit_failed(c) == len(uuids) - 1
-    manager.tick()
-    for u in gw.submitted[len(uuids):]:
-        gw.finish(u, _csv([_row("FS", 1000, 1.0)]))
-    manager.tick()
-    assert c["status"] == "DONE"
-    assert c["result"]["rows"] == len(uuids)
 
 
 def test_submit_failures_end_the_job_and_no_data_means_failed(setup):

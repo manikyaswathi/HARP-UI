@@ -21,10 +21,11 @@ directly.
 
 | Path | What it does |
 |---|---|
+| `harp_server/plan.py` | Turns the profiling page's plan into sweeps. Reads each app's command and parameters from its TAPIS notes, fills in each job's hardware from the queue (cores = queue max, 4 GB per core, runs × timeout + 10 min, 1 node, `--nv` on GPU queues, per-queue job limit shared between configurations) and refuses anything over the queue's TAPIS limits. |
 | `harp_server/sweep.py` | Validates the spec, expands every parameter combination (SD / FS / test_data) and splits it into jobs. **split** spreads the jobs round-robin over the systems (by weight). **replicate** runs every job on every system so you can profile across hardware. |
-| `harp_server/campaign.py` | Submits jobs without exceeding each system's *max concurrent jobs*, polls TAPIS for job status, merges the CSVs when every job has ended, and lets you cancel or resubmit failed jobs. Each campaign's state is saved as a JSON file, so it survives a server restart. |
-| `harp_server/tapis_gateway.py` | The only code that talks to TAPIS. It also runs the access checks: storage gets mkdir → write → read → delete, and each execution system gets its credentials, queue and app checked. |
-| `harp_server/app.py` + `static/` | The REST API and the web UI. |
+| `harp_server/campaign.py` | Submits jobs without exceeding each system's *max concurrent jobs*, polls TAPIS for job status, reads each running job's progress through TAPIS Files, merges the CSVs when every job has ended, and lets you cancel a sweep. Each campaign's state is saved as a JSON file, so it survives a server restart. |
+| `harp_server/tapis_gateway.py` | The only code that talks to TAPIS (tapipy): login, systems and queues, apps, files, jobs. |
+| `harp_server/app.py` | The REST API, and serves `profiling.html` (the UI) at `/`. |
 | `../job_runner/harp_job_runner.py` | Runs inside each job's container. It executes its combinations × repetitions, measures walltime and hardware, and writes `harp_profile.csv` to the TAPIS output directory. |
 
 The merged CSV has the same columns as `Post_Execution_Scripts/basic/DataScrapper.py`
@@ -73,14 +74,19 @@ which is the name the existing **build** phase looks for. Runs that fail go to
 
 ## Using the UI
 
-**The profiling page** (`profiling.html` at the repository root, served at `/profiling`) has four tabs:
+Open `https://<server-hostname>:8443/`. The whole UI is one page, `profiling.html` (repository root), with four tabs:
 
 | Tab | What it does |
 |---|---|
-| 1 Configure | Pick a TAPIS app, set up a sweep (run type, repetitions, timeout, single or list values per parameter), tick TAPIS systems and queues (queue limits come from the system's `batchLogicalQueues`), open each queue to set its hardware configurations, and add it to the plan. A configuration is cores per job (default: the queue's max), memory (default 4 GB per core) and max minutes (default: runs per job × timeout + 10), all capped at the queue's limits, always on 1 node. Add several configurations to profile one queue with different hardware; each becomes its own TAPIS target, and the profiled data has a `hardware` column naming it. Repeat for more sweeps or apps. The plan is kept in the browser until it is submitted. |
-| 2 Review & submit | Every sweep x queue in the plan, checked by the server; results folder, allocation, confirm, submit. Nothing is submitted unless every sweep is valid. |
+| 1 Configure | Pick a TAPIS app from the dropdown, set up a sweep (run type, repetitions, timeout, single or list values per parameter), tick TAPIS systems and queues and open each one to set its hardware configurations: cores per job, memory and max minutes, with the queue's TAPIS limits shown. Add several configurations to profile one queue with different hardware. Add the sweep to the plan; repeat for more sweeps or apps. The plan is kept in the browser until it is submitted. |
+| 2 Review & submit | The server checks every sweep against TAPIS and shows exactly what each job will ask for. Pick the results folder (any TAPIS system) and an allocation per system, confirm, submit. Nothing is submitted unless every sweep is valid. |
 | 3 Jobs | All sweeps with progress and cancel; every TAPIS job with its runs done (e.g. `2 / 5`), sortable and filterable. Refreshes while jobs run. |
-| 4 Profiled data | Pick an app from the dropdown: every execution with its parameters, system and time; median time by run type, system and parameter value; CSV export. |
+| 4 Profiled data | Pick an app from the dropdown: every execution with its parameters, hardware and time; median time by run type, hardware and parameter value; CSV export. |
+
+Log in with your TAPIS tenant (for example `https://icicle.tapis.io`) and your TAPIS username and password. The
+page sends them over HTTPS to this server, which gets a token with `tapipy`, drops the password straight away and
+keeps the token on the server. The browser only gets a session cookie that JavaScript cannot read. When the token
+expires, running sweeps pause (`WAITING_FOR_LOGIN`) and resume as soon as you log in again.
 
 **Runs done while a job runs.** The job runner rewrites `harp_progress.json` (runs done, failed, total,
 current run) in the job's output folder after every run. While a job is RUNNING, the server asks TAPIS for the
@@ -88,42 +94,33 @@ job's `execSystemOutputDir` (`getJob`) and reads that file through TAPIS Files o
 job ends it reads the archived `harp_job_summary.json` for the final count. The runner also rewrites
 `harp_profile.csv` after every run, so runs that finished are kept even if the job hits its time limit.
 
-`/runs` and `/profile-data` redirect to the Jobs and Profiled data tabs.
+### API
 
-API used by these pages: `/api/tapis/exec-systems` (systems with queues), `/api/campaigns/batch/preview`,
-`/api/campaigns/batch` (all-or-nothing submit), `/api/jobs`, `/api/apps/<id>/profile`.
-`DEMO/ui/` has offline copies with sample data.
+| Route | Used for |
+|---|---|
+| `POST /api/login`, `POST /api/logout`, `GET /api/me` | Session (TAPIS token kept on the server). |
+| `GET /api/tapis/apps` | Your TAPIS apps with their sweep parameters (from the app notes). |
+| `GET /api/tapis/exec-systems` | Systems you can run on, with their queues and limits (`batchLogicalQueues`). |
+| `GET /api/tapis/systems` | Every system, for the results folder (storage-only systems too). |
+| `POST /api/plan/preview` | Check a plan: per sweep, its summary and each job's resolved hardware, or why it is refused. |
+| `POST /api/plan/submit` | Submit a plan, all or nothing. |
+| `GET /api/campaigns`, `POST /api/campaigns/<id>/cancel` | Sweeps and cancelling one. |
+| `GET /api/jobs` | Every TAPIS job, with hardware and runs done. |
+| `GET /api/apps/<id>/profile`, `GET /api/apps/<id>/profile.csv` | An app's profiled data, merged across its sweeps. |
 
+A plan looks like:
 
-The iScheduler profiling page (`profiling.html` at the repo root) is served at `/profiling`. It logs in to
-TAPIS through this server and lists your TAPIS apps; an app's sweep parameters come from the `harp`
-block in its TAPIS `notes` (the app notebook writes it). The page below is the full sweep console at `/`.
+```json
+{"storage": {"system_id": "pitzer", "path": "/fs/scratch/PAS2271/harp_runs"},
+ "allocations": {"pitzer": "-A PAS2271"},
+ "sweeps": [{"app_id": "harp-sweep-euler", "name": "sd", "run_type": "SD", "repetitions": 3, "timeout_min": 20,
+             "params": {"method": ["pow", "factorial"], "n": ["10", "100"]},
+             "targets": [{"system_id": "pitzer", "queue": "serial"},
+                         {"system_id": "pitzer", "queue": "serial", "cores": 8}]}]}
+```
+Leave `cores`, `memory_mb` or `max_minutes` out to use the defaults from the queue.
 
-
-1. Log in with your TAPIS tenant (for example `https://icicle.tapis.io`) and your TAPIS username
-   and password. The page sends them over HTTPS to the HARP server. The server gets a token with
-   `tapipy` (`get_tokens()`), drops the password from memory straight away, and keeps the token on
-   the server. The browser gets only a session cookie that JavaScript cannot read, and never sees
-   the token. You can paste an existing access token instead; the server checks it with TAPIS
-   (`get_userinfo`) before trusting it.
-   The header shows how long the session stays valid, with a **Renew token** button in its last
-   30 minutes. When it expires, running campaigns pause (`WAITING_FOR_LOGIN`) and resume as soon as
-   you log in again.
-2. **Application:** fill in the command template, e.g. `python3 calc_e.py {method} {n} {precision}`,
-   and the work folder inside the container.
-3. **Sweep parameters:** add one block per run type, with one `name = v1, v2` line per parameter.
-4. **Hardware:** add one row per TAPIS execution system. For each, set the queue, resources,
-   scheduler options (e.g. `-A PAS0000`) and *max concurrent jobs*. Keep that at or below the
-   queue's per-user job limit.
-5. **Storage:** pick a TAPIS system and folder (use **Browse…**).
-6. **Test access** checks every location through TAPIS. **Preview jobs** shows how the sweep
-   will be split. **Launch sweep** starts the campaign.
-7. The **Campaigns** tab tracks every job. When everything has ended, the campaign turns
-   **DONE** and you get a notification and a **Download CSV** button. The file is already saved
-   on the storage system.
-
-If the server restarts or your token expires, a running campaign pauses as
-`WAITING_FOR_LOGIN` and resumes when you log in again.
+`DEMO/ui/` has an offline copy of the page with sample data (it mirrors these rules in JavaScript).
 
 ## Tests
 

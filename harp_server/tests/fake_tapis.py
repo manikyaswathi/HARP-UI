@@ -26,11 +26,24 @@ class FakeGateway:
                 {"id": "stampede", "host": "stampede.tacc", "system_type": "LINUX", "can_exec": True, "effective_user": "a"},
                 {"id": "storage", "host": "data.osc.edu", "system_type": "LINUX", "can_exec": False, "effective_user": "a"}]
 
+    QUEUES = {
+        "pitzer": [{"name": "serial", "hpc_queue": "serial", "default": True, "max_nodes": 1, "max_cores": 40,
+                    "max_memory_mb": 163840, "max_minutes": 60, "max_jobs_per_user": 2},
+                   {"name": "parallel", "hpc_queue": "parallel", "default": False, "min_nodes": 2, "max_nodes": 80,
+                    "max_cores": 40, "max_memory_mb": 163840, "max_minutes": 600, "max_jobs_per_user": 2},
+                   {"name": "gpuserial", "hpc_queue": "gpuserial", "default": False, "description": "2x V100",
+                    "max_nodes": 1, "max_cores": 48, "max_memory_mb": 368640, "max_minutes": 600, "max_jobs_per_user": 4}],
+        "stampede": [{"name": "skx", "hpc_queue": "skx", "default": True, "max_cores": 48,
+                      "max_memory_mb": 196608, "max_minutes": 2880, "max_jobs_per_user": 20}],
+    }
+
     def get_system(self, system_id):
-        return {"id": system_id, "host": "h", "can_exec": system_id != "storage", "default_queue": "serial",
+        if system_id not in ("pitzer", "stampede", "storage"):
+            raise TapisError(f"system {system_id} not found")
+        return {"id": system_id, "host": "h", "can_exec": system_id != "storage", "enabled": True,
+                "default_queue": (self.QUEUES.get(system_id) or [{}])[0].get("name"),
                 "description": "", "system_type": "LINUX", "batch_scheduler": "SLURM", "runtimes": ["SINGULARITY"],
-                "queues": [{"name": "serial", "hpc_queue": "serial", "default": True, "max_cores": 40,
-                            "max_memory_mb": 1, "max_minutes": 60, "max_jobs_per_user": 2}],
+                "queues": [dict(q) for q in self.QUEUES.get(system_id, [])],
                 "job_working_dir": "HOST_EVAL($SCRATCH)", "root_dir": "/"}
 
     def exec_systems(self):

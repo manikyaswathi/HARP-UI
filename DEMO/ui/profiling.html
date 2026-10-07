@@ -811,6 +811,71 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     }
     return {runs_total: total, progress: null};
   }
+  // ---- the server's plan rules (harp_server/plan.py), mirrored for the demo ----
+  function harpApp(a){
+    const h = (a.notes && a.notes.harp) || {};
+    let params = Array.isArray(h.params) ? h.params : [];
+    if (!params.length && h.command) params = [...h.command.matchAll(/\{(\w+)\}/g)].map(m => ({name:m[1], arg:`{${m[1]}}`}));
+    return {id:a.id, version:a.version, label:h.label || a.id, image:a.image || '', runtime:a.runtime || 'SINGULARITY',
+      description:a.description || '', command:h.command || '', workdir:h.workdir || '',
+      params: params.map(p => ({name:p.name, arg:p.arg || '', kind:p.kind || 'string', default: p.default == null ? '' : String(p.default)}))};
+  }
+  const isGpuQ = q => /gpu/i.test(`${q.name || ''} ${q.description || ''} ${q.hpc_queue || ''}`);
+  const cap = (v, mx) => mx > 0 ? Math.min(v, mx) : v;
+  function resolveTarget(sys, qn, cfg, reps, timeout, onQueue, alloc){
+    const where = `${sys.id}/${qn || 'default queue'}`, q = (sys.queues || []).find(x => x.name === qn);
+    if (!q) throw `${sys.id} has no queue '${qn}'`;
+    if ((q.min_nodes || 1) > 1) throw `${where} needs at least ${q.min_nodes} nodes; profiling jobs use 1 node`;
+    const cores = cfg.cores || q.max_cores || 1;
+    if (q.max_cores > 0 && cores > q.max_cores) throw `${where} allows at most ${q.max_cores} cores per node; asked for ${cores}`;
+    const mem = cfg.memory_mb || cap(Math.max(4096, cores * 4096), q.max_memory_mb);
+    if (q.max_memory_mb > 0 && mem > q.max_memory_mb) throw `${where} allows at most ${q.max_memory_mb} MB of memory; asked for ${mem}`;
+    const mins = cfg.max_minutes || cap(reps * timeout + 10, q.max_minutes);
+    if (q.max_minutes > 0 && mins > q.max_minutes) throw `${where} allows at most ${q.max_minutes} minutes; asked for ${mins}`;
+    const lim = q.max_jobs_per_user > 0 ? Math.min(q.max_jobs_per_user, 10) : 4;
+    return {system_id:sys.id, queue:qn, node_count:1, cores_per_node:cores, memory_mb:mem, max_minutes:mins,
+      container_args: isGpuQ(q) ? '--nv' : null, scheduler_options: (alloc || '').trim() || null,
+      max_concurrent_jobs: Math.max(1, Math.floor(lim / onQueue))};
+  }
+  function buildPlan(plan){
+    const st = plan.storage || {}, path = (st.path || '').trim();
+    const storage_error = !st.system_id ? 'pick a TAPIS system for the results'
+      : !path.startsWith('/') ? 'the results folder must be an absolute path, e.g. /fs/scratch/PAS0000/harp_runs' : null;
+    const stamp = new Date().toISOString().slice(2, 16).replace(/[-:T]/g, '');
+    const sweeps = plan.sweeps.map(s => {
+      const name = `${s.app_id} / ${s.name}`;
+      try {
+        const app = APPS.map(harpApp).find(a => a.id === s.app_id);
+        if (!app) throw `app '${s.app_id}' is not one of your TAPIS apps`;
+        if (!app.command) throw `${app.label} does not declare its sweep command in its TAPIS notes`;
+        if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,30}$/.test(s.name || '')) throw 'sweep name: letters, digits, - _ . (max 31)';
+        const params = {};
+        for (const p of app.params) {
+          const vals = (s.params[p.name] || []).filter(v => v !== '');
+          if (!vals.length) throw `give '${p.name}' a value`;
+          if ((p.kind === 'int' || p.kind === 'float') && vals.some(v => isNaN(+v))) throw `'${p.name}' needs numbers`;
+          params[p.name] = vals.map(v => p.kind === 'int' || p.kind === 'float' ? Number(v) : v);
+        }
+        if (!s.targets.length) throw 'tick at least one queue';
+        const count = {}; s.targets.forEach(t => count[t.system_id + '|' + t.queue] = (count[t.system_id + '|' + t.queue] || 0) + 1);
+        const seen = new Set();
+        const targets = s.targets.map(t => { const sys = SYSTEMS.find(x => x.id === t.system_id);
+          if (!sys) throw `'${t.system_id}' is not one of your TAPIS execution systems`;
+          const r = resolveTarget(sys, t.queue, t, s.repetitions, s.timeout_min, count[t.system_id + '|' + t.queue], (plan.allocations || {})[t.system_id]);
+          const sig = [r.system_id, r.queue, r.cores_per_node, r.memory_mb, r.max_minutes].join('|');
+          if (seen.has(sig)) throw `${t.system_id}/${t.queue} has two identical configurations`; seen.add(sig);
+          return {...r, app_id:app.id, app_version:app.version}; });
+        const slug = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'app';
+        const spec = {name:`${slug}-${s.name}-${stamp}`.slice(0, 64), application:slug, command:app.command, workdir:app.workdir,
+          repetitions:s.repetitions, run_timeout_sec:s.timeout_min * 60, combos_per_job:1, distribution:'replicate',
+          run_sets:[{run_type:s.run_type, parameters:params}], targets, storage:{system_id:st.system_id, path}};
+        const n = cartesian(params).length;
+        return {name, ok:true, targets, spec, sweep_name:spec.name,
+                summary:{combinations:n, jobs:n * targets.length, total_runs:n * targets.length * s.repetitions}};
+      } catch (e) { return {name, ok:false, error:String(e), targets:[]}; }
+    });
+    return {ok: !storage_error && sweeps.every(x => x.ok), storage_error, sweeps};
+  }
   const realFetch = window.fetch.bind(window);
   window.fetch = function(url, opts = {}){
     const path = decodeURIComponent(String(url));
@@ -826,25 +891,18 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     if (path === '/api/logout') { setMe(null); return Promise.resolve(json(200, {ok:true})); }
     if (!me) return Promise.resolve(json(401, {detail:'log in to TAPIS first'}));
     if (path === '/api/me') return Promise.resolve(json(200, me));
-    if (path === '/api/tapis/apps') return later(json(200, APPS));
+    if (path === '/api/tapis/apps') return later(json(200, APPS.map(harpApp)));
     SWEEPS.forEach(advance);
     if (path === '/api/tapis/systems') return later(json(200, [...SYSTEMS.map(({queues, ...x}) => x), ...STORAGE_ONLY]));
-    if (path === '/api/tapis/exec-systems') return later(json(200, SYSTEMS));
-    const check = spec => {
-      if (!spec.command) return 'command is required';
-      if (!spec.targets || !spec.targets.length) return 'at least one target system (hardware) is required';
-      const ph = [...spec.command.matchAll(/\{(\w+)\}/g)].map(m => m[1]);
-      const missing = ph.filter(x => !(x in spec.run_sets[0].parameters));
-      return missing.length ? `run_sets[0] has no values for command placeholders ${JSON.stringify(missing)}` : '';
-    };
-    if (path === '/api/campaigns/batch/preview') return later(json(200, (Array.isArray(body) ? body : []).map(sp => {
-      const err = check(sp); if (err) return {name:sp.name, ok:false, error:err};
-      const n = cartesian(sp.run_sets[0].parameters).length;
-      return {name:sp.name, ok:true, summary:{combinations:n, jobs:n * sp.targets.length, total_runs:n * sp.targets.length * sp.repetitions}}; })));
-    if (path === '/api/campaigns/batch') {
-      for (const sp of body) { const err = check(sp); if (err) return later(json(400, {detail:`sweep '${sp.name}': ${err}`})); }
-      const made = body.map((sp, i) => { const sw = launched(sp, Date.now() + i * 4000); SWEEPS.unshift(sw);
-        try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]'); saved.push({spec:sp, created:sw.live.created});
+    if (path === '/api/tapis/exec-systems') return later(json(200, SYSTEMS.map(x => ({...x, queues: x.queues.map(q => ({...q, gpu: isGpuQ(q)}))}))));
+    if (path === '/api/plan/preview' || path === '/api/plan/submit') {
+      if (!body.sweeps || !body.sweeps.length) return later(json(400, {detail:'the plan has no sweeps'}));
+      const res = buildPlan(body);
+      if (path === '/api/plan/preview') return later(json(200, res));
+      if (res.storage_error) return later(json(400, {detail:res.storage_error}));
+      const bad = res.sweeps.find(x => !x.ok); if (bad) return later(json(400, {detail:`sweep ${bad.name}: ${bad.error}`}));
+      const made = res.sweeps.map((x, i) => { const sw = launched(x.spec, Date.now() + i * 4000); SWEEPS.unshift(sw);
+        try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]'); saved.push({spec:x.spec, created:sw.live.created});
               sessionStorage.setItem(LKEY, JSON.stringify(saved)); } catch (e) {}
         return {...sw.view}; });
       return later(json(200, made));
@@ -854,31 +912,15 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
       queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null,
       cores_per_node: j.cores_per_node || (sw.view.hardware.find(h => h.key === j.target) || {}).cores_per_node || null,
       memory_mb: j.memory_mb || (sw.view.hardware.find(h => h.key === j.target) || {}).memory_mb || null})))));
-    let sy = path.match(/^\/api\/tapis\/systems\/([^/]+)$/);
-    if (sy) { const x = SYSTEMS.find(y => y.id === sy[1]); return later(x ? json(200, x) : json(404, {detail:'no such system'})); }
-    if (path === '/api/campaigns' && (opts.method || 'GET') === 'POST') {
-      if (!body.storage || !body.storage.path) return later(json(400, {detail:'storage.path is required'}));
-      const sw = launched(body); SWEEPS.unshift(sw);
-      try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]');
-            saved.push({spec: body, created: sw.live.created}); sessionStorage.setItem(LKEY, JSON.stringify(saved)); } catch (e) {}
-      return later(json(200, {...sw.view, jobs:sw.jobs}));
-    }
     if (path === '/api/campaigns') return Promise.resolve(json(200, SWEEPS.map(s => s.view)));
-    let c = path.match(/^\/api\/campaigns\/([^/]+)(\/(cancel|resubmit))?$/);
+    let c = path.match(/^\/api\/campaigns\/([^/]+)\/cancel$/);
     if (c) {
       const sw = SWEEPS.find(x => x.view.id === c[1]);
       if (!sw) return Promise.resolve(json(404, {detail:'campaign not found'}));
       const now = new Date().toISOString();
-      if (c[3] === 'cancel') {
-        for (const j of sw.jobs) if (!['FINISHED','FAILED'].includes(j.status)) Object.assign(j, {status:'CANCELLED', ended_at:now});
-        sw.view.status = 'CANCELLED'; sw.view.events.push({at:now, message:'cancelled by user'}); recount(sw);
-      } else if (c[3] === 'resubmit') {
-        let n = 0;
-        for (const j of sw.jobs) if (['FAILED','CANCELLED'].includes(j.status)) { Object.assign(j, {status:'NOT_SUBMITTED', uuid:null, error:null, ended_at:null}); n++; }
-        sw.view.status = 'RUNNING'; sw.view.events.push({at:now, message:`resubmitting ${n} jobs`}); recount(sw);
-        return later(json(200, {resubmitted:n}));
-      }
-      return later(json(200, {...sw.view, jobs:sw.jobs}));
+      for (const j of sw.jobs) if (!['FINISHED','FAILED'].includes(j.status)) Object.assign(j, {status:'CANCELLED', ended_at:now});
+      sw.view.status = 'CANCELLED'; sw.view.events.push({at:now, message:'cancelled by user'}); recount(sw);
+      return later(json(200, sw.view));
     }
     let m = path.match(/^\/api\/apps\/(.+)\/profile\.csv$/);
     if (m) { const p = profileOf(m[1]);
@@ -1138,14 +1180,11 @@ let APPS = [], SYSTEMS = [], CAMPS = [], JOBS = [];
 let panel = 'configure', jobsTimer = null, badgeTimer = null;
 
 /* =================================================================== data */
+// The server reads each app's sweep parameters from its TAPIS notes.
 function toApp(a, runsByApp){
-  const h = (a.notes && a.notes.harp) || {};
-  let params = Array.isArray(h.params) ? h.params : [];
-  if (!params.length && h.command)
-    params = [...h.command.matchAll(/\{(\w+)\}/g)].map(m => ({name: m[1], arg: `{${m[1]}}`}));
-  return {id: a.id, version: a.version, label: h.label || a.id, runtime: a.runtime || 'SINGULARITY',
-    image: a.image || '', command: h.command || '', workdir: h.workdir || '', runs: runsByApp[a.id] || 0,
-    params: params.map(p => ({name: p.name, arg: p.arg || '', kind: p.kind || 'string', def: String(p.default ?? '')}))};
+  return {id: a.id, version: a.version, label: a.label || a.id, runtime: a.runtime || 'SINGULARITY', image: a.image || '',
+    command: a.command || '', workdir: a.workdir || '', runs: runsByApp[a.id] || 0,
+    params: (a.params || []).map(p => ({name: p.name, arg: p.arg || '', kind: p.kind || 'string', def: String(p.default ?? '')}))};
 }
 async function loadApps(){
   const [apps, camps] = await Promise.all([api('/api/tapis/apps'), api('/api/campaigns')]);
@@ -1157,7 +1196,7 @@ async function loadApps(){
 const appName = id => (APPS.find(a => a.id === id) || {}).label || id;
 const qlist = s => s.queues && s.queues.length ? s.queues : [{name: '', default: true}];
 const qkey = (s, q) => s.id + '|' + (q.name || '');
-const isGpu = q => /gpu/i.test((q.name || '') + ' ' + (q.description || '') + ' ' + (q.hpc_queue || ''));
+const isGpu = q => q.gpu ?? /gpu/i.test((q.name || '') + ' ' + (q.description || '') + ' ' + (q.hpc_queue || ''));
 function queueByKey(k){ for (const s of SYSTEMS) for (const q of qlist(s)) if (qkey(s, q) === k) return {s, q}; return null; }
 let ALLOC = store.get('harp-alloc', {});      // system id -> scheduler options, e.g. "-A PAS2271"
 async function loadSystems(){
@@ -1407,38 +1446,31 @@ $('addBtn').addEventListener('click', addToPlan);
 $('toReview').addEventListener('click', () => show('review'));
 
 /* ============================================================ 2. review */
-function specs(){
-  const stamp = new Date().toISOString().slice(2, 16).replace(/[-:T]/g, '');
-  return PLAN.map(p => {
-    const slug = p.app.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'app';
-    const sw = p.sweep;
-    return {name: `${slug}-${sw.name}-${stamp}`.slice(0, 64), application: slug, command: p.app.command, workdir: p.app.workdir,
-      repetitions: sw.reps, run_timeout_sec: sw.timeout * 60, combos_per_job: 1, distribution: 'replicate',
-      run_sets: [{run_type: sw.run_type, parameters: Object.fromEntries(p.app.params.map(x =>
-        [x.name, values(sw.params[x.name]).map(v => x.kind === 'int' || x.kind === 'float' ? Number(v) : v)]))}],
-      targets: sw.queues.flatMap(k => { const hit = queueByKey(k) || {s: {id: k.split('|')[0]}, q: {name: k.split('|')[1]}};
-        const {s, q} = hit;
-        return cfgsOf(sw, k).map(c => ({system_id: s.id, queue: q.name || null, app_id: p.app.id, app_version: p.app.version,
-          scheduler_options: ALLOC[s.id] || null, container_args: isGpu(q) ? '--nv' : null, node_count: 1,
-          cores_per_node: cfgCores(q, c), memory_mb: cfgMemMb(q, c), max_minutes: cfgMin(q, c, sw),
-          // configurations on one queue share its per-user job limit
-          max_concurrent_jobs: Math.max(1, Math.floor((q.max_jobs_per_user > 0 ? Math.min(q.max_jobs_per_user, 10) : 4) / cfgsOf(sw, k).length))})); }),
-      storage: {system_id: $('storeSys').value, path: $('store').value.trim()}};
-  });
+// What the user picked. The server fills in everything else from TAPIS (command, defaults, limits).
+function planBody(){
+  const ids = new Set(PLAN.flatMap(p => p.sweep.queues.map(k => k.split('|')[0])));
+  return {storage: {system_id: $('storeSys').value, path: $('store').value.trim()},
+    allocations: Object.fromEntries([...ids].filter(id => ALLOC[id]).map(id => [id, ALLOC[id]])),
+    sweeps: PLAN.map(p => { const sw = p.sweep;
+      return {app_id: p.app.id, name: sw.name, run_type: sw.run_type, repetitions: sw.reps, timeout_min: sw.timeout,
+        params: Object.fromEntries(p.app.params.map(x => [x.name, values(sw.params[x.name])])),
+        targets: sw.queues.flatMap(k => { const [system_id, queue] = k.split('|');
+          return cfgsOf(sw, k).map(c => ({system_id, queue: queue || null, cores: c.cores || null,
+            memory_mb: c.mem_gb ? c.mem_gb * 1024 : null, max_minutes: c.minutes || null})); })}; })};
 }
 let CHECK = null;
 async function renderReview(){
   $('doneCard').hidden = true; $('submitCard').hidden = !PLAN.length;
   renderAllocs();
   const rows = PLAN.flatMap(p => { const all = p.sweep.queues.flatMap(k => cfgsOf(p.sweep, k).map(c => ({k, c})));
-    return all.map(({k, c}, i) => ({p, k, c, first: i === 0, span: all.length})); });
+    return all.map(({k, c}, i) => ({p, k, c, i, first: i === 0, span: all.length})); });
   const jobs = PLAN.reduce((n, p) => n + planJobs(p), 0);
   const runs = PLAN.reduce((n, p) => n + planJobs(p) * p.sweep.reps, 0);
   const hours = PLAN.reduce((n, p) => n + planJobs(p) * p.sweep.reps * p.sweep.timeout / 60, 0);
   $('reviewTotals').textContent = PLAN.length ? `${jobs} TAPIS jobs · ${runs} runs · up to ${Math.round(hours)} node-hours` : '';
   $('reviewTable').innerHTML = PLAN.length ? `<tr><th>App</th><th>Sweep</th><th>Type</th><th>Varies</th><th>System / queue</th>
       <th class="num">Jobs</th><th class="num">Runs</th><th class="num">Cores</th><th class="num">Memory</th><th class="num">Time limit</th><th>Check</th><th></th></tr>` +
-    rows.map(({p, k, c, first, span}) => { const hit = queueByKey(k), q = hit ? hit.q : {}, n = combosOf(p.app, p.sweep);
+    rows.map(({p, k, c, i, first, span}) => { const hit = queueByKey(k), q = hit ? hit.q : {}, n = combosOf(p.app, p.sweep);
       const varies = p.app.params.filter(x => values(p.sweep.params[x.name]).length > 1)
         .map(x => `${x.name} ×${values(p.sweep.params[x.name]).length}`).join(', ') || 'fixed';
       const lead = first ? `<td rowspan="${span}">${esc(p.app.label)}</td><td rowspan="${span}"><b>${esc(p.sweep.name)}</b></td>
@@ -1446,26 +1478,32 @@ async function renderReview(){
       const tail = first ? `<td rowspan="${span}" class="chk" data-plan="${p.id}">checking&hellip;</td>
         <td rowspan="${span}"><button class="rowbtn danger" data-rm="${p.id}" type="button">Remove</button></td>` : '';
       return `<tr>${lead}<td>${esc(k.replace('|', ' / '))}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}</td>
-        <td class="num">${n}</td><td class="num">${n * p.sweep.reps}</td><td class="num">${cfgCores(q, c)}</td><td class="num">${fmtMem(cfgMemMb(q, c))}</td>
-        <td class="num">${fmtMin(cfgMin(q, c, p.sweep))}</td>${tail}</tr>`; }).join('')
+        <td class="num">${n}</td><td class="num">${n * p.sweep.reps}</td><td class="num" data-t="${p.id}:${i}:c">${cfgCores(q, c)}</td><td class="num" data-t="${p.id}:${i}:m">${fmtMem(cfgMemMb(q, c))}</td>
+        <td class="num" data-t="${p.id}:${i}:t">${fmtMin(cfgMin(q, c, p.sweep))}</td>${tail}</tr>`; }).join('')
     : `<tr><td class="updated">The plan is empty. Add sweeps on <button class="rowbtn" id="goCfg" type="button">Configure</button>.</td></tr>`;
   const gc = $('goCfg'); if (gc) gc.addEventListener('click', () => show('configure'));
   $('reviewTable').querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
     PLAN = PLAN.filter(p => p.id !== +b.dataset.rm); savePlan(); renderReview(); }));
   $('reviewErr').textContent = ''; CHECK = null; reviewReady();
   if (!PLAN.length) return;
-  const sp = specs().map(x => ({...x, storage: {system_id: x.storage.system_id || 'unset', path: x.storage.path || '/unset'}}));
   try {
-    CHECK = await api('/api/campaigns/batch/preview', {method: 'POST', body: sp});
-    CHECK.forEach((r, i) => { const td = $('reviewTable').querySelector(`.chk[data-plan="${PLAN[i].id}"]`);
-      if (td) td.innerHTML = r.ok ? '<span class="st done">ready</span>' : `<span class="st bad" title="${esc(r.error)}">fix</span>`; });
+    const res = await api('/api/plan/preview', {method: 'POST', body: planBody()});
+    CHECK = res.sweeps;
+    const cell = k => $('reviewTable').querySelector(`[data-t="${k}"]`);
+    CHECK.forEach((r, i) => { const id = PLAN[i].id, td = $('reviewTable').querySelector(`.chk[data-plan="${id}"]`);
+      if (td) td.innerHTML = r.ok ? '<span class="st done">ready</span>' : `<span class="st bad" title="${esc(r.error)}">fix</span>`;
+      (r.targets || []).forEach((t, j) => {   // what each job will really ask TAPIS for
+        const set = (f, v) => { const el = cell(`${id}:${j}:${f}`); if (el) el.textContent = v; };
+        set('c', t.cores_per_node); set('m', fmtMem(t.memory_mb)); set('t', fmtMin(t.max_minutes)); }); });
     const bad = CHECK.map((r, i) => r.ok ? '' : `${PLAN[i].sweep.name}: ${r.error}`).filter(Boolean);
     $('reviewErr').textContent = bad.join(' · ');
   } catch (e) { $('reviewErr').textContent = 'Could not check the plan: ' + e.message; }
   reviewReady();
 }
 function reviewReady(){
-  const prob = !PLAN.length ? 'The plan is empty.' : !$('store').value.trim() ? 'Choose a results folder.'
+  const path = $('store').value.trim();
+  const prob = !PLAN.length ? 'The plan is empty.' : !path ? 'Choose a results folder.'
+    : !path.startsWith('/') ? 'The results folder must be an absolute path, starting with /.'
     : !CHECK ? 'Checking the plan…' : CHECK.some(r => !r.ok) ? 'Fix the sweeps marked “fix”.'
     : !$('confirm').checked ? 'Tick the box to confirm.' : '';
   $('submitBtn').disabled = !!prob; $('submitMsg').textContent = prob;
@@ -1476,7 +1514,7 @@ $('submitBtn').addEventListener('click', async () => {
   const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Submitting…';
   store.set('harp-launch', {storeSys: $('storeSys').value, store: $('store').value.trim()});
   try {
-    const made = await api('/api/campaigns/batch', {method: 'POST', body: specs()});
+    const made = await api('/api/plan/submit', {method: 'POST', body: planBody()});
     PLAN = []; savePlan(); $('confirm').checked = false;
     $('submitCard').hidden = true; $('doneCard').hidden = false;
     $('reviewTable').innerHTML = ''; $('reviewTotals').textContent = '';
@@ -1545,7 +1583,7 @@ function renderJobs(){
     FSET.sweep = FSET.sweep === b.dataset.only ? '' : b.dataset.only; renderJobs(); }));
   $('sweepTable').querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => {
     confirmCancel = b.dataset.ask; renderJobs(); setTimeout(() => { if (confirmCancel === b.dataset.ask) { confirmCancel = null; renderJobs(); } }, 5000); }));
-  $('sweepTable').querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => sweepAction(b.dataset.cancel, 'cancel')));
+  $('sweepTable').querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => cancelSweep(b.dataset.cancel)));
 
   // filters
   const opts = (vals, label, all) => `<option value="">${all}</option>` + [...new Set(vals)].filter(Boolean).sort()
@@ -1586,11 +1624,10 @@ function runsCell(j){
 }
 [['fApp', 'app'], ['fStatus', 'status'], ['fSystem', 'system'], ['fSweep', 'sweep']].forEach(([id, k]) =>
   $(id).addEventListener('change', () => { FSET[k] = $(id).value; renderJobs(); }));
-async function sweepAction(id, what){
+async function cancelSweep(id){
   confirmCancel = null; $('sweepErr').textContent = '';
-  try { await api(`/api/campaigns/${encodeURIComponent(id)}/${what}`, {method: 'POST'});
-        toast(what === 'cancel' ? 'Sweep cancelled.' : 'Failed jobs resubmitted.'); await loadJobs(); }
-  catch (e) { $('sweepErr').textContent = (what === 'cancel' ? 'Could not cancel: ' : 'Could not resubmit: ') + e.message; }
+  try { await api(`/api/campaigns/${encodeURIComponent(id)}/cancel`, {method: 'POST'}); toast('Sweep cancelled.'); await loadJobs(); }
+  catch (e) { $('sweepErr').textContent = 'Could not cancel: ' + e.message; }
 }
 function setBadge(n){ $('bActive').textContent = n; $('bActive').classList.toggle('zero', !n); }
 async function refreshBadge(){
