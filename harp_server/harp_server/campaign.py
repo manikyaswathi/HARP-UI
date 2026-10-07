@@ -343,6 +343,7 @@ def campaign_view(c, include_jobs=True):
     view.update({"name": c["spec"]["name"], "application": c["spec"]["application"],
                  "storage": c["spec"]["storage"], "job_counts": counts,
                  "jobs_done": done, "jobs_total": len(c["jobs"]),
+                 "app_ids": sorted({t["app_id"] for t in c["spec"]["targets"]}),
                  "events": c["events"][-30:]})
     if include_jobs:
         view["jobs"] = [{k: j[k] for k in ("name", "system_id", "run_type", "status", "uuid",

@@ -76,3 +76,16 @@ def test_expired():
     gw = TapisGateway(None, "a", "u", expires_at=time.time() + 30)
     assert gw.expired()  # inside the 60s safety margin
     assert not TapisGateway(None, "a", "u").expired()
+
+
+def test_list_apps_flattens_tapis_results():
+    gw = TapisGateway.login("https://icicle.tapis.io", username="alice", password="pw")
+    app = types.SimpleNamespace(
+        id="harp-sweep-yolo", version="1.0.0", containerImage="docker://x", runtime="SINGULARITY",
+        description="YOLO", notes=types.SimpleNamespace(harp=types.SimpleNamespace(command="python3 t.py {m}")),
+        jobAttributes=types.SimpleNamespace(parameterSet=types.SimpleNamespace(
+            appArgs=[types.SimpleNamespace(name="spec", arg="x")])))
+    gw.client.apps = types.SimpleNamespace(getApps=lambda **kw: [app])
+    [out] = gw.list_apps()
+    assert out["notes"] == {"harp": {"command": "python3 t.py {m}"}}
+    assert out["app_args"] == [{"name": "spec", "arg": "x"}]

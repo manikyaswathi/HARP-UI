@@ -73,6 +73,11 @@ which is the name the existing **build** phase looks for. Runs that fail go to
 
 ## Using the UI
 
+The iScheduler profiling page (`profiling.html` at the repo root) is served at `/profiling`. It logs in to
+TAPIS through this server and lists your TAPIS apps; an app's sweep parameters come from the `harp`
+block in its TAPIS `notes` (the app notebook writes it). The page below is the full sweep console at `/`.
+
+
 1. Log in with your TAPIS tenant (for example `https://icicle.tapis.io`) and your TAPIS username
    and password. The page sends them over HTTPS to the HARP server. The server gets a token with
    `tapipy` (`get_tokens()`), drops the password from memory straight away, and keeps the token on

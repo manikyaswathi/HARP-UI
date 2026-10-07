@@ -407,6 +407,10 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   border:none;background:var(--teal);color:#fff;cursor:pointer;width:100%;margin-top:14px}
 .btnx:hover{background:var(--teal-700)}
 .btnx:disabled{background:#7C92A8;cursor:not-allowed}
+.who{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted)}
+.who[hidden]{display:none}
+.login{max-width:420px;margin:0 auto}
+.loginerr{font-size:12.5px;color:#A23A3A;margin-top:10px;min-height:1em}
 </style>
 
 <script>
@@ -423,17 +427,36 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
     <a href="systems.html">Systems</a>
     <a href="api.html">API</a>
   </div>
+  <div class="who" id="who" hidden>
+    <span class="mono" id="whoName"></span>
+    <button class="btn btn-outline btn-sm" id="logoutBtn">Log out</button>
+  </div>
   <a class="nav-cta" href="submit.html">Submit a job</a>
 </div></nav>
 <header class="page-head"><div class="wrap-p">
-  <div class="eyebrow">HARP-Generate</div>
+  <div class="eyebrow">HARP &middot; Generate</div>
   <h1>Profiling</h1>
-  <p>Run a registered application across a parameter sweep to measure how its
-     walltime and memory behave. Pick an app that has jobs to profile, or
-     register a new one for profiling.</p>
+  <p>Configure a sweep for one of your TAPIS apps. We generate the profiling
+     runs, then use them to build runtime estimators.</p>
 </div></header>
 
 <section><div class="wrap-p">
+  <div class="card2 login" id="loginPanel" hidden>
+    <h3>Log in to TAPIS</h3>
+    <p class="sub">Lists the apps you can run.</p>
+    <form id="loginForm">
+      <div class="field"><label class="lbl" for="lgTenant">Tenant</label>
+        <input class="ti" id="lgTenant" name="base_url" value="https://icicle.tapis.io" required></div>
+      <div class="field"><label class="lbl" for="lgUser">Username</label>
+        <input class="ti" id="lgUser" name="username" autocomplete="username" required></div>
+      <div class="field"><label class="lbl" for="lgPass">Password</label>
+        <input class="ti" id="lgPass" name="password" type="password" autocomplete="current-password" required></div>
+      <button class="btnx" type="submit">Log in</button>
+      <p class="loginerr" id="loginErr" role="alert"></p>
+    </form>
+  </div>
+
+  <div id="appView" hidden>
   <div class="tabbar">
     <button class="tabx" data-t="profiled" aria-selected="true">Profiled apps
       <span class="b" id="cProfiled">0</span></button>
@@ -452,8 +475,7 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
       <div id="jobPanel" style="display:none">
         <div class="card2">
           <h3>Tapis jobs under this app</h3>
-          <p class="sub">Completed batch jobs already run through this
-            application. Their argument values seed the sweep.</p>
+          <p class="sub">Pick an earlier run to seed the sweep.</p>
           <div class="jsel">
             <label class="lbl">Seed the sweep from a job</label>
             <select id="jobPick"></select>
@@ -465,19 +487,15 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
       <div id="designPanel" style="display:none">
         <div class="card2">
           <h3>Container entrypoint</h3>
-          <p class="sub">Batch jobs only &mdash; submit and wait, no interaction.
-            How the command line reaches the container depends on the runtime.</p>
+          <p class="sub">How TAPIS runs this app.</p>
           <div class="ep" id="epBlock"></div>
         </div>
 
         <div class="card2">
           <h3>Parameters to sweep</h3>
-          <p class="sub">Parsed from the app&rsquo;s entrypoint. For each, choose
-            how to vary it: a single fixed value, or a comma-separated list to
-            sweep. Anything left as a single value is held fixed.</p>
+          <p class="sub">Hold a value fixed (<b>single</b>) or sweep a
+            comma-separated <b>list</b>.</p>
           <div class="atbl" id="argTable"></div>
-          <p class="note">Choose <b>single</b> to hold a parameter fixed, or
-            <b>list</b> to sweep a comma-separated set of values.</p>
         </div>
       </div>
 
@@ -523,6 +541,7 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
         line-height:1.6;overflow-x:auto"></pre>
     </div>
   </div>
+  </div>
 </div></section>
 
 <footer><div class="wrap foot-grid">
@@ -541,73 +560,54 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
    Batch jobs only: submit and wait, no human in the loop. Such jobs are either
    compute-bound or I/O-bound; both just run to completion. */
 
-// --- mock registry: three apps, as requested ------------------------------
-// appArgs mirror the Tapis shape {name, arg, inputMode, notes, kind}.
-// "kind" is our hint for how the value should be swept (numeric vs string).
-const APPS = [
-  {
-    id: 'tensorflow-classifier',
-    version: '0.3.1',
-    label: 'TensorFlow classifier',
-    runtime: 'SINGULARITY',
-    image: 'docker://tapis/tf-classifier:0.3.1',
-    entrypoint: 'classifier_trainer.py',
-    profiled: true,
-    appArgs: [
-      {name:'model',      arg:'--model_type', kind:'string', values:['resnet50']},
-      {name:'batch size', arg:'--batch_size', kind:'int',    values:['128']},
-      {name:'epochs',     arg:'--train_epochs', kind:'int',  values:['90']},
-      {name:'dtype',      arg:'--dtype',      kind:'string', values:['float32']},
-      {name:'gpus',       arg:'--num_gpus',   kind:'int',    values:['1']}
-    ],
-    jobs: [
-      {uuid:'c1a2-tf-8841', name:'tf resnet50 b128', state:'FINISHED', when:'3d ago',
-       args:{'--batch_size':'128','--dtype':'float32','--num_gpus':'1'}},
-      {uuid:'c1a2-tf-8830', name:'tf resnet50 b64',  state:'FINISHED', when:'3d ago',
-       args:{'--batch_size':'64','--dtype':'float32','--num_gpus':'1'}},
-      {uuid:'c1a2-tf-8798', name:'tf resnet50 bf16', state:'FINISHED', when:'5d ago',
-       args:{'--batch_size':'128','--dtype':'bfloat16','--num_gpus':'2'}}
-    ]
-  },
-  {
-    id: 'yolo-train',
-    version: '8.2.0',
-    label: 'Ultralytics YOLO',
-    runtime: 'SINGULARITY',
-    image: 'docker://tapis/yolo-train:8.2.0',
-    entrypoint: 'yolo_train.py',
-    profiled: true,
-    appArgs: [
-      {name:'weights', arg:'--weights', kind:'string', values:['yolov8l.pt']},
-      {name:'batch',   arg:'--batch',   kind:'int',    values:['16']},
-      {name:'imgsz',   arg:'--imgsz',   kind:'int',    values:['640']},
-      {name:'epochs',  arg:'--epochs',  kind:'int',    values:['100']},
-      {name:'amp',     arg:'--amp',     kind:'string', values:['True']}
-    ],
-    jobs: [
-      {uuid:'b7f3-yolo-2201', name:'yolov8l 640',  state:'FINISHED', when:'1d ago',
-       args:{'--batch':'16','--imgsz':'640','--amp':'True'}},
-      {uuid:'b7f3-yolo-2180', name:'yolov8l 896',  state:'FINISHED', when:'2d ago',
-       args:{'--batch':'8','--imgsz':'896','--amp':'True'}}
-    ]
-  },
-  {
-    id: 'megadetector',
-    version: '5.0',
-    label: 'MegaDetector',
-    runtime: 'DOCKER',
-    image: 'docker.io/microsoft/megadetector:5.0',
-    entrypoint: 'run_detector_batch.py',
-    profiled: false,
-    appArgs: [
-      {name:'model file', arg:'--detector_file', kind:'string', values:['md_v5a.0.0.pt']},
-      {name:'batch',      arg:'--batch',   kind:'int',    values:['4']},
-      {name:'imgsz',      arg:'--imgsz',   kind:'int',    values:['1280']},
-      {name:'threshold',  arg:'--threshold', kind:'float', values:['0.2']}
-    ],
+// --- apps come from TAPIS through the HARP server ---------------------------
+// An app's sweep parameters come from its TAPIS "notes.harp" block, e.g.
+//   {"label": "...", "entrypoint": "...", "command": "python3 x.py {a} {b}",
+//    "params": [{"name": "a", "arg": "--a", "kind": "int", "default": "1"}]}
+// falling back to the {placeholders} in notes.harp.command, then to appArgs.
+let APPS = [];
+
+const esc = v => String(v ?? '').replace(/[&<>"']/g, c =>
+  ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    ...opts, headers: {'Content-Type': 'application/json'},
+    body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw Object.assign(new Error(data.detail || res.statusText), {status: res.status});
+  return data;
+}
+
+function toApp(a, runsByApp) {
+  const h = (a.notes && a.notes.harp) || {};
+  let params = Array.isArray(h.params) ? h.params : [];
+  if (!params.length && h.command)
+    params = [...h.command.matchAll(/\{(\w+)\}/g)].map(m => ({name: m[1], arg: `{${m[1]}}`}));
+  if (!params.length)
+    params = (a.app_args || []).map(x => ({name: x.name || x.arg, arg: x.arg}));
+  const runs = runsByApp[a.id] || 0;
+  return {
+    id: a.id, version: a.version, label: h.label || a.id,
+    runtime: a.runtime || 'SINGULARITY', image: a.image || '',
+    entrypoint: h.entrypoint || h.command || 'container entrypoint',
+    profiled: runs > 0, runs,
+    appArgs: params.map(p => ({name: p.name, arg: p.arg || '', kind: p.kind || 'string',
+                               values: [String(p.default ?? '')]})),
     jobs: []
-  }
-];
+  };
+}
+
+async function loadApps() {
+  const [apps, campaigns] = await Promise.all([api('/api/tapis/apps'), api('/api/campaigns')]);
+  const runsByApp = {};
+  for (const c of campaigns)
+    if (c.status === 'DONE' || c.status === 'DONE_WITH_ERRORS')
+      for (const id of c.app_ids || [])
+        runsByApp[id] = (runsByApp[id] || 0) + (c.result ? c.result.rows : 0);
+  APPS = apps.map(a => toApp(a, runsByApp))
+             .sort((x, y) => x.label.localeCompare(y.label));
+}
 
 const HINT = { single:'one fixed value', list:'comma-separated values' };
 
@@ -665,23 +665,23 @@ function renderList(){
     tab==='profiled'?'Profiled applications':'Register for profiling';
   document.getElementById('listSub').textContent =
     tab==='profiled'
-      ? 'Apps with completed jobs. Pick one to extend its profiling sweep.'
-      : 'Registered Tapis apps not yet profiled. Pick one to profile it.';
+      ? 'Pick one to extend its sweep.'
+      : 'Your TAPIS apps. Pick one to profile.';
   const box=document.getElementById('applist');
   if(!apps.length){box.innerHTML='<div class="empty" style="border:none">'
-    +(tab==='profiled'?'No apps profiled yet. Switch to the other tab to start one.'
-                      :'Every registered app has been profiled.')+'</div>';return;}
+    +(tab==='profiled'?'Nothing profiled yet.'
+                      :'No apps left to profile.')+'</div>';return;}
   box.innerHTML=apps.map(a=>`
-    <button class="appitem" data-id="${a.id}"
-       aria-current="${currentApp&&currentApp.id===a.id}">
-      <span class="ic">${a.label.split(' ').map(w=>w[0]).join('').slice(0,2).toUpperCase()}</span>
-      <span><span class="an">${a.label}</span>
-        <span class="am">${a.id} &middot; v${a.version}</span></span>
+    <button class="appitem" data-id="${esc(a.id)}"
+       aria-current="${!!(currentApp&&currentApp.id===a.id)}">
+      <span class="ic">${esc(a.label.split(/[\s_-]+/).filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase())}</span>
+      <span><span class="an">${esc(a.label)}</span>
+        <span class="am">${esc(a.id)} &middot; v${esc(a.version)}</span></span>
       <span class="ar">
         <span class="rt ${a.runtime==='DOCKER'?'dock':'sing'}">${
           a.runtime==='DOCKER'?'Docker':'Apptainer'}</span><br>
         <span class="pill ${a.profiled?'done':'none'}" style="margin-top:5px;display:inline-block">${
-          a.profiled?a.jobs.length+' jobs':'not profiled'}</span>
+          a.profiled?a.runs+' runs':'not profiled'}</span>
       </span>
     </button>`).join('');
   box.querySelectorAll('.appitem').forEach(b=>
@@ -710,17 +710,17 @@ function renderEntrypoint(){
   // Docker: args follow the image's CMD/ENTRYPOINT. Apptainer: args follow the
   // image's %runscript. Tapis appends appArgs either way; we surface which.
   const invoke=isDocker
-    ? `docker run ${a.image} <span class="ok">&lt;appArgs&gt;</span>`
-    : `apptainer run ${a.image} <span class="ok">&lt;appArgs&gt;</span>`;
+    ? `docker run ${esc(a.image)} <span class="ok">&lt;appArgs&gt;</span>`
+    : `apptainer run ${esc(a.image)} <span class="ok">&lt;appArgs&gt;</span>`;
   document.getElementById('epBlock').innerHTML=`
     <div class="eprow"><span class="eplbl">Runtime</span>
-      <code>${a.runtime}</code>
+      <code>${esc(a.runtime)}</code>
       <span class="${isDocker?'':'ok'}" style="font-size:12px">${
         isDocker?'Docker &mdash; runs on cloud/VM exec systems'
                :'Apptainer &mdash; runs on HPC exec systems'}</span></div>
-    <div class="eprow"><span class="eplbl">Image</span><code>${a.image}</code></div>
+    <div class="eprow"><span class="eplbl">Image</span><code>${esc(a.image)}</code></div>
     <div class="eprow"><span class="eplbl">Entrypoint</span>
-      <code>${a.entrypoint}</code></div>
+      <code>${esc(a.entrypoint)}</code></div>
     <div class="eprow"><span class="eplbl">Job type</span>
       <code>BATCH</code><span class="ok" style="font-size:12px">submit and wait</span></div>
     <div class="eprow"><span class="eplbl">Invocation</span><code>${invoke}</code></div>`;
@@ -750,17 +750,22 @@ function renderJobs(){
 
 /* ---- the per-arg sweep table -------------------------------------- */
 function renderArgTable(){
+  if(!currentApp.appArgs.length){
+    document.getElementById('argTable').innerHTML=
+      '<div class="empty" style="border:none">No sweep parameters defined for this app.</div>';
+    return;
+  }
   const rows=currentApp.appArgs.map(a=>{
     const st=SWEEP[a.name];
     const opts=['single','list']
       .map(m=>`<option value="${m}" ${st.mode===m?'selected':''}>${m}</option>`).join('');
     const count=sweptValues(a).length;
     return `<div class="arow">
-      <div><span class="aname">${a.name}</span>
-        <span class="aflag">${a.arg} &middot; ${a.kind}</span></div>
-      <div><select class="modesel" data-n="${a.name}">${opts}</select></div>
-      <div><input class="valin" data-n="${a.name}" value="${st.raw}"
-             placeholder="${a.values[0]}">
+      <div><span class="aname">${esc(a.name)}</span>
+        <span class="aflag">${esc(a.arg)} &middot; ${esc(a.kind)}</span></div>
+      <div><select class="modesel" data-n="${esc(a.name)}">${opts}</select></div>
+      <div><input class="valin" data-n="${esc(a.name)}" value="${esc(st.raw)}"
+             placeholder="${esc(a.values[0])}">
         <span class="vhint">${HINT[st.mode]} &middot; <b>${count}</b> value${
           count===1?'':'s'}</span></div>
     </div>`;
@@ -817,7 +822,7 @@ function recompute(){
 
   const swept=currentApp.appArgs.filter(a=>sweptValues(a).length>1);
   document.getElementById('formula').innerHTML=swept.length
-    ? swept.map(a=>`<b>${sweptValues(a).length}</b> ${a.name}`).join(' &times; ')
+    ? swept.map(a=>`<b>${sweptValues(a).length}</b> ${esc(a.name)}`).join(' &times; ')
       +`<br>&times; <b>${targets}</b> hw &times; <b>${reps}</b> reps`
     : 'Nothing swept &mdash; every parameter is fixed.';
   document.getElementById('perTarget').textContent=per.toLocaleString();
@@ -902,9 +907,53 @@ document.querySelectorAll('.tabx').forEach(b=>
   document.getElementById(id).addEventListener('input',recompute));
 document.getElementById('genBtn').addEventListener('click',generate);
 
+/* ---- TAPIS login (the HARP server holds the token) ------------------ */
+function showLogin(msg){
+  document.getElementById('loginPanel').hidden=false;
+  document.getElementById('appView').hidden=true;
+  document.getElementById('who').hidden=true;
+  document.getElementById('loginErr').textContent=msg||'';
+}
+async function showApps(me){
+  document.getElementById('loginPanel').hidden=true;
+  document.getElementById('appView').hidden=false;
+  document.getElementById('who').hidden=false;
+  document.getElementById('whoName').textContent=
+    me.username+' @ '+me.base_url.replace('https://','');
+  document.getElementById('applist').innerHTML='<div class="empty" style="border:none">Loading apps&hellip;</div>';
+  try{ await loadApps(); }
+  catch(e){
+    if(e.status===401) return showLogin('Session expired. Log in again.');
+    document.getElementById('applist').innerHTML=
+      `<div class="empty" style="border:none">Could not load apps: ${esc(e.message)}</div>`;
+    return;
+  }
+  // open on the tab that has something in it
+  const want=APPS.some(a=>a.profiled)?'profiled':'unprofiled';
+  if(tab!==want) document.querySelector(`.tabx[data-t="${want}"]`).click();
+  renderTabs(); renderList();
+}
+document.getElementById('loginForm').addEventListener('submit',async ev=>{
+  ev.preventDefault();
+  const f=new FormData(ev.target), btn=ev.target.querySelector('button');
+  btn.disabled=true; document.getElementById('loginErr').textContent='';
+  try{
+    const me=await api('/api/login',{method:'POST',body:{
+      base_url:f.get('base_url').trim().replace(/\/+$/,''),
+      username:f.get('username').trim(), password:f.get('password')}});
+    showApps(me);
+  }catch(e){ document.getElementById('loginErr').textContent=e.message; }
+  finally{ btn.disabled=false; ev.target.password.value=''; }
+});
+document.getElementById('logoutBtn').addEventListener('click',async()=>{
+  await api('/api/logout',{method:'POST'}).catch(()=>{});
+  APPS=[]; currentApp=null; showLogin();
+});
+
 (async function init(){
   await loadTargets();
-  renderTabs(); renderList();
+  try{ showApps(await api('/api/me')); }
+  catch(e){ showLogin(); }
 })();
 
 </script>

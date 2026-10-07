@@ -32,7 +32,12 @@ class FakeGateway:
                 "job_working_dir": "HOST_EVAL($SCRATCH)", "root_dir": "/"}
 
     def list_apps(self):
-        return [{"id": "harp-sweep-euler", "version": "1.0.0", "image": "docker://x", "runtime": "SINGULARITY"}]
+        return [{"id": "harp-sweep-euler", "version": "1.0.0", "image": "docker://x", "runtime": "SINGULARITY",
+                 "description": "Euler", "app_args": [],
+                 "notes": {"harp": {"label": "Euler number", "entrypoint": "calc_e.py",
+                                    "command": "python3 calc_e.py {method} {n}", "workdir": "/app/01-eulers_number",
+                                    "params": [{"name": "method", "arg": "{method}", "kind": "string", "default": "pow"},
+                                               {"name": "n", "arg": "{n}", "kind": "int", "default": "1000"}]}}}]
 
     # files
     def _check_write(self, system_id):

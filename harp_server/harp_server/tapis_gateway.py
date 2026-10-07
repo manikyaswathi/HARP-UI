@@ -10,6 +10,17 @@ import time
 TERMINAL_STATUSES = {"FINISHED", "FAILED", "CANCELLED"}
 
 
+def _plain(obj):
+    """tapipy returns nested TapisResult objects; turn them into plain JSON data."""
+    if isinstance(obj, dict):
+        return {k: _plain(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_plain(v) for v in obj]
+    if hasattr(obj, "__dict__") and not isinstance(obj, type):
+        return {k: _plain(v) for k, v in vars(obj).items() if not k.startswith("_")}
+    return obj
+
+
 class TapisError(RuntimeError):
     pass
 
@@ -107,9 +118,19 @@ class TapisGateway:
                 "job_working_dir": _get(s, "jobWorkingDir"), "root_dir": _get(s, "rootDir")}
 
     def list_apps(self):
-        apps = self._call(self.client.apps.getApps, listType="ALL", limit=-1)
-        return [{"id": _get(a, "id"), "version": _get(a, "version"),
-                 "image": _get(a, "containerImage"), "runtime": _get(a, "runtime")} for a in apps]
+        apps = self._call(self.client.apps.getApps, listType="ALL", limit=-1, select="allAttributes")
+        out = []
+        for a in apps:
+            params = _get(_get(a, "jobAttributes"), "parameterSet")
+            out.append({
+                "id": _get(a, "id"), "version": _get(a, "version"),
+                "image": _get(a, "containerImage"), "runtime": _get(a, "runtime"),
+                "description": _get(a, "description") or "",
+                "notes": _plain(_get(a, "notes")) or {},
+                "app_args": [{"name": _get(x, "name"), "arg": _get(x, "arg")}
+                             for x in (_get(params, "appArgs") or [])],
+            })
+        return out
 
     # ------------------------------------------------------------------- files
     def list_files(self, system_id, path):

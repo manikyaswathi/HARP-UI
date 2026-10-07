@@ -149,3 +149,12 @@ def test_users_only_see_their_own_campaigns(ctx):
     _login(client, "bob")
     assert client.get("/api/campaigns").json() == []
     assert client.get(f"/api/campaigns/{c['id']}").status_code == 404
+
+
+def test_profiling_page_is_served_with_its_own_csp(ctx):
+    client, _, _ = ctx
+    r = client.get("/profiling.html")
+    assert r.status_code == 200 and "Profiling" in r.text
+    csp = r.headers["content-security-policy"]
+    assert "fonts.googleapis.com" in csp and "'unsafe-inline'" in csp
+    assert "unsafe-inline" not in client.get("/").headers["content-security-policy"].split("script-src")[1].split(";")[0]

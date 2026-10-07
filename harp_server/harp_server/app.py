@@ -18,6 +18,15 @@ from .sweep import SpecError
 from .tapis_gateway import TapisError, TapisGateway
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
+# The iScheduler profiling page lives at the repository root.
+PROFILING_PAGE = os.environ.get(
+    "HARP_PROFILING_PAGE",
+    os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "profiling.html"))
+# That page is a single file with inline script/style and Google Fonts.
+PROFILING_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; "
+                 "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; "
+                 "font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; "
+                 "frame-ancestors 'none'; form-action 'self'; base-uri 'none'")
 SESSION_COOKIE = "harp_session"
 LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost"}
 SECURITY_HEADERS = {
@@ -60,7 +69,9 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
     @app.middleware("http")
     async def security_headers(request: Request, call_next):
         response = await call_next(request)
-        response.headers.update(SECURITY_HEADERS)
+        for name, value in SECURITY_HEADERS.items():
+            if name not in response.headers:  # a route may set a stricter/looser one
+                response.headers[name] = value
         if is_https(request):
             response.headers["Strict-Transport-Security"] = "max-age=31536000"
         if request.url.path.startswith("/api/"):
@@ -215,6 +226,13 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
 
     # ------------------------------------------------------------------ UI
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+    @app.get("/profiling")
+    @app.get("/profiling.html")
+    def profiling_page():
+        if not os.path.isfile(PROFILING_PAGE):
+            raise HTTPException(404, "profiling.html not found")
+        return FileResponse(PROFILING_PAGE, headers={"Content-Security-Policy": PROFILING_CSP})
 
     @app.get("/")
     def index():
