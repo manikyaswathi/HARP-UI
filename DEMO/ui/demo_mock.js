@@ -321,6 +321,27 @@
     } else if (b.status !== 'DONE') b.status = 'RUNNING';
     return b;
   }
+  function newBuild(appId, body, rep, t0){
+      const app = APPS.map(harpApp).find(a => a.id === appId) || {label:appId};
+      const name = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '_');
+      const b = {id:'b' + (BUILDS.length + 1), t0, seed:7 + BUILDS.length * 13, app_id:appId, name, created_at:new Date(t0).toISOString(), ended_at:null,
+        sweeps:body.sweeps, storage:body.storage, dest:`${body.storage.path.replace(/\/$/, '')}/builds/${name}_${stamp}`, dataset_file:`${name}_${stamp}.csv`,
+        status:'QUEUED', step:'preprocess', steps:{pool:'done', standardize:'done', preprocess:'waiting', train:'waiting', save:'waiting'},
+        metrics:[], best:null, error:null, report:rep, files:[], log:[],
+        models: body.models || ['LR','NN','DTR'], training_sets: body.training_sets || ['SD','SD+25FS','SD+50FS','SD+75FS'], where:{mode:'local'}, job:null};
+      const ro = body.run_on || {mode:'local'};
+      if (ro.mode === 'tapis') {
+        b.where = {mode:'tapis', system_id:ro.system_id, queue:ro.queue, cores_per_node:4, memory_mb:16384, max_minutes:60};
+        b.job = {uuid:`${(uuidN++).toString(16)}b1d-5e2f-4a3b-9c00-${String(BUILDS.length).padStart(12,'0')}-007`, name:`harp-build-${name}-${b.id}`,
+                 status:'PENDING', system_id:ro.system_id, queue:ro.queue, submitted_at:new Date().toISOString(), ended_at:null};
+      }
+      BUILDS.unshift(b); return b;
+  }
+  // one finished build, so HARP Estimate has models to pick from
+  { const e = SWEEPS.find(x => x.view.app_ids.includes('harp-sweep-euler-swathi'));
+    newBuild('harp-sweep-euler-swathi', {sweeps:[e.view.id], storage:{system_id:'pitzer', path:'/fs/scratch/PAS2271/swathi/harp_models'},
+      run_on:{mode:'tapis', system_id:'pitzer', queue:'serial'}}, standardizeRows('harp-sweep-euler-swathi', [e.view.id]).rep, Date.now() - 3 * 3600e3); }
   const realFetch = window.fetch.bind(window);
   window.fetch = function(url, opts = {}){
     const path = decodeURIComponent(String(url));
@@ -383,21 +404,7 @@
     if (bm) {
       const {rep} = standardizeRows(bm[1], body.sweeps || []);
       if (!rep.ready) return later(json(400, {detail:'not enough data to build: ' + rep.problems.join('; ')}));
-      const app = APPS.map(harpApp).find(a => a.id === bm[1]) || {label:bm[1]};
-      const name = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-      const stamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '_');
-      const b = {id:'b' + (BUILDS.length + 1), t0:Date.now(), seed:7 + BUILDS.length * 13, app_id:bm[1], name, created_at:new Date().toISOString(), ended_at:null,
-        sweeps:body.sweeps, storage:body.storage, dest:`${body.storage.path.replace(/\/$/, '')}/builds/${name}_${stamp}`, dataset_file:`${name}_${stamp}.csv`,
-        status:'QUEUED', step:'preprocess', steps:{pool:'done', standardize:'done', preprocess:'waiting', train:'waiting', save:'waiting'},
-        metrics:[], best:null, error:null, report:rep, files:[], log:[],
-        models: body.models || ['LR','NN','DTR'], training_sets: body.training_sets || ['SD','SD+25FS','SD+50FS','SD+75FS'], where:{mode:'local'}, job:null};
-      const ro = body.run_on || {mode:'local'};
-      if (ro.mode === 'tapis') {
-        b.where = {mode:'tapis', system_id:ro.system_id, queue:ro.queue, cores_per_node:4, memory_mb:16384, max_minutes:60};
-        b.job = {uuid:`${(uuidN++).toString(16)}b1d-5e2f-4a3b-9c00-${String(BUILDS.length).padStart(12,'0')}-007`, name:`harp-build-${name}-${b.id}`,
-                 status:'PENDING', system_id:ro.system_id, queue:ro.queue, submitted_at:new Date().toISOString(), ended_at:null};
-      }
-      BUILDS.unshift(b); return later(json(200, buildNow(b)));
+      return later(json(200, buildNow(newBuild(bm[1], body, rep, Date.now()))));
     }
     if (path === '/api/build-options') return later(json(200, {models:{LR:'Linear regression', NN:'Neural network', DTR:'Decision tree'},
       training_sets:{SD:'SD only', 'SD+25FS':'SD + 25% of FS', 'SD+50FS':'SD + 50% of FS', 'SD+75FS':'SD + 75% of FS'},

@@ -452,7 +452,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 
 /* ---- one-page profiling: tabs, plan, jobs, data ------------------------ */
 .tabs4{display:flex;flex-wrap:wrap;gap:4px;background:#fff;border:1px solid var(--line);border-radius:var(--r);
-  padding:5px;margin-bottom:20px;position:sticky;top:70px;z-index:10;box-shadow:0 8px 20px -16px rgba(17,41,63,.35)}
+  padding:5px;margin-bottom:20px;position:sticky;top:8px;z-index:10;box-shadow:0 8px 20px -16px rgba(17,41,63,.35)}
 .t4{flex:1 1 150px;display:flex;align-items:center;justify-content:center;gap:9px;font-family:"Space Grotesk",sans-serif;
   font-size:14.5px;font-weight:500;color:var(--muted);background:none;border:none;border-radius:8px;padding:11px 12px;cursor:pointer}
 .t4:hover{color:var(--navy);background:#F6F8F9}
@@ -632,6 +632,35 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .bsub2{display:flex;align-items:center;font-family:"JetBrains Mono",monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:12px 0 6px}
 .bmhead{margin:18px 0 0}
 .bwhere{font-size:12px;color:var(--muted)}
+.stabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0 10px}
+.st{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 16px;border-radius:var(--r);
+  border:1px solid var(--line);background:#fff;cursor:pointer;font-family:inherit;color:var(--muted)}
+.st b{font-family:"Space Grotesk",sans-serif;font-size:17px;font-weight:600;color:var(--navy)}
+.st span{font-size:12.5px}
+.st:hover{border-color:#c7d3d8}
+.st[aria-selected="true"]{background:var(--navy);border-color:var(--navy);color:#cfd9e3}
+.st[aria-selected="true"] b{color:#fff}
+@media(max-width:640px){.stabs{gap:6px}.st{padding:10px}.st b{font-size:14px}.st span{display:none}}
+.tabs4[hidden]{display:none!important}
+.syshead .acct{display:flex;align-items:center;gap:6px;margin-left:auto}
+.syshead .acct label{font-family:"JetBrains Mono",monospace;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.syshead .acct input{width:150px;font-family:"JetBrains Mono",monospace;font-size:12px;padding:5px 8px;border:1px solid var(--line);border-radius:6px}
+@media(max-width:640px){.syshead .acct{margin-left:0;width:100%}.syshead .acct input{flex:1}}
+.erow{display:grid;grid-template-columns:24px minmax(120px,1fr) minmax(140px,2fr) 90px;gap:8px 12px;align-items:center;
+  padding:9px 12px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;background:#fff}
+.erow.on{border-color:var(--teal);background:var(--teal-50)}
+.erow .qn{font-weight:600;color:var(--navy);font-size:14px}
+.erow .lim{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);line-height:1.6}
+.erow .lim span{display:inline-block;margin-right:10px}
+.erow input[type=checkbox]{width:18px;height:18px;accent-color:var(--teal);margin:0}
+.erow input[type=number]{width:100%;font-family:"JetBrains Mono",monospace;font-size:12px;padding:6px 8px;border:1px solid var(--line);border-radius:6px}
+@media(max-width:640px){.erow{grid-template-columns:24px 1fr 80px}.erow .lim{grid-column:2 / -1;grid-row:2}}
+.mpick{display:flex;flex-direction:column;gap:6px;margin-top:8px}
+.mopt{display:grid;grid-template-columns:18px 1fr auto;gap:2px 10px;align-items:center;padding:8px 10px;border:1px solid var(--line);border-radius:8px;cursor:pointer;font-size:13px}
+.mopt.on{border-color:var(--teal);background:var(--teal-50)}
+.mopt input{margin:0;accent-color:var(--teal)}
+.mopt b{color:var(--navy)}.mopt .am{grid-column:2 / -1;font-size:11.5px;color:var(--muted)}
+.mopt .sc{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--teal-700);text-align:right}
 #sweepTable td:first-child{white-space:normal;word-break:break-word;min-width:170px;max-width:240px}
 #sweepTable td:nth-child(5){white-space:normal;min-width:110px;max-width:180px}
 #jobsTable td:nth-child(2){white-space:normal;word-break:break-word;max-width:190px}
@@ -642,7 +671,6 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .appmeta b{font-weight:500;text-transform:uppercase;letter-spacing:.05em;font-size:10px;color:var(--teal-700);margin-right:4px}
 .appmeta span{min-width:0;word-break:break-all}
 .qrow .qcl{display:block;font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
-#allocs .lbl .am{text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px}
 </style>
 
 <style>
@@ -975,6 +1003,27 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     } else if (b.status !== 'DONE') b.status = 'RUNNING';
     return b;
   }
+  function newBuild(appId, body, rep, t0){
+      const app = APPS.map(harpApp).find(a => a.id === appId) || {label:appId};
+      const name = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '_');
+      const b = {id:'b' + (BUILDS.length + 1), t0, seed:7 + BUILDS.length * 13, app_id:appId, name, created_at:new Date(t0).toISOString(), ended_at:null,
+        sweeps:body.sweeps, storage:body.storage, dest:`${body.storage.path.replace(/\/$/, '')}/builds/${name}_${stamp}`, dataset_file:`${name}_${stamp}.csv`,
+        status:'QUEUED', step:'preprocess', steps:{pool:'done', standardize:'done', preprocess:'waiting', train:'waiting', save:'waiting'},
+        metrics:[], best:null, error:null, report:rep, files:[], log:[],
+        models: body.models || ['LR','NN','DTR'], training_sets: body.training_sets || ['SD','SD+25FS','SD+50FS','SD+75FS'], where:{mode:'local'}, job:null};
+      const ro = body.run_on || {mode:'local'};
+      if (ro.mode === 'tapis') {
+        b.where = {mode:'tapis', system_id:ro.system_id, queue:ro.queue, cores_per_node:4, memory_mb:16384, max_minutes:60};
+        b.job = {uuid:`${(uuidN++).toString(16)}b1d-5e2f-4a3b-9c00-${String(BUILDS.length).padStart(12,'0')}-007`, name:`harp-build-${name}-${b.id}`,
+                 status:'PENDING', system_id:ro.system_id, queue:ro.queue, submitted_at:new Date().toISOString(), ended_at:null};
+      }
+      BUILDS.unshift(b); return b;
+  }
+  // one finished build, so HARP Estimate has models to pick from
+  { const e = SWEEPS.find(x => x.view.app_ids.includes('harp-sweep-euler-swathi'));
+    newBuild('harp-sweep-euler-swathi', {sweeps:[e.view.id], storage:{system_id:'pitzer', path:'/fs/scratch/PAS2271/swathi/harp_models'},
+      run_on:{mode:'tapis', system_id:'pitzer', queue:'serial'}}, standardizeRows('harp-sweep-euler-swathi', [e.view.id]).rep, Date.now() - 3 * 3600e3); }
   const realFetch = window.fetch.bind(window);
   window.fetch = function(url, opts = {}){
     const path = decodeURIComponent(String(url));
@@ -1037,21 +1086,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     if (bm) {
       const {rep} = standardizeRows(bm[1], body.sweeps || []);
       if (!rep.ready) return later(json(400, {detail:'not enough data to build: ' + rep.problems.join('; ')}));
-      const app = APPS.map(harpApp).find(a => a.id === bm[1]) || {label:bm[1]};
-      const name = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
-      const stamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '_');
-      const b = {id:'b' + (BUILDS.length + 1), t0:Date.now(), seed:7 + BUILDS.length * 13, app_id:bm[1], name, created_at:new Date().toISOString(), ended_at:null,
-        sweeps:body.sweeps, storage:body.storage, dest:`${body.storage.path.replace(/\/$/, '')}/builds/${name}_${stamp}`, dataset_file:`${name}_${stamp}.csv`,
-        status:'QUEUED', step:'preprocess', steps:{pool:'done', standardize:'done', preprocess:'waiting', train:'waiting', save:'waiting'},
-        metrics:[], best:null, error:null, report:rep, files:[], log:[],
-        models: body.models || ['LR','NN','DTR'], training_sets: body.training_sets || ['SD','SD+25FS','SD+50FS','SD+75FS'], where:{mode:'local'}, job:null};
-      const ro = body.run_on || {mode:'local'};
-      if (ro.mode === 'tapis') {
-        b.where = {mode:'tapis', system_id:ro.system_id, queue:ro.queue, cores_per_node:4, memory_mb:16384, max_minutes:60};
-        b.job = {uuid:`${(uuidN++).toString(16)}b1d-5e2f-4a3b-9c00-${String(BUILDS.length).padStart(12,'0')}-007`, name:`harp-build-${name}-${b.id}`,
-                 status:'PENDING', system_id:ro.system_id, queue:ro.queue, submitted_at:new Date().toISOString(), ended_at:null};
-      }
-      BUILDS.unshift(b); return later(json(200, buildNow(b)));
+      return later(json(200, buildNow(newBuild(bm[1], body, rep, Date.now()))));
     }
     if (path === '/api/build-options') return later(json(200, {models:{LR:'Linear regression', NN:'Neural network', DTR:'Decision tree'},
       training_sets:{SD:'SD only', 'SD+25FS':'SD + 25% of FS', 'SD+50FS':'SD + 50% of FS', 'SD+75FS':'SD + 75% of FS'},
@@ -1087,24 +1122,6 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <b>Demo</b> &middot; Sample data, not connected to TAPIS. Log in with any username and password.
 </div>
 <div class="toast" id="demoToast" role="status"></div>
-<nav><div class="wrap nav-in">
-  <a class="wm" href="index.html"><span class="dot"></span>iScheduler</a>
-  <div class="nav-links">
-    <a href="index.html">Overview</a>
-    <a href="profiling.html" aria-current="page">Profiling</a>
-  </div>
-  <div class="who" id="who" hidden>
-    <span class="mono" id="whoName"></span>
-    <button class="btn btn-outline btn-sm" id="logoutBtn">Log out</button>
-  </div>
-  <a class="nav-cta" href="submit.html">Submit a job</a>
-</div></nav>
-<header class="page-head"><div class="wrap-p">
-  <div class="eyebrow">HARP &middot; Generate</div>
-  <h1>Profiling</h1>
-  <p>Plan profiling sweeps for your TAPIS apps, submit them, follow the jobs, and read the timings
-     they produce. Those timings train the runtime estimators.</p>
-</div></header>
 
 <section class="main"><div class="wrap-p">
   <div class="card2 login" id="loginPanel" hidden>
@@ -1123,11 +1140,26 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   </div>
 
   <div id="appView" hidden>
-    <div class="tabs4" role="tablist" aria-label="Profiling">
+    <div class="stabs" role="tablist" aria-label="HARP">
+      <button class="st" role="tab" id="stab-generate" data-s="generate" aria-selected="true"><b>HARP Generate</b><span>profile your apps</span></button>
+      <button class="st" role="tab" id="stab-build" data-s="build" aria-selected="false"><b>HARP Build</b><span>train estimators</span></button>
+      <button class="st" role="tab" id="stab-estimate" data-s="estimate" aria-selected="false"><b>HARP Estimate</b><span>predict run times</span></button>
+    </div>
+    <div class="tabs4" role="tablist" aria-label="HARP Generate" data-s="generate">
       <button class="t4" role="tab" id="tab-configure" data-p="configure" aria-selected="true"><span class="k">1</span>Configure</button>
       <button class="t4" role="tab" id="tab-review" data-p="review" aria-selected="false"><span class="k">2</span>Review &amp; submit <b class="bdg" id="bPlan">0</b></button>
-      <button class="t4" role="tab" id="tab-data" data-p="data" aria-selected="false"><span class="k">3</span>Profiled data &amp; models</button>
+      <button class="t4" role="tab" id="tab-data" data-p="data" aria-selected="false"><span class="k">3</span>Profiled data</button>
       <button class="t4" role="tab" id="tab-jobs" data-p="jobs" aria-selected="false"><span class="k">4</span>Jobs <b class="bdg live" id="bActive">0</b></button>
+    </div>
+    <div class="tabs4" role="tablist" aria-label="HARP Build" data-s="build" hidden>
+      <button class="t4" role="tab" id="tab-bdata" data-p="bdata" aria-selected="false"><span class="k">1</span>Training data</button>
+      <button class="t4" role="tab" id="tab-bmodels" data-p="bmodels" aria-selected="false"><span class="k">2</span>Models &amp; where</button>
+      <button class="t4" role="tab" id="tab-btrained" data-p="btrained" aria-selected="false"><span class="k">3</span>Trained models <b class="bdg live zero" id="bBuilds">0</b></button>
+    </div>
+    <div class="tabs4" role="tablist" aria-label="HARP Estimate" data-s="estimate" hidden>
+      <button class="t4" role="tab" id="tab-econfig" data-p="econfig" aria-selected="false"><span class="k">1</span>Configure <b class="bdg zero" id="bEst">0</b></button>
+      <button class="t4" role="tab" id="tab-emodel" data-p="emodel" aria-selected="false"><span class="k">2</span>Select model</button>
+      <button class="t4" role="tab" id="tab-eresults" data-p="eresults" aria-selected="false"><span class="k">3</span>Estimates</button>
     </div>
 
     <!-- 1. CONFIGURE ------------------------------------------------------ -->
@@ -1194,9 +1226,6 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
           <div class="field" style="grid-column:span 2"><label class="lbl" for="store">Folder</label>
             <input class="ti" id="store" placeholder="/fs/scratch/PAS0000/you/harp_runs" autocomplete="off"></div>
         </div>
-        <h3 style="margin-top:8px">Allocations</h3>
-        <p class="sub">The project each system charges, passed to its scheduler. Leave empty if a system needs none.</p>
-        <div class="three" id="allocs"></div>
         <label class="confirmrow"><input type="checkbox" id="confirm"> I checked the plan above.</label>
         <div class="actions">
           <button class="btn btn-navy" id="submitBtn" type="button" disabled>Submit plan</button>
@@ -1252,30 +1281,6 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
           <div class="mt"><div class="v" id="dParams">0</div><div class="l">Parameters varied</div></div>
           <div class="mt"><div class="v" id="dWall">&ndash;</div><div class="l">Median time</div></div>
         </div>
-        <div class="card2" id="buildCard">
-          <div class="chead"><h3>Build an estimator</h3><button type="button" class="help" data-help="models" aria-label="Which models can HARP build?" aria-expanded="false">?</button><span class="am">HARP build phase</span></div>
-          <p class="sub">Train models that predict how long a run of this app takes, from its profiled sweeps.</p>
-          <div class="bsteps">
-            <section class="bstep"><h4><span class="bn">1</span>Sweeps to learn from<button type="button" class="help" data-help="runtypes" aria-label="What are SD, FS and test_data?" aria-expanded="false">?</button></h4>
-              <div id="bSweeps"></div>
-              <p class="bready" id="bReady"></p>
-              <details class="bdet"><summary>Data checks</summary><div id="bStd"></div></details></section>
-            <section class="bstep"><h4><span class="bn">2</span>Models to build<button type="button" class="help" data-help="models" aria-label="Which models can HARP build?" aria-expanded="false">?</button></h4>
-              <div class="bopts" id="bModels"></div>
-              <p class="bsub2">Trained on<button type="button" class="help" data-help="trainsets" aria-label="What are the training sets?" aria-expanded="false">?</button></p>
-              <div class="bopts" id="bSets"></div></section>
-            <section class="bstep"><h4><span class="bn">3</span>Where<button type="button" class="help" data-help="runon" aria-label="Where does a build run?" aria-expanded="false">?</button></h4>
-              <div class="bdest">
-                <div class="field"><label class="lbl" for="bRun">Run the build on</label><select id="bRun" class="ti"></select></div>
-                <div class="field"><label class="lbl" for="bSys">Save models on</label><select id="bSys" class="ti"></select></div>
-                <div class="field"><label class="lbl" for="bPath">Folder</label><input id="bPath" class="ti" placeholder="/fs/scratch/PAS0000/harp_runs" autocomplete="off"></div>
-              </div>
-              <div class="actions"><button class="btn btn-navy" id="buildBtn" type="button" disabled>Build models</button>
-                <span class="updated" id="buildMsg"></span></div></section>
-          </div>
-          <div class="chead bmhead"><h3>Trained models</h3><button type="button" class="help" data-help="scores" aria-label="How are models scored?" aria-expanded="false">?</button></div>
-          <div id="bRuns"><p class="updated">No models built for this app yet.</p></div>
-        </div>
         <div class="dgrid">
           <div class="card2"><div class="chead"><h3>Time by run type</h3><button type="button" class="help" data-help="runtypes" aria-label="What are SD, FS and test_data?" aria-expanded="false">?</button></div><p class="sub">SD scaled-down, FS full-scale, test_data held out.</p>
             <div class="scroll"><table class="dt" id="typeTable"></table></div></div>
@@ -1296,6 +1301,91 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
         </div>
       </div>
       <div class="empty" id="dataEmpty">No profiling data yet. Submit a plan, and the timings appear here as jobs finish.</div>
+    </div>
+
+    <!-- HARP BUILD ------------------------------------------------------- -->
+    <div class="panel4" id="p-bdata" role="tabpanel" aria-labelledby="tab-bdata" hidden>
+      <div class="card2">
+        <div class="chead"><h3>App</h3><button type="button" class="help" data-help="models" aria-label="Which models can HARP build?" aria-expanded="false">?</button><span class="am">apps with profiling data</span></div>
+        <label class="lbl" for="bApp">Select an app to build estimators for</label>
+        <select id="bApp" class="appsel"></select>
+      </div>
+      <div class="card2">
+        <div class="chead"><h3>Sweeps to learn from</h3><button type="button" class="help" data-help="runtypes" aria-label="What are SD, FS and test_data?" aria-expanded="false">?</button></div>
+        <p class="sub">Tick the sweeps whose runs the models learn from. Training needs SD, FS and test_data runs.</p>
+        <div id="bSweeps"></div>
+        <p class="bready" id="bReady"></p>
+        <details class="bdet"><summary>Data checks</summary><div id="bStd"></div></details>
+        <div class="actions"><button class="btn btn-navy" type="button" data-go="bmodels">Next: models &amp; where &rarr;</button></div>
+      </div>
+    </div>
+    <div class="panel4" id="p-bmodels" role="tabpanel" aria-labelledby="tab-bmodels" hidden>
+      <div class="dgrid">
+        <div class="card2">
+          <div class="chead"><h3>Models to build</h3><button type="button" class="help" data-help="models" aria-label="Which models can HARP build?" aria-expanded="false">?</button><span class="am" id="bAppName"></span></div>
+          <div class="bopts" id="bModels"></div>
+          <p class="bsub2">Trained on<button type="button" class="help" data-help="trainsets" aria-label="What are the training sets?" aria-expanded="false">?</button></p>
+          <div class="bopts" id="bSets"></div>
+        </div>
+        <div class="card2">
+          <div class="chead"><h3>Where</h3><button type="button" class="help" data-help="runon" aria-label="Where does a build run?" aria-expanded="false">?</button></div>
+          <div class="bdest">
+            <div class="field"><label class="lbl" for="bRun">Run the build on</label><select id="bRun" class="ti"></select></div>
+            <div class="field"><label class="lbl" for="bSys">Save models on</label><select id="bSys" class="ti"></select></div>
+            <div class="field"><label class="lbl" for="bPath">Folder</label><input id="bPath" class="ti" placeholder="/fs/scratch/PAS0000/harp_runs" autocomplete="off"></div>
+          </div>
+          <p class="bready" id="bReady2"></p>
+          <div class="actions"><button class="btn btn-navy" id="buildBtn" type="button" disabled>Build models</button>
+            <span class="updated" id="buildMsg"></span></div>
+        </div>
+      </div>
+    </div>
+    <div class="panel4" id="p-btrained" role="tabpanel" aria-labelledby="tab-btrained" hidden>
+      <div class="card2">
+        <div class="chead"><h3>Trained models</h3><button type="button" class="help" data-help="scores" aria-label="How are models scored?" aria-expanded="false">?</button><span class="am" id="bAppName2"></span></div>
+        <div id="bRuns"><p class="updated">No models built for this app yet.</p></div>
+      </div>
+    </div>
+
+    <!-- HARP ESTIMATE ---------------------------------------------------- -->
+    <div class="panel4" id="p-econfig" role="tabpanel" aria-labelledby="tab-econfig" hidden>
+      <div class="pgrid">
+        <div>
+          <div class="card2">
+            <div class="chead"><h3>App</h3><button type="button" class="help" data-help="inference" aria-label="What is an estimate entry?" aria-expanded="false">?</button></div>
+            <label class="lbl" for="eApp">Select an app to estimate</label>
+            <select id="eApp" class="appsel"></select>
+          </div>
+          <div class="card2" id="eValsCard" hidden>
+            <div class="chead"><h3>Run</h3><span class="am">one value per parameter</span></div>
+            <div class="atbl" id="eVals"></div>
+          </div>
+          <div class="card2" id="eSysCard" hidden>
+            <div class="chead"><h3>Systems and queues</h3><span class="am">from TAPIS</span></div>
+            <p class="sub">Tick where the run would go. Each queue gets its own estimate.</p>
+            <div id="eSystems"></div>
+          </div>
+        </div>
+        <aside class="budget">
+          <h4>Estimate list <span class="t" id="eTotals"></span></h4>
+          <div class="planlist" id="eList"></div>
+          <button class="btnx" id="eAdd" type="button" disabled>Add to estimate list</button>
+          <p class="launchmsg" id="eMsg"></p>
+          <button class="btnx ghostx" id="eNext" type="button" disabled>Next: select model &rarr;</button>
+        </aside>
+      </div>
+    </div>
+    <div class="panel4" id="p-emodel" role="tabpanel" aria-labelledby="tab-emodel" hidden>
+      <div id="eModels"></div>
+    </div>
+    <div class="panel4" id="p-eresults" role="tabpanel" aria-labelledby="tab-eresults" hidden>
+      <div class="card2">
+        <div class="chead"><h3>Estimates</h3><button type="button" class="help" data-help="inference" aria-label="What is an estimate entry?" aria-expanded="false">?</button></div>
+        <p class="sub">Each entry, run through the model you selected for its app.</p>
+        <div class="scroll"><table class="dt" id="eTable"></table></div>
+        <div class="actions" style="margin-top:12px"><button class="btn btn-navy" type="button" disabled>Estimate run times</button>
+          <span class="updated">Running the estimates comes next.</span></div>
+      </div>
     </div>
   </div>
 </div></section>
@@ -1372,17 +1462,6 @@ async function loadSystems(){
   if (saved.storeSys) $('storeSys').value = saved.storeSys;
   if (saved.store) $('store').value = saved.store;
 }
-function renderAllocs(){
-  const ids = [...new Set(PLAN.flatMap(p => p.sweep.queues.map(k => k.split('|')[0])))].sort();
-  $('allocs').innerHTML = ids.length ? ids.map(id => { const h = (SYSTEMS.find(s => s.id === id) || {}).host || '';
-    const tacc = /tacc/i.test(h), ph = tacc ? '-A TACC-project' : '-A PAS0000';
-    return `<div class="field"><label class="lbl" for="alloc-${esc(id)}">${esc(id)}${h ? ` <span class="am">${esc(h)}</span>` : ''}</label>
-      <input class="ti alloc" id="alloc-${esc(id)}" data-sys="${esc(id)}" value="${esc(ALLOC[id] || '')}" placeholder="${ph}" autocomplete="off"></div>`; }).join('')
-    : '<p class="updated">Systems appear here once the plan has sweeps.</p>';
-  $('allocs').querySelectorAll('.alloc').forEach(el => el.addEventListener('input', () => {
-    ALLOC[el.dataset.sys] = el.value.trim(); store.set('harp-alloc', ALLOC); }));
-}
-
 /* ============================================================ 1. configure */
 // Cores per job default to the queue's max cores per node (1 if TAPIS gives no limit).
 const defCores = q => (q && q.max_cores > 0) ? q.max_cores : 1;
@@ -1510,7 +1589,10 @@ function renderSystems(){
     <div class="syshead"><b>${esc(s.id)}</b><span class="am">${esc(s.host || '')}</span>
       ${s.batch_scheduler ? `<span class="rt sing">${esc(s.batch_scheduler)}</span>` : ''}
       ${(s.runtimes || []).map(r => `<span class="rt dock">${esc(r)}</span>`).join(' ')}
-      ${s.error ? `<span class="loginerr">queues unavailable: ${esc(s.error)}</span>` : ''}</div>
+      ${s.error ? `<span class="loginerr">queues unavailable: ${esc(s.error)}</span>` : ''}
+      <span class="acct"><label for="acct-${esc(s.id)}">Account</label><input id="acct-${esc(s.id)}" class="alloc" data-sys="${esc(s.id)}"
+        value="${esc(ALLOC[s.id] || '')}" placeholder="${/tacc/i.test(s.host || '') ? '-A TACC-project' : '-A PAS0000'}" autocomplete="off"
+        title="The allocation this system's jobs are charged to (a scheduler option). Leave empty if the system needs none."></span></div>
     ${qlist(s).map(q => { const k = qkey(s, q), on = SW.queues.includes(k), open = on && OPEN.has(k), id = 'q-' + k.replace(/[^A-Za-z0-9_-]/g, '_');
       return `<div class="qrow cfgrow${on ? ' on' : ''}" data-row="${esc(k)}">
         <input type="checkbox" class="qpick" id="${esc(id)}" data-k="${esc(k)}" ${on ? 'checked' : ''}>
@@ -1521,6 +1603,8 @@ function renderSystems(){
         ${open ? `<div class="qcfg">${cfgBlock(k, q)}</div>` : ''}
       </div>`; }).join('')}`).join('');
   const sys = $('systems');
+  sys.querySelectorAll('.alloc').forEach(el => el.addEventListener('input', () => {
+    ALLOC[el.dataset.sys] = el.value.trim(); store.set('harp-alloc', ALLOC); }));
   sys.querySelectorAll('.qpick').forEach(el => el.addEventListener('change', () => {
     const k = el.dataset.k;
     SW.queues = el.checked ? [...new Set([...SW.queues, k])] : SW.queues.filter(x => x !== k);
@@ -1624,7 +1708,6 @@ function planBody(){
 let CHECK = null;
 async function renderReview(){
   $('doneCard').hidden = true; $('submitCard').hidden = !PLAN.length;
-  renderAllocs();
   const rows = PLAN.flatMap(p => { const all = p.sweep.queues.flatMap(k => cfgsOf(p.sweep, k).map(c => ({k, c})));
     return all.map(({k, c}, i) => ({p, k, c, i, first: i === 0, span: all.length})); });
   const jobs = PLAN.reduce((n, p) => n + planJobs(p), 0);
@@ -1640,7 +1723,9 @@ async function renderReview(){
         <td rowspan="${span}">${esc(p.sweep.run_type)}</td><td rowspan="${span}" class="uuid">${esc(varies)}</td>` : '';
       const tail = first ? `<td rowspan="${span}" class="chk" data-plan="${p.id}">checking&hellip;</td>
         <td rowspan="${span}"><button class="rowbtn danger" data-rm="${p.id}" type="button">Remove</button></td>` : '';
-      return `<tr>${lead}<td>${esc(k.replace('|', ' / '))}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}</td>
+      const acct = ALLOC[k.split('|')[0]];
+      return `<tr>${lead}<td>${esc(k.replace('|', ' / '))}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}
+        <span class="am" style="display:block">${acct ? esc(acct) : 'no account set (Configure)'}</span></td>
         <td class="num">${n}</td><td class="num">${n * p.sweep.reps}</td><td class="num" data-t="${p.id}:${i}:c">${cfgCores(q, c)}</td><td class="num" data-t="${p.id}:${i}:m">${fmtMem(cfgMemMb(q, c))}</td>
         <td class="num" data-t="${p.id}:${i}:t">${fmtMin(cfgMin(q, c, p.sweep))}</td>${tail}</tr>`; }).join('')
     : `<tr><td class="updated">The plan is empty. Add sweeps on <button class="rowbtn" id="goCfg" type="button">Configure</button>.</td></tr>`;
@@ -1804,14 +1889,17 @@ let dApp = null, prof = null, dFilter = 'all', dShown = 200, allCols = false, dS
 function renderDataApps(){
   const withData = [...new Set(CAMPS.flatMap(c => c.app_ids || []))];
   $('dataEmpty').hidden = !!withData.length;
-  if (!withData.length) { $('dataApps').innerHTML = ''; $('dataAppMeta').innerHTML = ''; $('dataBody').hidden = true; return; }
+  if (!withData.length) { $('dataApps').innerHTML = $('bApp').innerHTML = ''; $('dataAppMeta').innerHTML = ''; $('dataBody').hidden = true;
+    $('bSweeps').innerHTML = '<p class="updated">No profiled sweeps yet. Profile an app in HARP Generate first.</p>'; return; }
   if (!dApp || !withData.includes(dApp)) dApp = withData[0];
   const mine = id => CAMPS.filter(c => (c.app_ids || []).includes(id));
-  $('dataApps').innerHTML = withData.map(id => `<option value="${esc(id)}" ${dApp === id ? 'selected' : ''}>${esc(appName(id))} (${esc(id)})</option>`).join('');
+  $('dataApps').innerHTML = $('bApp').innerHTML = withData.map(id => `<option value="${esc(id)}" ${dApp === id ? 'selected' : ''}>${esc(appName(id))} (${esc(id)})</option>`).join('');
+  $('bApp').value = dApp;
   const cs = mine(dApp), live = cs.filter(c => ACTIVE.includes(c.status)).length;
   $('dataAppMeta').innerHTML = `<span><b>Sweeps</b> ${cs.length}${live ? ` (${live} running)` : ''}</span>`;
 }
-$('dataApps').addEventListener('change', () => { dApp = $('dataApps').value; dFilter = 'all'; dShown = 200; renderDataApps(); loadProfile(); });
+for (const id of ['dataApps', 'bApp'])
+  $(id).addEventListener('change', () => { dApp = $(id).value; dFilter = 'all'; dShown = 200; renderDataApps(); loadProfile(); });
 async function loadProfile(){
   if (!dApp) return;
   try { prof = await api('/api/apps/' + encodeURIComponent(dApp) + '/profile'); }
@@ -1828,6 +1916,7 @@ async function renderBuild(){
   if (!BOPTS) { try { BOPTS = await api('/api/build-options'); } catch (e) { BOPTS = {models: {}, training_sets: {}, build_app: null}; }
     Object.keys(BOPTS.models).forEach(m => BMOD.add(m)); Object.keys(BOPTS.training_sets).forEach(t => BSETS.add(t)); }
   const camps = prof.campaigns || [];
+  $('bAppName').textContent = $('bAppName2').textContent = 'for ' + appName(dApp);
   const counts = {}; for (const r of prof.rows) counts[r.campaign] = (counts[r.campaign] || 0) + 1;
   if (!BSEL[dApp]) BSEL[dApp] = new Set(camps.filter(c => !ACTIVE.includes(c.status) && (c.result ? c.result.rows : counts[c.name])).map(c => c.id));
   const sel = BSEL[dApp];
@@ -1902,6 +1991,7 @@ function buildReady(){
     : !$('bSys').value ? 'Pick where to save the models.' : !path.startsWith('/') ? 'Give an absolute folder, starting with /.'
     : busy && local ? 'A build is already running on this computer.' : '';
   $('buildBtn').disabled = !!prob;
+  $('bReady2').className = $('bReady').className; $('bReady2').innerHTML = $('bReady').innerHTML;
   $('buildMsg').textContent = prob || (!BOPTS || BOPTS.build_app ? '' : 'Register the HARP build app (app notebook, APP = "build") to run builds as TAPIS jobs.');
 }
 ['bPath', 'bSys', 'bRun'].forEach(id => $(id).addEventListener('input', buildReady));
@@ -1913,7 +2003,8 @@ $('buildBtn').addEventListener('click', async () => {
   store.set('harp-build-dest', {storeSys: body.storage.system_id, store: body.storage.path, run: $('bRun').value});
   $('buildBtn').disabled = true; $('buildMsg').textContent = 'Starting…';
   try { await api('/api/apps/' + encodeURIComponent(dApp) + '/builds', {method: 'POST', body});
-        toast(mode === 'tapis' ? 'Build job submitted to TAPIS. Follow it on Jobs.' : 'Build started on this computer.'); await loadBuilds(); refreshBadge(); }
+        toast(mode === 'tapis' ? 'Build job submitted to TAPIS. It is listed under Generate → Jobs too.' : 'Build started on this computer.');
+        await loadBuilds(); refreshBadge(); show('btrained'); }
   catch (e) { $('buildMsg').textContent = e.message; $('buildBtn').disabled = false; }
 });
 async function loadBuilds(){
@@ -1922,7 +2013,10 @@ async function loadBuilds(){
   try { BUILDS = await api('/api/builds?app_id=' + encodeURIComponent(app)); } catch (e) { return; }
   if (app !== dApp) return;
   renderBuilds(); buildReady();
-  if (panel === 'data' && BUILDS.some(b => ['QUEUED', 'RUNNING'].includes(b.status))) bPoll = setTimeout(loadBuilds, 4000);
+  const live = BUILDS.filter(b => ['QUEUED', 'RUNNING'].includes(b.status)).length;
+  $('bBuilds').textContent = live || BUILDS.length; $('bBuilds').classList.toggle('zero', !BUILDS.length);
+  $('bBuilds').classList.toggle('live', !!live);
+  if (BUILD_PANELS.includes(panel) && live) bPoll = setTimeout(loadBuilds, 4000);
 }
 const fmtP = v => v == null ? '–' : (+v).toFixed(v < 10 ? 1 : 0) + '%';
 function renderBuilds(){
@@ -2016,22 +2110,135 @@ $('dlBtn').addEventListener('click', async () => {
 });
 
 /* ================================================================== tabs */
+const SUPER = {configure: 'generate', review: 'generate', data: 'generate', jobs: 'generate',
+               bdata: 'build', bmodels: 'build', btrained: 'build', econfig: 'estimate', emodel: 'estimate', eresults: 'estimate'};
+const lastSub = {generate: 'configure', build: 'bdata', estimate: 'econfig'};
+const BUILD_PANELS = ['bdata', 'bmodels', 'btrained'];
 function show(p){
-  panel = p;
+  if (!SUPER[p]) p = 'configure';
+  panel = p; const sup = SUPER[p]; lastSub[sup] = p;
+  document.querySelectorAll('.st').forEach(b => b.setAttribute('aria-selected', b.dataset.s === sup));
+  document.querySelectorAll('.tabs4').forEach(t => t.hidden = t.dataset.s !== sup);
   document.querySelectorAll('.t4').forEach(b => b.setAttribute('aria-selected', b.dataset.p === p));
   document.querySelectorAll('.panel4').forEach(el => el.hidden = el.id !== 'p-' + p);
   try { history.replaceState(null, '', '#' + p); } catch (e) {}
   clearTimeout(jobsTimer);
   if (p === 'review') renderReview();
   if (p === 'jobs') loadJobs().catch(e => { $('sweepErr').textContent = 'Could not load jobs: ' + e.message; });
-  if (p === 'data') api('/api/campaigns').then(c => { CAMPS = c; renderDataApps(); return loadProfile(); }).catch(() => {});
+  if (p === 'data' || BUILD_PANELS.includes(p)) api('/api/campaigns').then(c => { CAMPS = c; renderDataApps(); return loadProfile(); }).catch(() => {});
+  if (p === 'econfig') renderEst();
+  if (p === 'emodel') renderEModels();
+  if (p === 'eresults') renderEResults();
 }
+document.querySelectorAll('.st').forEach(b => b.addEventListener('click', () => show(lastSub[b.dataset.s])));
 document.querySelectorAll('.t4').forEach(b => b.addEventListener('click', () => show(b.dataset.p)));
-document.querySelector('.tabs4').addEventListener('keydown', ev => {
+document.querySelectorAll('[data-go]').forEach(b => b.addEventListener('click', () => show(b.dataset.go)));
+for (const bar of document.querySelectorAll('.tabs4, .stabs')) bar.addEventListener('keydown', ev => {
   if (!['ArrowLeft', 'ArrowRight'].includes(ev.key)) return;
-  const tabs = [...document.querySelectorAll('.t4')], i = tabs.findIndex(t => t.dataset.p === panel);
-  const n = tabs[(i + (ev.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; show(n.dataset.p); n.focus();
+  const tabs = [...bar.querySelectorAll('[role=tab]')], i = tabs.indexOf(document.activeElement);
+  if (i < 0) return;
+  const n = tabs[(i + (ev.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; n.click(); n.focus();
 });
+
+/* ============================================================== estimate */
+// Entries to estimate: one app, one value per parameter, and the queues it would run on.
+let EST = [], EMODEL = {}, eApp = null, EVALS = {}, EQ = {};   // EQ: queue key -> cores (ticked queues)
+function renderEst(){
+  const apps = APPS.filter(a => a.command);
+  if (!eApp && apps.length) eApp = apps[0].id;
+  $('eApp').innerHTML = apps.length ? apps.map(a => `<option value="${esc(a.id)}" ${a.id === eApp ? 'selected' : ''}>${esc(a.label)} (${esc(a.id)})</option>`).join('')
+    : '<option>No TAPIS apps with sweep parameters</option>';
+  const a = APPS.find(x => x.id === eApp);
+  $('eValsCard').hidden = $('eSysCard').hidden = !a;
+  if (a) {
+    $('eVals').innerHTML = `<div class="ahead" style="grid-template-columns:1fr 2fr"><div>Parameter</div><div>Value</div></div>` + a.params.map(p => `<div class="arow" style="grid-template-columns:1fr 2fr">
+      <div><span class="aname">${esc(p.name)}</span><span class="aflag">${esc(p.arg)} &middot; ${esc(p.kind)}</span></div>
+      <div><input class="valin" data-p="${esc(p.name)}" value="${esc(EVALS[p.name] ?? p.def)}" placeholder="${esc(p.def)}" aria-label="${esc(p.name)} value"></div></div>`).join('');
+    $('eVals').querySelectorAll('.valin').forEach(el => el.addEventListener('input', () => { EVALS[el.dataset.p] = el.value; eReady(); }));
+    $('eSystems').innerHTML = SYSTEMS.map(s => `<div class="syshead"><b>${esc(s.id)}</b><span class="am">${esc(s.host || '')}</span></div>` +
+      qlist(s).map(q => { const k = qkey(s, q), on = k in EQ, id = 'eq-' + k.replace(/[^A-Za-z0-9_-]/g, '_');
+        return `<div class="erow${on ? ' on' : ''}"><input type="checkbox" id="${esc(id)}" data-k="${esc(k)}" ${on ? 'checked' : ''}>
+          <label class="qn" for="${esc(id)}">${esc(q.name || 'default queue')}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}</label>
+          <span class="lim">${limits(q)}</span>
+          <input type="number" min="1" ${q.max_cores ? `max="${q.max_cores}"` : ''} data-c="${esc(k)}" value="${EQ[k] || defCores(q)}" aria-label="Cores on ${esc(s.id)} ${esc(q.name || '')}" title="Cores the run would get"></div>`; }).join('')).join('');
+    $('eSystems').querySelectorAll('input[type=checkbox]').forEach(el => el.addEventListener('change', () => {
+      const k = el.dataset.k; if (el.checked) EQ[k] = +$('eSystems').querySelector(`[data-c="${CSS.escape(k)}"]`).value || 1; else delete EQ[k];
+      el.closest('.erow').classList.toggle('on', el.checked); eReady(); }));
+    $('eSystems').querySelectorAll('input[type=number]').forEach(el => el.addEventListener('change', () => {
+      const q = qOf(el.dataset.c), v = cap(Math.max(1, Math.round(+el.value) || 1), q.max_cores); el.value = v;
+      if (el.dataset.c in EQ) EQ[el.dataset.c] = v; }));
+  }
+  renderEList(); eReady();
+}
+$('eApp').addEventListener('change', () => { eApp = $('eApp').value; EVALS = {}; renderEst(); });
+function eProblem(){
+  const a = APPS.find(x => x.id === eApp); if (!a) return 'Pick an app.';
+  for (const p of a.params) { const v = String(EVALS[p.name] ?? p.def).trim();
+    if (!v) return `Give "${p.name}" a value.`;
+    if (v.includes(',')) return `"${p.name}": one value only; an estimate is one run.`;
+    if ((p.kind === 'int' || p.kind === 'float') && isNaN(+v)) return `"${p.name}" needs a number.`; }
+  return Object.keys(EQ).length ? '' : 'Tick at least one queue.';
+}
+function eReady(){ const prob = eProblem(); $('eAdd').disabled = !!prob; $('eMsg').className = 'launchmsg'; $('eMsg').textContent = prob; }
+$('eAdd').addEventListener('click', () => {
+  const a = APPS.find(x => x.id === eApp); if (!a || eProblem()) return;
+  EST.push({id: (EST.reduce((n, e) => Math.max(n, e.id), 0) + 1), app: {id: a.id, label: a.label},
+    values: Object.fromEntries(a.params.map(p => [p.name, String(EVALS[p.name] ?? p.def).trim()])),
+    targets: Object.entries(EQ).map(([k, cores]) => ({system_id: k.split('|')[0], queue: k.split('|')[1] || null, cores}))});
+  store.set('harp-est', EST); renderEList();
+  $('eMsg').className = 'launchmsg ok'; $('eMsg').textContent = 'Added. Change a value to add another run.';
+});
+function renderEList(){
+  const n = EST.reduce((k, e) => k + e.targets.length, 0);
+  $('bEst').textContent = EST.length; $('bEst').classList.toggle('zero', !EST.length);
+  $('eTotals').textContent = EST.length ? `${EST.length} run${EST.length === 1 ? '' : 's'} · ${n} estimate${n === 1 ? '' : 's'}` : '';
+  $('eNext').disabled = !EST.length;
+  $('eList').innerHTML = EST.length ? EST.map(e => `<div class="pitem">
+      <div class="pt"><b>${esc(e.app.label)}</b><span class="pm">${e.targets.length} queue${e.targets.length === 1 ? '' : 's'}</span></div>
+      <div class="pm">${esc(Object.entries(e.values).map(([k, v]) => `${k}=${v}`).join(' · '))}</div>
+      <div class="pm">${esc(e.targets.map(t => `${t.system_id}/${t.queue || 'default'} (${t.cores}c)`).join(', '))}</div>
+      <div class="pa"><button type="button" class="rm" data-erm="${e.id}">Remove</button></div></div>`).join('')
+    : '<div class="planempty">Runs to estimate appear here.</div>';
+  $('eList').querySelectorAll('[data-erm]').forEach(b => b.addEventListener('click', () => {
+    EST = EST.filter(e => e.id !== +b.dataset.erm); store.set('harp-est', EST); renderEList(); }));
+}
+$('eNext').addEventListener('click', () => show('emodel'));
+const modelLabel = m => `${m.RegModel} · ${m.DataSet}${m.ADJ_FACTOR > 1 ? ` · padded ×${(+m.ADJ_FACTOR).toFixed(2)}` : ''}`;
+async function renderEModels(){
+  const apps = [...new Map(EST.map(e => [e.app.id, e.app])).values()];
+  if (!apps.length) { $('eModels').innerHTML = '<div class="card2"><p class="updated">Add runs on Configure first.</p></div>'; return; }
+  $('eModels').innerHTML = '<div class="card2"><p class="updated">Loading trained models…</p></div>';
+  const lists = await Promise.all(apps.map(a => api('/api/builds?app_id=' + encodeURIComponent(a.id)).catch(() => [])));
+  $('eModels').innerHTML = apps.map((a, i) => {
+    const models = lists[i].filter(b => b.status === 'DONE').flatMap(b => b.metrics.filter(m => m.MAPE != null).map(m => ({...m, build: b})));
+    models.sort((x, y) => x.MAPE - y.MAPE);
+    if (!models.length) return `<div class="card2"><div class="chead"><h3>${esc(a.label)}</h3></div>
+      <p class="updated">No trained models for this app yet.</p><div class="actions"><button class="btn btn-navy" type="button" data-gob="${esc(a.id)}">Build some in HARP Build &rarr;</button></div></div>`;
+    const cur = EMODEL[a.id] && models.find(m => m.build.id === EMODEL[a.id].build_id && m.MODEL_NAME === EMODEL[a.id].model) ? EMODEL[a.id] : null;
+    if (!cur) { EMODEL[a.id] = {build_id: models[0].build.id, model: models[0].MODEL_NAME, label: modelLabel(models[0])}; store.set('harp-emodel', EMODEL); }
+    const runs = EST.filter(e => e.app.id === a.id).reduce((k, e) => k + e.targets.length, 0);
+    return `<div class="card2"><div class="chead"><h3>${esc(a.label)}</h3>${'<button type="button" class="help" data-help="scores" aria-label="How are models scored?" aria-expanded="false">?</button>'}
+        <span class="am">${runs} estimate${runs === 1 ? '' : 's'} · ${models.length} trained models, best first</span></div>
+      <div class="mpick">${models.slice(0, 12).map((m, j) => { const on = EMODEL[a.id].build_id === m.build.id && EMODEL[a.id].model === m.MODEL_NAME;
+        return `<label class="mopt${on ? ' on' : ''}"><input type="radio" name="em-${esc(a.id)}" data-app="${esc(a.id)}" data-b="${esc(m.build.id)}" data-m="${esc(m.MODEL_NAME)}" ${on ? 'checked' : ''}>
+          <b>${esc(modelLabel(m))}</b><span class="sc">avg error ${fmtP(m.MAPE)} · too low ${fmtP(m.UPP)}</span>
+          <span class="am">${j === 0 ? 'best · ' : ''}build ${esc(m.build.name)}, ${esc(ago(m.build.created_at))}</span></label>`; }).join('')}</div></div>`; }).join('')
+    + `<div class="actions"><button class="btn btn-navy" type="button" data-go2="eresults">Next: estimates &rarr;</button></div>`;
+  $('eModels').querySelectorAll('input[type=radio]').forEach(el => el.addEventListener('change', () => {
+    EMODEL[el.dataset.app] = {build_id: el.dataset.b, model: el.dataset.m, label: el.closest('.mopt').querySelector('b').textContent};
+    store.set('harp-emodel', EMODEL);
+    el.closest('.mpick').querySelectorAll('.mopt').forEach(o => o.classList.toggle('on', o.contains(el))); }));
+  $('eModels').querySelectorAll('[data-gob]').forEach(b => b.addEventListener('click', () => { dApp = b.dataset.gob; show('bdata'); }));
+  $('eModels').querySelectorAll('[data-go2]').forEach(b => b.addEventListener('click', () => show(b.dataset.go2)));
+}
+function renderEResults(){
+  const rows = EST.flatMap(e => e.targets.map(t => ({e, t})));
+  $('eTable').innerHTML = rows.length ? `<tr><th>App</th><th>Values</th><th>System / queue</th><th class="num">Cores</th><th>Model</th><th class="num">Estimated time</th></tr>` +
+    rows.map(({e, t}) => `<tr><td>${esc(e.app.label)}</td><td class="uuid">${esc(Object.entries(e.values).map(([k, v]) => `${k}=${v}`).join(' '))}</td>
+      <td>${esc(t.system_id)} <span class="am">/ ${esc(t.queue || 'default')}</span></td><td class="num">${t.cores}</td>
+      <td>${EMODEL[e.app.id] ? esc(EMODEL[e.app.id].label) : '<span class="am">pick on Select model</span>'}</td><td class="num"><span class="am">–</span></td></tr>`).join('')
+    : '<tr><td class="updated">Add runs on Configure and pick a model first.</td></tr>';
+}
 
 /* ================================================================== help */
 const HELP = {
@@ -2051,6 +2258,8 @@ const HELP = {
   runon: `<p><b>A TAPIS system</b>: the build runs as a TAPIS job of the HARP build app (one node, 4 cores, up to an hour) and shows up in <b>Jobs</b>. TAPIS copies the models to the folder you pick.</p>
     <p><b>This computer</b>: the HARP server runs the build itself, then saves the models to that folder through TAPIS. No queue wait.</p>
     <p>Either way the training data is cleaned first: runs without a time, and columns not filled in every run, are left out (see <b>Data checks</b>).</p>`,
+  inference: `<p>An <b>estimate entry</b> is one run you want a time for: an app, one value per parameter, and the queue and cores it would get. These are the model's independent examples: runs it has not seen.</p>
+    <p>Each entry is estimated once per queue you tick, with the model you pick for its app on <b>Select model</b>.</p>`,
   scores: `<p>Each model is scored on the <b>test_data</b> runs it never saw:</p>
     <p><b>Avg error</b>: how far off the predicted time is, on average, as a percentage (MAPE). Lower is better.</p>
     <p><b>Too low</b>: how often it predicts less time than the run took. Too low means a job would be stopped before it finishes, so padded models trade a little accuracy for fewer of these.</p>
@@ -2078,16 +2287,16 @@ addEventListener('scroll', closeHelp, {passive: true});
 /* ================================================================= login */
 function showLogin(msg){
   clearTimeout(jobsTimer); clearTimeout(badgeTimer);
-  $('loginPanel').hidden = false; $('appView').hidden = true; $('who').hidden = true;
+  $('loginPanel').hidden = false; $('appView').hidden = true;
   $('loginErr').textContent = msg || '';
 }
 async function showApp(me){
   USERKEY = ':' + me.username + '@' + me.base_url.replace(/^https?:\/\//, '');
   PLAN = store.get('harp-plan', []); planSeq = PLAN.reduce((n, p) => Math.max(n, p.id), 0);
   ALLOC = store.get('harp-alloc', {}); for (const k in BSEL) delete BSEL[k]; dApp = null; prof = null;
+  EST = store.get('harp-est', []); EMODEL = store.get('harp-emodel', {}); eApp = null; EVALS = {}; EQ = {};
   $('bPath').value = ''; $('bSys').innerHTML = ''; $('store').value = '';
-  $('loginPanel').hidden = true; $('appView').hidden = false; $('who').hidden = false;
-  $('whoName').textContent = me.username + ' @ ' + me.base_url.replace('https://', '');
+  $('loginPanel').hidden = true; $('appView').hidden = false;
   $('appSel').innerHTML = '<option>Loading your TAPIS apps…</option>'; $('appSel').disabled = true;
   try { await Promise.all([loadApps(), loadSystems()]); }
   catch (e) { if (e.status === 401) return showLogin('Session expired. Log in again.');
@@ -2096,7 +2305,7 @@ async function showApp(me){
   const first = APPS.find(a => a.command) || APPS[0]; if (first && !app) pickApp(first.id);
   refreshBadge();
   const want = location.hash.slice(1);
-  show(['configure', 'review', 'jobs', 'data'].includes(want) ? want : 'configure');
+  show(SUPER[want] ? want : 'configure');
 }
 $('loginForm').addEventListener('submit', async ev => {
   ev.preventDefault();
@@ -2106,10 +2315,6 @@ $('loginForm').addEventListener('submit', async ev => {
           base_url: f.get('base_url').trim().replace(/\/+$/, ''), username: f.get('username').trim(), password: f.get('password')}})); }
   catch (e) { $('loginErr').textContent = e.message; }
   finally { btn.disabled = false; ev.target.password.value = ''; }
-});
-$('logoutBtn').addEventListener('click', async () => {
-  await api('/api/logout', {method: 'POST'}).catch(() => {});
-  app = null; SW = null; PLAN = []; ALLOC = {}; USERKEY = ''; showLogin();
 });
 (async () => { try { showApp(await api('/api/me')); } catch (e) { showLogin(); } })();
 </script>

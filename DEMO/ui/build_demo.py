@@ -31,9 +31,9 @@ STYLE = '''<style>
 def build(name):
     page = open(os.path.join(ROOT, name)).read()
     mock = open(os.path.join(HERE, "demo_mock.js")).read()
-    assert page.count("<nav>") == 1 and page.count("</head>") == 1
+    assert page.count("<body>") == 1 and page.count("</head>") == 1
     page = page.replace("</head>", STYLE + "<script>\n" + mock + "</script>\n</head>", 1)
-    page = page.replace("<nav>", BANNER + "<nav>", 1)
+    page = page.replace("<body>", "<body>\n" + BANNER, 1)
     page = page.replace("<title>", "<title>Demo: ", 1)
     out = os.path.join(HERE, name)
     with open(out, "w") as f:

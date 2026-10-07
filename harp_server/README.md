@@ -83,14 +83,16 @@ which is the name the existing **build** phase looks for. Runs that fail go to
 
 ## Using the UI
 
-Open `https://<server-hostname>:8443/`. The whole UI is one page, `profiling.html` (repository root), with four tabs:
+Open `https://<server-hostname>:8443/` (or `http://localhost:8000` with `scripts/run_local.sh`). The whole UI is one
+page, `profiling.html` (repository root), with three main tabs, each with its own steps:
 
-| Tab | What it does |
+| Main tab | Sub-tabs |
 |---|---|
-| 1 Configure | Pick a TAPIS app from the dropdown, set up a sweep (run type, repetitions, timeout, single or list values per parameter), tick TAPIS systems and queues and open each one to set its hardware configurations: cores per job, memory and max minutes, with the queue's TAPIS limits shown. Add several configurations to profile one queue with different hardware. Add the sweep to the plan; repeat for more sweeps or apps. The plan is kept in the browser until it is submitted. |
-| 2 Review & submit | The server checks every sweep against TAPIS and shows exactly what each job will ask for. Pick the results folder (any TAPIS system) and an allocation per system, confirm, submit. Nothing is submitted unless every sweep is valid. |
-| 3 Profiled data & models | Pick an app from the dropdown: every execution with its parameters, hardware and time; median time by run type, hardware and parameter value; CSV export. **Build an estimator** runs the build phase from here (below) and lists the trained models. |
-| 4 Jobs | All sweeps with progress and cancel; every TAPIS job, profiling and build, with its type, hardware and runs done (e.g. `2 / 5`), sortable and filterable. Refreshes while jobs run. |
+| **HARP Generate** | 1 Configure: pick a TAPIS app, set up a sweep (run type, repetitions, timeout, single or list values per parameter), tick systems and queues and open each to set its hardware configurations (cores, memory, max minutes, within the queue's TAPIS limits), and enter each system's **account** (allocation, e.g. `-A PAS2271`); add the sweep to the plan. 2 Review & submit: the server checks every sweep against TAPIS and shows what each job asks for; pick the results folder, confirm, submit (all or nothing). 3 Profiled data: per app, every execution with its parameters, hardware and time, pooled across sweeps; medians by run type, hardware and parameter; CSV export. 4 Jobs: every TAPIS job, profiling and build, with its type, hardware and runs done; cancel a sweep. |
+| **HARP Build** | 1 Training data: pick the app and the sweeps to learn from (data checks folded away). 2 Models & where: models and training sets, where the build runs (a TAPIS system as a job of the HARP build app, or this computer) and where the models are saved. 3 Trained models: every build with its best model and scores. |
+| **HARP Estimate** | 1 Configure: pick an app, give one value per parameter (one run), tick the queues and cores it would get, add it to the estimate list (the model's independent examples). 2 Select model: per app, its trained models best first; the best is preselected. 3 Estimates: every entry with its model. Computing the estimates comes next. |
+
+There is no header and no log-out button: the login screen comes back when the TAPIS session expires.
 
 The **?** buttons explain the terms: SD (scaled-down), FS (full-scale) and test_data runs; sweeps and campaigns (one
 submitted sweep is one campaign: the server's record of its TAPIS jobs and its results folder); the models; the
