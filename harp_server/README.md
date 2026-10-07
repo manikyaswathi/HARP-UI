@@ -77,7 +77,7 @@ which is the name the existing **build** phase looks for. Runs that fail go to
 
 | Tab | What it does |
 |---|---|
-| 1 Configure | Pick a TAPIS app, set up a sweep (run type, repetitions, timeout, single or list values per parameter), tick TAPIS systems and queues (queue limits come from the system's `batchLogicalQueues`), and add it to the plan. Repeat for more sweeps or apps. The plan is kept in the browser until it is submitted. |
+| 1 Configure | Pick a TAPIS app, set up a sweep (run type, repetitions, timeout, single or list values per parameter), tick TAPIS systems and queues (queue limits come from the system's `batchLogicalQueues`), open each queue to set its hardware configurations, and add it to the plan. A configuration is cores per job (default: the queue's max), memory (default 4 GB per core) and max minutes (default: runs per job × timeout + 10), all capped at the queue's limits, always on 1 node. Add several configurations to profile one queue with different hardware; each becomes its own TAPIS target, and the profiled data has a `hardware` column naming it. Repeat for more sweeps or apps. The plan is kept in the browser until it is submitted. |
 | 2 Review & submit | Every sweep x queue in the plan, checked by the server; results folder, allocation, confirm, submit. Nothing is submitted unless every sweep is valid. |
 | 3 Jobs | All sweeps with progress, cancel and resubmit; every TAPIS job, sortable and filterable. Refreshes while jobs run. |
 | 4 Profiled data | Per app: every execution with its parameters, system and time; median time by run type, system and parameter value; CSV export. |

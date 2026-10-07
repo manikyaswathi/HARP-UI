@@ -486,6 +486,27 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .qrow .lim{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);line-height:1.6}
 .qrow .lim span{display:inline-block;margin-right:10px}
 .qrow .qc{width:84px}
+.qrow.cfgrow{grid-template-columns:24px minmax(130px,1fr) minmax(160px,2fr) auto;cursor:default}
+.qrow.cfgrow>label{cursor:pointer}
+.qtog{font:inherit;font-size:12px;font-weight:600;color:var(--teal-700);background:#fff;border:1px solid var(--line);border-radius:7px;
+  padding:6px 10px;cursor:pointer;white-space:nowrap}
+.qtog:hover{border-color:var(--teal)}
+.qtog .ch{display:inline-block;margin-left:4px;transition:transform .15s}
+.qtog[aria-expanded="true"] .ch{transform:rotate(180deg)}
+.qcfg{grid-column:1 / -1;border-top:1px dashed #cfdde2;padding-top:10px;margin-top:2px}
+.cfgh,.cfgr{display:grid;grid-template-columns:28px repeat(3,minmax(90px,1fr)) 64px;gap:8px;align-items:start}
+.cfgh{font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:4px}
+.cfgr{margin-bottom:6px}
+.cfgr .ix{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);padding-top:8px}
+.cfgr input{width:100%;font-family:"JetBrains Mono",monospace;font-size:12px;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:#fff}
+.cfgr input.auto{color:var(--muted)}
+.cfgr .hint{display:block;font-family:"JetBrains Mono",monospace;font-size:10px;color:var(--muted);margin-top:3px;line-height:1.4}
+.cfgr .rowbtn{font:inherit;font-size:12px;font-weight:600;background:none;border:none;cursor:pointer;padding:8px 0 0;color:#A23A3A;text-align:left}
+.cfgadd{font:inherit;font-size:12.5px;font-weight:600;color:var(--teal-700);background:none;border:1px dashed var(--teal);border-radius:7px;padding:6px 12px;cursor:pointer;margin-top:2px}
+.cfgnote{font-size:12px;color:var(--muted);margin:6px 0 0}
+@media(max-width:640px){.qrow.cfgrow{grid-template-columns:24px 1fr auto}
+  .cfgh{display:none}.cfgr{grid-template-columns:22px 1fr 1fr;row-gap:4px}.cfgr .ix{grid-row:1 / span 2}
+  .cfgr>div:nth-child(4){grid-column:2}.cfgr .rowbtn{grid-column:3;grid-row:2}}
 .qrow .qc input{width:100%;font-family:"JetBrains Mono",monospace;font-size:12px;padding:6px 8px;border:1px solid var(--line);border-radius:6px}
 @media(max-width:640px){.qrow{grid-template-columns:24px 1fr 76px}.qrow .lim{grid-column:2 / -1;grid-row:2}}
 .ghostx{background:transparent;border:1px solid var(--panel-line);color:#CBD8E4;margin-top:10px}
@@ -622,6 +643,9 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   // A sweep with its TAPIS jobs (one combination per job), spread over hardware.
   const QUEUE = {pitzer:'serial', cardinal:'gpu'};
   let uuidN = 4100;
+  const HWLABEL = h => h === 'cardinal' ? 'cardinal/gpu · 8 cores · 31 GB · GPU' : `${h}/${QUEUE[h] || 'serial'} · 4 cores · 16 GB`;
+  const tLabel = t => [t.system_id + (t.queue ? '/' + t.queue : ''), t.cores_per_node ? t.cores_per_node + ' cores' : '',
+    t.memory_mb ? Math.round(t.memory_mb / 1024) + ' GB' : '', t.container_args ? 'GPU' : ''].filter(Boolean).join(' · ');
   function sweep(name, appId, sets, reps, timeFn, hosts, opts = {}){
     const created = Date.now() - (opts.hoursAgo || 1) * 3600e3;
     const rows = [], jobs = []; let idx = 0;
@@ -642,7 +666,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
       }
       if (job.status === 'FINISHED' || job.status === 'FAILED') job.ended_at = at(8 + idx * 3);
       if (job.status === 'FINISHED') for (let r = 0; r < reps; r++) {
-        const row = {campaign:name, system:host, run_config:`${job.name}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
+        const row = {campaign:name, system:host, hardware:HWLABEL(host), run_config:`${job.name}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
         for (const [k, v] of Object.entries(p)) row['run_' + k] = v;
         row.walltime = +(timeFn(p, host) * jitter()).toFixed(5);
         rows.push(row);
@@ -716,15 +740,15 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     const jobs = [], plan = [];
     const combos = cartesian(spec.run_sets[0].parameters);
     let i = 0;
-    for (const p of combos) for (const t of spec.targets) {
+    for (const p of combos) for (const [ti, t] of spec.targets.entries()) {
       jobs.push({name:`${name}-${spec.run_sets[0].run_type}-${String(i).padStart(4,'0')}`, system_id:t.system_id,
-        target:`${t.system_id}|${t.queue}`, queue:t.queue, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
+        target:'t' + ti, queue:t.queue, cores_per_node:t.cores_per_node, memory_mb:t.memory_mb, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
         uuid:null, error:null, submitted_at:null, ended_at:null});
       plan.push({p, t, at: 1500 + i * 1200, run: 6000 + i * 1500, end: 14000 + i * 2500}); i++;
     }
     const view = {id:name, name, application:spec.application, app_ids:[appId], created_at:new Date(created).toISOString(),
       repetitions:spec.repetitions, storage:spec.storage, campaign_dir:`${spec.storage.path}/${name}`,
-      hardware: spec.targets.map(t => ({key:`${t.system_id}|${t.queue}`, system_id:t.system_id, queue:t.queue, app_id:appId,
+      hardware: spec.targets.map((t, ti) => ({key:'t' + ti, system_id:t.system_id, queue:t.queue, app_id:appId,
         cores_per_node:t.cores_per_node, memory_mb:t.memory_mb, gpu:!!t.container_args})),
       events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
     const sw = {view, jobs, rows:[], live:{created, plan, reps:spec.repetitions}};
@@ -740,11 +764,11 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
         j.status = 'FINISHED'; j.ended_at = new Date().toISOString();
         const host = pl.t.system_id, gpu = !!pl.t.container_args;
         for (let r = 0; r < sw.live.reps; r++) {
-          const row = {campaign:sw.view.name, system:host, run_config:`${j.name}.run-${k}.iteration-${r}`, run_type:j.run_type, ...HWOF(host)};
+          const row = {campaign:sw.view.name, system:host, hardware:tLabel(pl.t), run_config:`${j.name}.run-${k}.iteration-${r}`, run_type:j.run_type, ...HWOF(host)};
           for (const [key, v] of Object.entries(pl.p)) row['run_' + key] = v;
           const base = sw.view.app_ids[0].includes('yolo') ? yoloTime(pl.p, gpu ? 'cardinal' : 'pitzer')
                      : eulerTime({method:'pow', n:1000, precision:64, ...pl.p});
-          row.walltime = +(base * jitter()).toFixed(5); sw.rows.push(row);
+          row.walltime = +(base * Math.pow(48 / Math.max(1, pl.t.cores_per_node || 48), 0.35) * jitter()).toFixed(5); sw.rows.push(row);
         }
         sw.view.events.push({at:j.ended_at, message:`${j.name} FINISHED on ${host}`});
       } else if (t >= pl.run) j.status = 'RUNNING';
@@ -769,7 +793,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   function profileOf(appId){
     const mine = SWEEPS.filter(s => s.view.app_ids.includes(appId));
     const rows = mine.flatMap(s => s.rows);  // running sweeps show their finished jobs
-    const cols = ['campaign', 'system'];
+    const cols = ['campaign', 'system', 'hardware'];
     for (const r of rows) for (const k of Object.keys(r)) if (!cols.includes(k)) cols.push(k);
     if (cols.includes('walltime')) { cols.splice(cols.indexOf('walltime'), 1); cols.push('walltime'); }
     return {app_id:appId, campaigns:mine.map(s => s.view), columns:cols, rows, total_rows:rows.length, missing:[]};
@@ -814,7 +838,9 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     }
     if (path === '/api/jobs') return later(json(200, SWEEPS.flatMap(sw => sw.jobs.map(j => ({...j,
       sweep:sw.view.name, sweep_id:sw.view.id, app_id:sw.view.app_ids[0],
-      queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null})))));
+      queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null,
+      cores_per_node: j.cores_per_node || (sw.view.hardware.find(h => h.key === j.target) || {}).cores_per_node || null,
+      memory_mb: j.memory_mb || (sw.view.hardware.find(h => h.key === j.target) || {}).memory_mb || null})))));
     let sy = path.match(/^\/api\/tapis\/systems\/([^/]+)$/);
     if (sy) { const x = SYSTEMS.find(y => y.id === sy[1]); return later(x ? json(200, x) : json(404, {detail:'no such system'})); }
     if (path === '/api/campaigns' && (opts.method || 'GET') === 'POST') {
@@ -940,7 +966,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 
           <div class="card2" id="sysCard" hidden>
             <div class="chead"><h3>Systems and queues</h3><span class="am">from TAPIS</span></div>
-            <p class="sub">Tick every queue this sweep should run on. Each one gets its own TAPIS jobs.</p>
+            <p class="sub">Tick every queue this sweep should run on, then open it to set cores, memory and time limit.
+              Add more configurations to profile the same queue with different hardware; each one gets its own TAPIS jobs.</p>
             <div id="systems"></div>
           </div>
         </div>
@@ -1034,7 +1061,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
         <div class="dgrid">
           <div class="card2"><h3>Time by run type</h3><p class="sub">SD scaled-down, FS full-scale, test_data held out.</p>
             <div class="scroll"><table class="dt" id="typeTable"></table></div></div>
-          <div class="card2"><h3>Time by system</h3><p class="sub">Median time per run.</p>
+          <div class="card2"><h3>Time by hardware</h3><p class="sub">Median time per run, per system, queue and configuration.</p>
             <div class="scroll"><table class="dt" id="hwTable"></table></div></div>
         </div>
         <div class="card2"><h3>Time by parameter</h3><p class="sub">Median time for each value of every parameter that was varied.</p>
@@ -1142,6 +1169,26 @@ function renderAllocs(){
 /* ============================================================ 1. configure */
 // Cores per job default to the queue's max cores per node (1 if TAPIS gives no limit).
 const defCores = q => (q && q.max_cores > 0) ? q.max_cores : 1;
+// Each ticked queue has one or more hardware configurations: {cores, mem_gb, minutes}.
+// null means "auto": cores = queue max, memory = 4 GB per core, minutes = runs per job x timeout + 10.
+// Every configuration is a separate TAPIS target (always 1 node).
+const cap = (v, mx) => mx > 0 ? Math.min(v, mx) : v;
+const newCfg = () => ({cores: null, mem_gb: null, minutes: null});
+const cfgCores = (q, c) => cap(c.cores || defCores(q), q.max_cores);
+const autoMemMb = (q, c) => cap(Math.max(4096, cfgCores(q, c) * 4096), q.max_memory_mb);
+const cfgMemMb = (q, c) => c.mem_gb ? cap(c.mem_gb * 1024, q.max_memory_mb) : autoMemMb(q, c);
+const autoMin = (q, sw) => cap(sw.timeout * sw.reps + 10, q.max_minutes);
+const cfgMin = (q, c, sw) => c.minutes ? cap(c.minutes, q.max_minutes) : autoMin(q, sw);
+const qOf = k => (queueByKey(k) || {q: {}}).q;
+function cfgsOf(sw, k){
+  if (!sw.configs) sw.configs = {};
+  if (!sw.configs[k] || !sw.configs[k].length)   // plans saved before configurations: keep their cores
+    sw.configs[k] = [{...newCfg(), cores: (sw.cores && sw.cores[k]) || null}];
+  return sw.configs[k];
+}
+const nTargets = sw => sw.queues.reduce((n, k) => n + cfgsOf(sw, k).length, 0);
+const cfgText = (q, c, sw) => `${cfgCores(q, c)} cores · ${fmtMem(cfgMemMb(q, c))} · ${fmtMin(cfgMin(q, c, sw))}`;
+const OPEN = new Set();   // queue rows whose configurations are expanded
 // The sweep being edited. Queues and cores per queue are part of it.
 let app = null, SW = null, PLAN = store.get('harp-plan', []), planSeq = PLAN.reduce((n, p) => Math.max(n, p.id), 0);
 const values = st => { const raw = (st.raw || '').trim(); if (!raw) return [];
@@ -1153,7 +1200,7 @@ function freshSweep(a, keep){
   return {name: keep ? nextName(keep.name) : (n === 1 ? 'sd' : 'sweep-' + n), run_type: keep ? keep.run_type : 'SD',
     reps: keep ? keep.reps : 1, timeout: keep ? keep.timeout : 20,
     params: keep ? JSON.parse(JSON.stringify(keep.params)) : Object.fromEntries(a.params.map(p => [p.name, {mode: 'single', raw: p.def}])),
-    queues: keep ? [...keep.queues] : [], cores: keep ? {...keep.cores} : {}};
+    queues: keep ? [...keep.queues] : [], configs: keep ? JSON.parse(JSON.stringify(keep.configs || {})) : {}};
 }
 function nextName(name){
   const used = new Set(PLAN.filter(p => app && p.app.id === app.id).map(p => p.sweep.name));
@@ -1171,6 +1218,8 @@ function sweepProblem(a, sw){
   }
   if (!(sw.reps >= 1) || !(sw.timeout >= 1)) return 'Repetitions and timeout must be at least 1.';
   if (!sw.queues.length) return 'Tick at least one queue.';
+  for (const k of sw.queues) { const q = qOf(k), seen = new Set();
+    for (const c of cfgsOf(sw, k)) { const t = cfgText(q, c, sw); if (seen.has(t)) return `${k.replace('|', ' / ')} has two identical configurations.`; seen.add(t); } }
   return '';
 }
 
@@ -1214,11 +1263,30 @@ function renderSweepForm(){
     el.addEventListener('change', () => { renderSweepForm(); updateCurrent(); }); });
 }
 function limits(q){
-  const parts = [q.max_nodes > 0 ? `${q.max_nodes} node${q.max_nodes === 1 ? '' : 's'} max` : '',
-    q.max_cores ? `${q.max_cores} cores/node` : '', q.max_memory_mb ? `${fmtMem(q.max_memory_mb)}` : '',
+  const parts = [q.max_cores ? `${q.max_cores} cores/node` : '', q.max_memory_mb ? `${fmtMem(q.max_memory_mb)}` : '',
     q.max_minutes > 0 ? `${fmtMin(q.max_minutes)} limit` : '', q.max_jobs_per_user > 0 ? `${q.max_jobs_per_user} jobs/user` : ''].filter(Boolean);
   return parts.length ? parts.map(x => `<span>${esc(x)}</span>`).join('') : '<span>no limits set</span>';
 }
+function cfgBlock(k, q){
+  const lim = (v, f) => v > 0 ? ` · max ${f(v)}` : '';
+  return `<div class="cfgh"><div>#</div><div>Cores / job${lim(q.max_cores, x => x)}</div><div>Memory (GB)${lim(q.max_memory_mb, x => Math.round(x / 1024))}</div>
+      <div>Max minutes${lim(q.max_minutes, x => x)}</div><div></div></div>` +
+    cfgsOf(SW, k).map((c, i) => `<div class="cfgr">
+      <span class="ix">${i + 1}</span>
+      <div><input type="number" min="1" ${q.max_cores ? `max="${q.max_cores}"` : ''} data-k="${esc(k)}" data-i="${i}" data-f="cores"
+        value="${cfgCores(q, c)}" aria-label="Cores per job, configuration ${i + 1}"></div>
+      <div><input type="number" min="1" ${q.max_memory_mb ? `max="${Math.round(q.max_memory_mb / 1024)}"` : ''} data-k="${esc(k)}" data-i="${i}" data-f="mem_gb"
+        class="${c.mem_gb ? '' : 'auto'}" value="${Math.round(cfgMemMb(q, c) / 1024)}" aria-label="Memory in GB, configuration ${i + 1}">
+        <span class="hint" data-hint="mem">${c.mem_gb ? 'set by you' : 'auto: 4 GB per core'}</span></div>
+      <div><input type="number" min="1" ${q.max_minutes > 0 ? `max="${q.max_minutes}"` : ''} data-k="${esc(k)}" data-i="${i}" data-f="minutes"
+        class="${c.minutes ? '' : 'auto'}" value="${cfgMin(q, c, SW)}" aria-label="Max minutes, configuration ${i + 1}">
+        <span class="hint" data-hint="min">${c.minutes ? 'set by you' : minHint()}</span></div>
+      ${cfgsOf(SW, k).length > 1 ? `<button class="rowbtn danger" type="button" data-cfgrm="${esc(k)}" data-i="${i}">Remove</button>` : '<span></span>'}
+    </div>`).join('') +
+    `<button class="cfgadd" type="button" data-cfgadd="${esc(k)}">+ Add configuration</button>
+     <p class="cfgnote">1 node per job${isGpu(q) ? ' · GPU enabled in the container (--nv)' : ''}. Clear memory or minutes to go back to auto.</p>`;
+}
+const minHint = () => `auto: ${SW.reps} run${SW.reps === 1 ? '' : 's'}/job × ${SW.timeout} min + 10`;
 function renderSystems(){
   if (!SYSTEMS.length) { $('systems').innerHTML = '<div class="empty">No TAPIS execution systems found for your account.</div>'; return; }
   $('systems').innerHTML = SYSTEMS.map(s => `
@@ -1226,34 +1294,60 @@ function renderSystems(){
       ${s.batch_scheduler ? `<span class="rt sing">${esc(s.batch_scheduler)}</span>` : ''}
       ${(s.runtimes || []).map(r => `<span class="rt dock">${esc(r)}</span>`).join(' ')}
       ${s.error ? `<span class="loginerr">queues unavailable: ${esc(s.error)}</span>` : ''}</div>
-    ${qlist(s).map(q => { const k = qkey(s, q), on = SW.queues.includes(k);
-      const cores = SW.cores[k] ?? defCores(q);
-      return `<label class="qrow${on ? ' on' : ''}">
-        <input type="checkbox" class="qpick" data-k="${esc(k)}" ${on ? 'checked' : ''}>
-        <span class="qn">${esc(q.name || 'default queue')}${q.default ? ' <span class="pill done">default</span>' : ''}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}
-          ${q.description ? `<span class="am">${esc(q.description)}</span>` : q.hpc_queue && q.hpc_queue !== q.name ? `<span class="am">scheduler: ${esc(q.hpc_queue)}</span>` : ''}</span>
+    ${qlist(s).map(q => { const k = qkey(s, q), on = SW.queues.includes(k), open = on && OPEN.has(k), id = 'q-' + k.replace(/[^A-Za-z0-9_-]/g, '_');
+      return `<div class="qrow cfgrow${on ? ' on' : ''}" data-row="${esc(k)}">
+        <input type="checkbox" class="qpick" id="${esc(id)}" data-k="${esc(k)}" ${on ? 'checked' : ''}>
+        <label class="qn" for="${esc(id)}">${esc(q.name || 'default queue')}${q.default ? ' <span class="pill done">default</span>' : ''}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}
+          ${q.description ? `<span class="am">${esc(q.description)}</span>` : q.hpc_queue && q.hpc_queue !== q.name ? `<span class="am">scheduler: ${esc(q.hpc_queue)}</span>` : ''}</label>
         <span class="lim">${limits(q)}</span>
-        <span class="qc"><span class="qcl">cores / job${q.max_cores ? ` · max ${q.max_cores}` : ''}</span><input type="number" min="1" ${q.max_cores ? `max="${q.max_cores}"` : ''} class="qcores" data-k="${esc(k)}" value="${cores}"
-          aria-label="Cores per job on ${esc(s.id)} ${esc(q.name)}" title="Cores per job. Defaults to the queue's max cores per node."></span>
-      </label>`; }).join('')}`).join('');
-  $('systems').querySelectorAll('.qpick').forEach(el => el.addEventListener('change', () => {
-    SW.queues = el.checked ? [...new Set([...SW.queues, el.dataset.k])] : SW.queues.filter(k => k !== el.dataset.k);
-    el.closest('.qrow').classList.toggle('on', el.checked); updateCurrent(); }));
-  $('systems').querySelectorAll('.qcores').forEach(el =>
-    el.addEventListener('change', () => { const hit = queueByKey(el.dataset.k), mx = hit && hit.q.max_cores;
-      const v = Math.max(1, +el.value || 1); SW.cores[el.dataset.k] = mx ? Math.min(v, mx) : v; el.value = SW.cores[el.dataset.k]; updateCurrent(); }));
+        ${on ? `<button class="qtog" type="button" data-tog="${esc(k)}" aria-expanded="${open}">${togText(k)}<span class="ch">▾</span></button>` : '<span></span>'}
+        ${open ? `<div class="qcfg">${cfgBlock(k, q)}</div>` : ''}
+      </div>`; }).join('')}`).join('');
+  const sys = $('systems');
+  sys.querySelectorAll('.qpick').forEach(el => el.addEventListener('change', () => {
+    const k = el.dataset.k;
+    SW.queues = el.checked ? [...new Set([...SW.queues, k])] : SW.queues.filter(x => x !== k);
+    if (el.checked) { cfgsOf(SW, k); OPEN.add(k); } else OPEN.delete(k);
+    renderSystems(); updateCurrent(); }));
+  sys.querySelectorAll('[data-tog]').forEach(b => b.addEventListener('click', () => {
+    const k = b.dataset.tog; OPEN.has(k) ? OPEN.delete(k) : OPEN.add(k); renderSystems(); }));
+  sys.querySelectorAll('[data-cfgadd]').forEach(b => b.addEventListener('click', () => {
+    const list = cfgsOf(SW, b.dataset.cfgadd); list.push({...list[list.length - 1]}); renderSystems(); updateCurrent();
+    const last = sys.querySelectorAll(`.cfgr input[data-k="${CSS.escape(b.dataset.cfgadd)}"][data-f="cores"]`); if (last.length) last[last.length - 1].focus(); }));
+  sys.querySelectorAll('[data-cfgrm]').forEach(b => b.addEventListener('click', () => {
+    cfgsOf(SW, b.dataset.cfgrm).splice(+b.dataset.i, 1); renderSystems(); updateCurrent(); }));
+  sys.querySelectorAll('.cfgr input').forEach(el => el.addEventListener('change', () => {
+    const k = el.dataset.k, q = qOf(k), c = cfgsOf(SW, k)[+el.dataset.i], f = el.dataset.f, v = Math.round(+el.value);
+    const mx = {cores: q.max_cores, mem_gb: q.max_memory_mb ? Math.round(q.max_memory_mb / 1024) : 0, minutes: q.max_minutes}[f];
+    c[f] = el.value.trim() === '' || !(v >= 1) ? null : cap(v, mx);
+    refreshCfg(k); updateCurrent(); }));
+}
+function togText(k){ const q = qOf(k), list = cfgsOf(SW, k);
+  return list.length === 1 ? esc(cfgText(q, list[0], SW)) : `${list.length} configurations`; }
+// Recompute the auto values in place, so typing doesn't lose focus.
+function refreshCfg(k){
+  const q = qOf(k), row = [...$('systems').querySelectorAll('[data-row]')].find(r => r.dataset.row === k); if (!row) return;
+  const list = cfgsOf(SW, k);
+  row.querySelectorAll('.cfgr').forEach((r, i) => { const c = list[i]; if (!c) return;
+    const set = (f, val, auto, hint, txt) => { const el = r.querySelector(`input[data-f="${f}"]`);
+      if (document.activeElement !== el) el.value = val; el.classList.toggle('auto', auto);
+      if (hint) r.querySelector(`[data-hint="${hint}"]`).textContent = txt; };
+    set('cores', cfgCores(q, c), false);
+    set('mem_gb', Math.round(cfgMemMb(q, c) / 1024), !c.mem_gb, 'mem', c.mem_gb ? 'set by you' : 'auto: 4 GB per core');
+    set('minutes', cfgMin(q, c, SW), !c.minutes, 'min', c.minutes ? 'set by you' : minHint()); });
+  const t = row.querySelector('.qtog'); if (t) t.innerHTML = togText(k) + '<span class="ch">▾</span>';
 }
 function updateCurrent(){
   if (!app) return;
-  const n = app.command ? combosOf(app, SW) : 0, q = SW.queues.length;
+  const n = app.command ? combosOf(app, SW) : 0, q = nTargets(SW);
   $('swCombos').className = 'pill ' + (n ? 'done' : 'none');
   $('swCombos').textContent = `${n} combination${n === 1 ? '' : 's'}`;
   $('curJobs').textContent = (n * Math.max(q, 1)).toLocaleString();
-  $('curJobsLbl').textContent = q ? `TAPIS jobs on ${q} queue${q === 1 ? '' : 's'}` : 'combinations · tick a queue';
+  $('curJobsLbl').textContent = q ? `TAPIS jobs on ${q} hardware configuration${q === 1 ? '' : 's'}` : 'combinations · tick a queue';
   const swept = app.params.filter(p => values(SW.params[p.name]).length > 1);
   $('curFormula').innerHTML = !app.command ? 'Declare this app\'s sweep parameters in TAPIS to profile it.'
     : (swept.length ? swept.map(p => `<b>${values(SW.params[p.name]).length}</b> ${esc(p.name)}`).join(' &times; ') : 'every parameter fixed')
-      + ` &times; <b>${q}</b> queue${q === 1 ? '' : 's'} &times; <b>${SW.reps}</b> rep${SW.reps === 1 ? '' : 's'}`;
+      + ` &times; <b>${q}</b> configuration${q === 1 ? '' : 's'} &times; <b>${SW.reps}</b> rep${SW.reps === 1 ? '' : 's'}`;
   const prob = sweepProblem(app, SW);
   $('swErr').textContent = prob && prob !== 'Tick at least one queue.' ? prob : '';
   $('addBtn').disabled = !!prob; $('addMsg').className = 'launchmsg'; $('addMsg').textContent = prob;
@@ -1262,7 +1356,7 @@ function updateCurrent(){
   if (!SW) return;
   SW.name = $('swName').value.trim(); SW.run_type = $('swType').value;
   SW.reps = Math.max(1, +$('swReps').value || 0); SW.timeout = Math.max(1, +$('swTimeout').value || 0);
-  updateCurrent(); }));
+  SW.queues.forEach(refreshCfg); updateCurrent(); }));
 
 /* ---- the plan (a cart of sweeps, kept across reloads in this browser) ---- */
 function addToPlan(){
@@ -1276,7 +1370,7 @@ function addToPlan(){
   $('addMsg').className = 'launchmsg ok'; $('addMsg').textContent = `Added "${added}". Change values to add another sweep.`;
 }
 function savePlan(){ store.set('harp-plan', PLAN); renderPlan(); }
-const planJobs = p => combosOf(p.app, p.sweep) * p.sweep.queues.length;
+const planJobs = p => combosOf(p.app, p.sweep) * nTargets(p.sweep);
 function renderPlan(){
   const jobs = PLAN.reduce((n, p) => n + planJobs(p), 0);
   $('bPlan').textContent = PLAN.length; $('bPlan').classList.toggle('zero', !PLAN.length);
@@ -1284,7 +1378,7 @@ function renderPlan(){
   $('toReview').disabled = !PLAN.length;
   $('planList').innerHTML = PLAN.length ? PLAN.map(p => `<div class="pitem">
       <div class="pt"><b>${esc(p.app.label)} &middot; ${esc(p.sweep.name)}</b><span class="pm">${planJobs(p)} jobs</span></div>
-      <div class="pm">${esc(p.sweep.run_type)} &middot; ${esc(p.sweep.queues.map(k => k.replace('|', '/')).join(', '))}</div>
+      <div class="pm">${esc(p.sweep.run_type)} &middot; ${esc(p.sweep.queues.map(k => k.replace('|', '/') + (cfgsOf(p.sweep, k).length > 1 ? ` ×${cfgsOf(p.sweep, k).length}` : '')).join(', '))}</div>
       <div class="pa"><button type="button" data-edit="${p.id}">Edit</button><button type="button" class="rm" data-rm="${p.id}">Remove</button></div></div>`).join('')
     : '<div class="planempty">Add sweeps here, then review and submit them together.</div>';
   $('planList').querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
@@ -1307,14 +1401,13 @@ function specs(){
       repetitions: sw.reps, run_timeout_sec: sw.timeout * 60, combos_per_job: 1, distribution: 'replicate',
       run_sets: [{run_type: sw.run_type, parameters: Object.fromEntries(p.app.params.map(x =>
         [x.name, values(sw.params[x.name]).map(v => x.kind === 'int' || x.kind === 'float' ? Number(v) : v)]))}],
-      targets: sw.queues.map(k => { const hit = queueByKey(k) || {s: {id: k.split('|')[0]}, q: {name: k.split('|')[1]}};
-        const {s, q} = hit, cores = sw.cores[k] ?? defCores(q);
-        return {system_id: s.id, queue: q.name || null, app_id: p.app.id, app_version: p.app.version,
+      targets: sw.queues.flatMap(k => { const hit = queueByKey(k) || {s: {id: k.split('|')[0]}, q: {name: k.split('|')[1]}};
+        const {s, q} = hit;
+        return cfgsOf(sw, k).map(c => ({system_id: s.id, queue: q.name || null, app_id: p.app.id, app_version: p.app.version,
           scheduler_options: ALLOC[s.id] || null, container_args: isGpu(q) ? '--nv' : null, node_count: 1,
-          cores_per_node: q.max_cores ? Math.min(cores, q.max_cores) : cores,
-          memory_mb: q.max_memory_mb ? Math.min(q.max_memory_mb, Math.max(4000, cores * 4000)) : Math.max(4000, cores * 4000),
-          max_minutes: Math.min(sw.timeout * sw.reps + 10, q.max_minutes > 0 ? q.max_minutes : Infinity),
-          max_concurrent_jobs: q.max_jobs_per_user > 0 ? Math.min(q.max_jobs_per_user, 10) : 4}; }),
+          cores_per_node: cfgCores(q, c), memory_mb: cfgMemMb(q, c), max_minutes: cfgMin(q, c, sw),
+          // configurations on one queue share its per-user job limit
+          max_concurrent_jobs: Math.max(1, Math.floor((q.max_jobs_per_user > 0 ? Math.min(q.max_jobs_per_user, 10) : 4) / cfgsOf(sw, k).length))})); }),
       storage: {system_id: $('storeSys').value, path: $('store').value.trim()}};
   });
 }
@@ -1322,14 +1415,15 @@ let CHECK = null;
 async function renderReview(){
   $('doneCard').hidden = true; $('submitCard').hidden = !PLAN.length;
   renderAllocs();
-  const rows = PLAN.flatMap(p => p.sweep.queues.map((k, i) => ({p, k, first: i === 0, span: p.sweep.queues.length})));
+  const rows = PLAN.flatMap(p => { const all = p.sweep.queues.flatMap(k => cfgsOf(p.sweep, k).map(c => ({k, c})));
+    return all.map(({k, c}, i) => ({p, k, c, first: i === 0, span: all.length})); });
   const jobs = PLAN.reduce((n, p) => n + planJobs(p), 0);
   const runs = PLAN.reduce((n, p) => n + planJobs(p) * p.sweep.reps, 0);
   const hours = PLAN.reduce((n, p) => n + planJobs(p) * p.sweep.reps * p.sweep.timeout / 60, 0);
   $('reviewTotals').textContent = PLAN.length ? `${jobs} TAPIS jobs · ${runs} runs · up to ${Math.round(hours)} node-hours` : '';
   $('reviewTable').innerHTML = PLAN.length ? `<tr><th>App</th><th>Sweep</th><th>Type</th><th>Varies</th><th>System / queue</th>
-      <th class="num">Jobs</th><th class="num">Runs</th><th class="num">Cores</th><th class="num">Time limit</th><th>Check</th><th></th></tr>` +
-    rows.map(({p, k, first, span}) => { const hit = queueByKey(k), q = hit ? hit.q : {}, n = combosOf(p.app, p.sweep);
+      <th class="num">Jobs</th><th class="num">Runs</th><th class="num">Cores</th><th class="num">Memory</th><th class="num">Time limit</th><th>Check</th><th></th></tr>` +
+    rows.map(({p, k, c, first, span}) => { const hit = queueByKey(k), q = hit ? hit.q : {}, n = combosOf(p.app, p.sweep);
       const varies = p.app.params.filter(x => values(p.sweep.params[x.name]).length > 1)
         .map(x => `${x.name} ×${values(p.sweep.params[x.name]).length}`).join(', ') || 'fixed';
       const lead = first ? `<td rowspan="${span}">${esc(p.app.label)}</td><td rowspan="${span}"><b>${esc(p.sweep.name)}</b></td>
@@ -1337,8 +1431,8 @@ async function renderReview(){
       const tail = first ? `<td rowspan="${span}" class="chk" data-plan="${p.id}">checking&hellip;</td>
         <td rowspan="${span}"><button class="rowbtn danger" data-rm="${p.id}" type="button">Remove</button></td>` : '';
       return `<tr>${lead}<td>${esc(k.replace('|', ' / '))}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}</td>
-        <td class="num">${n}</td><td class="num">${n * p.sweep.reps}</td><td class="num">${p.sweep.cores[k] ?? defCores(q)}</td>
-        <td class="num">${fmtMin(Math.min(p.sweep.timeout * p.sweep.reps + 10, q.max_minutes > 0 ? q.max_minutes : Infinity))}</td>${tail}</tr>`; }).join('')
+        <td class="num">${n}</td><td class="num">${n * p.sweep.reps}</td><td class="num">${cfgCores(q, c)}</td><td class="num">${fmtMem(cfgMemMb(q, c))}</td>
+        <td class="num">${fmtMin(cfgMin(q, c, p.sweep))}</td>${tail}</tr>`; }).join('')
     : `<tr><td class="updated">The plan is empty. Add sweeps on <button class="rowbtn" id="goCfg" type="button">Configure</button>.</td></tr>`;
   const gc = $('goCfg'); if (gc) gc.addEventListener('click', () => show('configure'));
   $('reviewTable').querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
@@ -1420,7 +1514,7 @@ function renderJobs(){
   const camps = [...CAMPS].sort((a, b) => (ACTIVE.includes(b.status) - ACTIVE.includes(a.status)) || b.created_at.localeCompare(a.created_at));
   $('sweepTable').innerHTML = camps.length ? `<tr><th>Sweep</th><th>App</th><th>Status</th><th>Progress</th><th>Hardware</th><th class="num">Runs</th><th>Started</th><th></th></tr>` +
     camps.map(c => { const k = c.job_counts || {}, f = k.FINISHED || 0, x = (k.FAILED || 0) + (k.SUBMIT_FAILED || 0) + (k.CANCELLED || 0);
-      const hw = (c.hardware || []).map(h => h.system_id + (h.queue ? '/' + h.queue : '')).join(', ');
+      const hw = (c.hardware || []).map(h => h.system_id + (h.queue ? '/' + h.queue : '') + (h.cores_per_node ? ` (${h.cores_per_node}c)` : '')).join(', ');
       const act = ACTIVE.includes(c.status)
         ? (confirmCancel === c.id ? `<button class="rowbtn danger" data-cancel="${esc(c.id)}" type="button">Confirm cancel</button>`
                                   : `<button class="rowbtn danger" data-ask="${esc(c.id)}" type="button">Cancel</button>`)
@@ -1456,7 +1550,7 @@ function renderJobs(){
                 ['status', 'Status'], ['submitted_at', 'Submitted'], ['duration', 'Duration'], ['uuid', 'TAPIS UUID']];
   $('jobsTable').innerHTML = `<tr>${COLS.map(([k, l]) => `<th${k === 'duration' ? ' class="num"' : ''}><button class="sortb" data-k="${k}">${l}${jSort === k ? (jDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>` +
     (rows.length ? rows.slice(0, 500).map(j => `<tr><td>${esc(appName(j.app_id))}</td><td>${esc(j.sweep)}</td><td class="uuid">${esc(j.name)}</td>
-      <td>${esc(j.system_id)}${j.queue ? ` <span class="am">/ ${esc(j.queue)}</span>` : ''}</td><td>${esc(j.run_type)}</td>
+      <td>${esc(j.system_id)}${j.queue ? ` <span class="am">/ ${esc(j.queue)}</span>` : ''}${j.cores_per_node ? ` <span class="am">· ${j.cores_per_node} cores${j.memory_mb ? ' · ' + esc(fmtMem(j.memory_mb)) : ''}</span>` : ''}</td><td>${esc(j.run_type)}</td>
       <td>${pill(JOB_ST, j.status)}${j.error ? `<div class="err">${esc(j.error)}</div>` : ''}</td>
       <td class="updated">${esc(ago(j.submitted_at))}</td><td class="num">${fmtDur(dur(j))}</td><td class="uuid">${esc(j.uuid || '–')}</td></tr>`).join('')
     : `<tr><td colspan="9" class="updated">${JOBS.length ? 'No jobs match these filters.' : 'No TAPIS jobs yet.'}</td></tr>`);
@@ -1513,9 +1607,9 @@ function renderProfile(){
     order.map(t => `<tr><td><b>${esc(t)}</b></td><td class="num">${types[t].length}</td><td class="num">${fmtS(Math.min(...types[t]))}</td>
       <td class="num">${fmtS(median(types[t]))}</td><td class="num">${fmtS(Math.max(...types[t]))}</td></tr>`).join('') : '<tr><td class="updated">No finished runs yet.</td></tr>';
   const bySys = {};
-  for (const r of P.rows) { const w = parseFloat(r.walltime); if (Number.isFinite(w)) ((bySys[r.system || 'unknown'] ||= {})[r.run_type || '?'] ||= []).push(w); }
+  for (const r of P.rows) { const w = parseFloat(r.walltime); if (Number.isFinite(w)) ((bySys[r.hardware || r.system || 'unknown'] ||= {})[r.run_type || '?'] ||= []).push(w); }
   const sys = Object.keys(bySys).sort();
-  $('hwTable').innerHTML = sys.length ? `<tr><th>System</th><th class="num">Runs</th>${order.map(t => `<th class="num">${esc(t)}</th>`).join('')}</tr>` +
+  $('hwTable').innerHTML = sys.length ? `<tr><th>Hardware</th><th class="num">Runs</th>${order.map(t => `<th class="num">${esc(t)}</th>`).join('')}</tr>` +
     sys.map(n => `<tr><td><b>${esc(n)}</b></td><td class="num">${Object.values(bySys[n]).flat().length}</td>${order.map(t =>
       `<td class="num">${bySys[n][t] ? fmtS(median(bySys[n][t])) : '–'}</td>`).join('')}</tr>`).join('') : '<tr><td class="updated">No finished runs yet.</td></tr>';
   const numSort = (a, b) => (isNaN(+a) || isNaN(+b)) ? String(a).localeCompare(String(b)) : +a - +b;

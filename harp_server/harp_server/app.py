@@ -224,12 +224,13 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
         """Every TAPIS job of every sweep, for the jobs table."""
         rows = []
         for c in manager.list(gw.username):
-            queue_of = {t["key"]: t.get("queue") for t in c["spec"]["targets"]}
-            app_of = {t["key"]: t["app_id"] for t in c["spec"]["targets"]}
+            target_of = {t["key"]: t for t in c["spec"]["targets"]}
             for j in c["jobs"]:
+                t = target_of.get(j["target"], {})
                 rows.append({"name": j["name"], "sweep": c["spec"]["name"], "sweep_id": c["id"],
-                             "app_id": app_of.get(j["target"]), "system_id": j["system_id"],
-                             "queue": queue_of.get(j["target"]), "run_type": j["run_type"],
+                             "app_id": t.get("app_id"), "system_id": j["system_id"],
+                             "queue": t.get("queue"), "cores_per_node": t.get("cores_per_node"),
+                             "memory_mb": t.get("memory_mb"), "run_type": j["run_type"],
                              "combinations": len(j["combinations"]), "status": j["status"],
                              "uuid": j["uuid"], "error": j["error"],
                              "submitted_at": j["submitted_at"], "ended_at": j["ended_at"]})
@@ -286,12 +287,25 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
         return [c for c in manager.list(gw.username)
                 if app_id in {t["app_id"] for t in c["spec"]["targets"]}]
 
+    def hardware_label(t):
+        """One hardware configuration as text, e.g. "pitzer/serial · 40 cores · 156 GB"."""
+        parts = [t["system_id"] + (f"/{t['queue']}" if t.get("queue") else "")]
+        if t.get("cores_per_node"):
+            parts.append(f"{t['cores_per_node']} cores")
+        if t.get("memory_mb"):
+            parts.append(f"{round(t['memory_mb'] / 1024)} GB")
+        if "--nv" in (t.get("container_args") or ""):
+            parts.append("GPU")
+        return " · ".join(parts)
+
     def app_rows(app_id, gw):
         """Every profiling row collected for an app, across all its campaigns."""
-        columns, rows, missing = ["campaign", "system"], [], []
+        columns, rows, missing = ["campaign", "system", "hardware"], [], []
         for c in app_campaigns(app_id, gw):
             # run_config is "<job name>.run-<i>.iteration-<r>"; map it back to the job's system
             job_system = {j["name"]: j["system_id"] for j in c["jobs"]}
+            targets = {t["key"]: t for t in c["spec"]["targets"]}
+            job_hw = {j["name"]: hardware_label(targets[j["target"]]) for j in c["jobs"] if j["target"] in targets}
             system = c["spec"]["storage"]["system_id"]
             merged = (c.get("result") or {}).get("csv_path")
             # Once a sweep is merged read its one CSV; while it runs, read the CSV
@@ -310,9 +324,10 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
                 for name in reader.fieldnames or []:
                     if name not in columns:
                         columns.append(name)
-                rows.extend({"campaign": c["spec"]["name"],
-                             "system": job_system.get((r.get("run_config") or "").split(".run-")[0], ""),
-                             **r} for r in reader)
+                for r in reader:
+                    job = (r.get("run_config") or "").split(".run-")[0]
+                    rows.append({"campaign": c["spec"]["name"], "system": job_system.get(job, ""),
+                                 "hardware": job_hw.get(job, ""), **r})
         if "walltime" in columns:  # keep walltime last, like the CSVs
             columns.remove("walltime")
             columns.append("walltime")

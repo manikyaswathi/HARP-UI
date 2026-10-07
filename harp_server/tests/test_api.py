@@ -182,11 +182,11 @@ def test_app_profile_merges_all_campaigns_of_an_app(ctx):
 
     r = client.get("/api/apps/harp-sweep-euler/profile").json()
     assert len(r["campaigns"]) == 2 and all(c["status"] == "DONE" for c in r["campaigns"])
-    assert r["columns"] == ["campaign", "system", "run_type", "run_n", "walltime"]
+    assert r["columns"] == ["campaign", "system", "hardware", "run_type", "run_n", "walltime"]
     assert r["total_rows"] == 8 and {row["campaign"] for row in r["rows"]} == {"sweep-a", "sweep-b"}
 
     csv_text = client.get("/api/apps/harp-sweep-euler/profile.csv").text.splitlines()
-    assert csv_text[0] == "campaign,system,run_type,run_n,walltime" and len(csv_text) == 9
+    assert csv_text[0] == "campaign,system,hardware,run_type,run_n,walltime" and len(csv_text) == 9
 
     assert client.get("/api/apps/other-app/profile").json()["total_rows"] == 0
     assert client.get("/api/apps/other-app/profile.csv").status_code == 404
@@ -213,6 +213,25 @@ def test_rows_are_tagged_with_the_system_that_ran_them(ctx):
     view = client.get(f"/api/campaigns/{list(manager.campaigns)[0]}").json()
     assert [h["system_id"] for h in view["hardware"]] == ["pitzer", "stampede"]
     assert {j["target"] for j in view["jobs"]} == {"t0", "t1"}
+
+
+def test_two_configurations_of_one_queue_are_told_apart(ctx):
+    client, manager, gateways = ctx
+    _login(client)
+    spec = euler_spec(name="cfg")
+    base = dict(spec["targets"][0], queue="serial", memory_mb=8192)
+    spec["targets"] = [dict(base, cores_per_node=2), dict(base, cores_per_node=40, memory_mb=163840)]
+    client.post("/api/campaigns", json=spec)
+    gw = gateways["alice"]
+    def csv_for(u):
+        job = gw.jobs[u]["request"]["name"]
+        return f"run_config,run_type,walltime\n{job}.run-0.iteration-0,SD,1.0\n".encode()
+    _finish_all(manager, gw, csv_for)
+    assert sorted({j["request"]["coresPerNode"] for j in gw.jobs.values()}) == [2, 40]
+    rows = client.get("/api/apps/harp-sweep-euler/profile").json()["rows"]
+    assert {r["hardware"] for r in rows} == {"pitzer/serial · 2 cores · 8 GB", "pitzer/serial · 40 cores · 160 GB"}
+    jobs = client.get("/api/jobs").json()
+    assert {j["cores_per_node"] for j in jobs} == {2, 40}
 
 
 def test_app_profile_shows_finished_jobs_while_sweep_runs(ctx):

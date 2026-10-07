@@ -38,6 +38,9 @@
   // A sweep with its TAPIS jobs (one combination per job), spread over hardware.
   const QUEUE = {pitzer:'serial', cardinal:'gpu'};
   let uuidN = 4100;
+  const HWLABEL = h => h === 'cardinal' ? 'cardinal/gpu · 8 cores · 31 GB · GPU' : `${h}/${QUEUE[h] || 'serial'} · 4 cores · 16 GB`;
+  const tLabel = t => [t.system_id + (t.queue ? '/' + t.queue : ''), t.cores_per_node ? t.cores_per_node + ' cores' : '',
+    t.memory_mb ? Math.round(t.memory_mb / 1024) + ' GB' : '', t.container_args ? 'GPU' : ''].filter(Boolean).join(' · ');
   function sweep(name, appId, sets, reps, timeFn, hosts, opts = {}){
     const created = Date.now() - (opts.hoursAgo || 1) * 3600e3;
     const rows = [], jobs = []; let idx = 0;
@@ -58,7 +61,7 @@
       }
       if (job.status === 'FINISHED' || job.status === 'FAILED') job.ended_at = at(8 + idx * 3);
       if (job.status === 'FINISHED') for (let r = 0; r < reps; r++) {
-        const row = {campaign:name, system:host, run_config:`${job.name}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
+        const row = {campaign:name, system:host, hardware:HWLABEL(host), run_config:`${job.name}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
         for (const [k, v] of Object.entries(p)) row['run_' + k] = v;
         row.walltime = +(timeFn(p, host) * jitter()).toFixed(5);
         rows.push(row);
@@ -132,15 +135,15 @@
     const jobs = [], plan = [];
     const combos = cartesian(spec.run_sets[0].parameters);
     let i = 0;
-    for (const p of combos) for (const t of spec.targets) {
+    for (const p of combos) for (const [ti, t] of spec.targets.entries()) {
       jobs.push({name:`${name}-${spec.run_sets[0].run_type}-${String(i).padStart(4,'0')}`, system_id:t.system_id,
-        target:`${t.system_id}|${t.queue}`, queue:t.queue, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
+        target:'t' + ti, queue:t.queue, cores_per_node:t.cores_per_node, memory_mb:t.memory_mb, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
         uuid:null, error:null, submitted_at:null, ended_at:null});
       plan.push({p, t, at: 1500 + i * 1200, run: 6000 + i * 1500, end: 14000 + i * 2500}); i++;
     }
     const view = {id:name, name, application:spec.application, app_ids:[appId], created_at:new Date(created).toISOString(),
       repetitions:spec.repetitions, storage:spec.storage, campaign_dir:`${spec.storage.path}/${name}`,
-      hardware: spec.targets.map(t => ({key:`${t.system_id}|${t.queue}`, system_id:t.system_id, queue:t.queue, app_id:appId,
+      hardware: spec.targets.map((t, ti) => ({key:'t' + ti, system_id:t.system_id, queue:t.queue, app_id:appId,
         cores_per_node:t.cores_per_node, memory_mb:t.memory_mb, gpu:!!t.container_args})),
       events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
     const sw = {view, jobs, rows:[], live:{created, plan, reps:spec.repetitions}};
@@ -156,11 +159,11 @@
         j.status = 'FINISHED'; j.ended_at = new Date().toISOString();
         const host = pl.t.system_id, gpu = !!pl.t.container_args;
         for (let r = 0; r < sw.live.reps; r++) {
-          const row = {campaign:sw.view.name, system:host, run_config:`${j.name}.run-${k}.iteration-${r}`, run_type:j.run_type, ...HWOF(host)};
+          const row = {campaign:sw.view.name, system:host, hardware:tLabel(pl.t), run_config:`${j.name}.run-${k}.iteration-${r}`, run_type:j.run_type, ...HWOF(host)};
           for (const [key, v] of Object.entries(pl.p)) row['run_' + key] = v;
           const base = sw.view.app_ids[0].includes('yolo') ? yoloTime(pl.p, gpu ? 'cardinal' : 'pitzer')
                      : eulerTime({method:'pow', n:1000, precision:64, ...pl.p});
-          row.walltime = +(base * jitter()).toFixed(5); sw.rows.push(row);
+          row.walltime = +(base * Math.pow(48 / Math.max(1, pl.t.cores_per_node || 48), 0.35) * jitter()).toFixed(5); sw.rows.push(row);
         }
         sw.view.events.push({at:j.ended_at, message:`${j.name} FINISHED on ${host}`});
       } else if (t >= pl.run) j.status = 'RUNNING';
@@ -185,7 +188,7 @@
   function profileOf(appId){
     const mine = SWEEPS.filter(s => s.view.app_ids.includes(appId));
     const rows = mine.flatMap(s => s.rows);  // running sweeps show their finished jobs
-    const cols = ['campaign', 'system'];
+    const cols = ['campaign', 'system', 'hardware'];
     for (const r of rows) for (const k of Object.keys(r)) if (!cols.includes(k)) cols.push(k);
     if (cols.includes('walltime')) { cols.splice(cols.indexOf('walltime'), 1); cols.push('walltime'); }
     return {app_id:appId, campaigns:mine.map(s => s.view), columns:cols, rows, total_rows:rows.length, missing:[]};
@@ -230,7 +233,9 @@
     }
     if (path === '/api/jobs') return later(json(200, SWEEPS.flatMap(sw => sw.jobs.map(j => ({...j,
       sweep:sw.view.name, sweep_id:sw.view.id, app_id:sw.view.app_ids[0],
-      queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null})))));
+      queue: j.queue || (sw.view.hardware.find(h => h.key === j.target) || {}).queue || null,
+      cores_per_node: j.cores_per_node || (sw.view.hardware.find(h => h.key === j.target) || {}).cores_per_node || null,
+      memory_mb: j.memory_mb || (sw.view.hardware.find(h => h.key === j.target) || {}).memory_mb || null})))));
     let sy = path.match(/^\/api\/tapis\/systems\/([^/]+)$/);
     if (sy) { const x = SYSTEMS.find(y => y.id === sy[1]); return later(x ? json(200, x) : json(404, {detail:'no such system'})); }
     if (path === '/api/campaigns' && (opts.method || 'GET') === 'POST') {
