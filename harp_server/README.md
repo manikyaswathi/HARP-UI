@@ -48,7 +48,16 @@ which is the name the existing **build** phase looks for. Runs that fail go to
    `ghcr.io/<owner>/harp-sweep-eulernumber:1.0.0`, so you don't need Docker locally. Make that
    package public once so the clusters can pull it.
 3. **Register the systems and credentials** as in `Notebooks/Executing_HARP_using_TAPIS*.ipynb`.
-4. **Run the server over HTTPS** (it receives TAPIS passwords, so it must use HTTPS):
+4. **Just for you, on your laptop (macOS or Linux):** you need Python 3.11 or 3.12 and this repository.
+   ```bash
+   ./harp_server/scripts/run_local.sh      # first run installs fastapi, uvicorn and tapipy into harp_server/.venv
+   ```
+   Open `http://localhost:8000`. It listens on this machine only, so plain http is fine. Keep the laptop awake
+   while sweeps run (e.g. `caffeinate -i ./harp_server/scripts/run_local.sh` on a Mac); if it sleeps or you stop
+   the server, the jobs already in TAPIS keep running, and after you start it again and log in, the server
+   picks the sweeps back up. State is kept in `~/.harp_server`.
+
+5. **For other people, run the server over HTTPS** (it receives TAPIS passwords, so it must use HTTPS):
    ```bash
    pip install -r harp_server/requirements.txt
    cd harp_server
