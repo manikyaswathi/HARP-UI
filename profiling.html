@@ -632,6 +632,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .bsub2{display:flex;align-items:center;font-family:"JetBrains Mono",monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:12px 0 6px}
 .bmhead{margin:18px 0 0}
 .bwhere{font-size:12px;color:var(--muted)}
+.badv{margin-top:8px;padding-left:14px;border-left:2px solid var(--teal-50)}
+.bnote{font-size:12px;color:var(--muted);margin:4px 0 0;line-height:1.5}
 .fromapp{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;margin:8px 0 0;font-size:12.5px}
 .fromapp dt{font-family:"JetBrains Mono",monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--teal-700);padding-top:2px}
 .fromapp dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
@@ -894,7 +896,13 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
           <div class="chead"><h3>Models to build</h3><button type="button" class="help" data-help="models" aria-label="Which models can HARP build?" aria-expanded="false">?</button><span class="am" id="bAppName"></span></div>
           <div class="bopts" id="bModels"></div>
           <p class="bsub2">Trained on<button type="button" class="help" data-help="trainsets" aria-label="What are the training sets?" aria-expanded="false">?</button></p>
-          <div class="bopts" id="bSets"></div>
+          <div class="bopts">
+            <label class="bopt on" id="bSetAllL"><input type="radio" name="bSetMode" id="bSetAll" value="all" checked>
+              <b>All training sets</b><span class="am">Recommended. Every model is trained four ways (SD only, and SD plus 25, 50 or 75% of FS) and you keep the best.</span></label>
+            <label class="bopt" id="bSetAdvL"><input type="radio" name="bSetMode" id="bSetAdv" value="advanced">
+              <b>Advanced</b><span class="am">Pick the training sets yourself, e.g. to save time on a slow neural network.</span></label>
+          </div>
+          <div class="bopts badv" id="bSets" hidden></div>
         </div>
         <div class="card2">
           <div class="chead"><h3>Where</h3><button type="button" class="help" data-help="runon" aria-label="Where does a build run?" aria-expanded="false">?</button></div>
@@ -1501,6 +1509,17 @@ async function loadProfile(){
   $('dUpdated').textContent = 'updated ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 }
 /* ---- build phase: sweeps -> (cleaned) training data -> models, as a TAPIS job or here ---- */
+// "Trained on": All (every training set) or Advanced (pick them).
+function setMode(advanced){
+  $('bSets').hidden = !advanced;
+  $('bSetAllL').classList.toggle('on', !advanced); $('bSetAdvL').classList.toggle('on', advanced);
+}
+for (const id of ['bSetAll', 'bSetAdv']) $(id).addEventListener('change', () => {
+  const advanced = $('bSetAdv').checked; setMode(advanced);
+  if (!advanced) { Object.keys((BOPTS || {}).training_sets || {}).forEach(t => BSETS.add(t));
+    $('bSets').querySelectorAll('input').forEach(el => { el.checked = true; el.closest('.bopt').classList.add('on'); }); }
+  buildReady();
+});
 const BSEL = {};                 // app id -> ids of the sweeps picked for training
 let bCheck = null, bTimer = null, bPoll = null, BUILDS = [], BOPTS = null;
 const BMOD = new Set(), BSETS = new Set();
@@ -1526,7 +1545,14 @@ async function renderBuild(){
     <b>${esc(title)}</b>${sub ? `<span class="am">${esc(sub)}</span>` : ''}</label>`;
   const MODEL_SUB = {LR: 'fast, simple baseline', NN: 'fits curves; needs more data', DTR: 'handles thresholds and jumps'};
   $('bModels').innerHTML = Object.entries(BOPTS.models).map(([k, v]) => opt(BMOD, k, `${k} · ${v}`, MODEL_SUB[k])).join('');
-  $('bSets').innerHTML = Object.entries(BOPTS.training_sets).map(([k, v]) => opt(BSETS, k, v)).join('');
+  const SET_SUB = {SD: 'Only the scaled-down runs. Fastest and cheapest; may predict full-scale runs less well.',
+    'SD+25FS': 'Scaled-down runs plus a quarter of the full-scale runs.',
+    'SD+50FS': 'Scaled-down runs plus half of the full-scale runs.',
+    'SD+75FS': 'Scaled-down runs plus three quarters of the full-scale runs. Usually the best at full scale.'};
+  $('bSets').innerHTML = Object.entries(BOPTS.training_sets).map(([k, v]) => opt(BSETS, k, v, SET_SUB[k])).join('')
+    + '<p class="bnote">The full-scale runs not used for training check the model while it trains; the test_data runs score it afterwards.</p>';
+  const all = Object.keys(BOPTS.training_sets), advanced = BSETS.size !== all.length;
+  $('bSetAll').checked = !advanced; $('bSetAdv').checked = advanced; setMode(advanced);
   for (const [id, set] of [['bModels', BMOD], ['bSets', BSETS]])
     $(id).querySelectorAll('input').forEach(el => el.addEventListener('change', () => {
       el.checked ? set.add(el.value) : set.delete(el.value); el.closest('.bopt').classList.toggle('on', el.checked); buildReady(); }));
