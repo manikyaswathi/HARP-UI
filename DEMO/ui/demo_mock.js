@@ -116,7 +116,14 @@
     {id:'cardinal', host:'cardinal.osc.edu', description:'Cardinal cluster, Ohio Supercomputer Center', system_type:'LINUX',
      enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'cpu',
      queues:[Q('cpu','cpu',{default:true, max_nodes:1, max_cores:96, max_memory_mb:515000, max_minutes:10080, max_jobs_per_user:4}),
-             Q('gpu','gpu',{description:'4x H100 per node', max_nodes:1, max_cores:96, max_memory_mb:1030000, max_minutes:4320, max_jobs_per_user:2})]}];
+             Q('gpu','gpu',{description:'4x H100 per node', max_nodes:1, max_cores:96, max_memory_mb:1030000, max_minutes:4320, max_jobs_per_user:2})]},
+    {id:'stampede3', host:'stampede3.tacc.utexas.edu', description:'Stampede3, Texas Advanced Computing Center', system_type:'LINUX',
+     enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'skx',
+     queues:[Q('skx','skx',{default:true, description:'Skylake, 48 cores', max_nodes:256, max_cores:48, max_memory_mb:192000, max_minutes:2880, max_jobs_per_user:20}),
+             Q('icx','icx',{description:'Ice Lake, 80 cores', max_nodes:32, max_cores:80, max_memory_mb:256000, max_minutes:2880, max_jobs_per_user:20}),
+             Q('h100','h100',{description:'4x H100 per node', max_nodes:4, max_cores:96, max_memory_mb:1000000, max_minutes:2880, max_jobs_per_user:4})]}];
+  const STORAGE_ONLY = [{id:'osc-project-storage', host:'sftp.osc.edu', description:'OSC project space', system_type:'LINUX', enabled:true, can_exec:false}];
+  HW.stampede3 = {sys_name:'Linux', sys_tot_cores_count:48, sys_phy_mem_bytes:201326592000, sys_gpu_count:0, sys_gpu_name:'none'};
   const HWOF = id => HW[id] || HW.pitzer;
 
   // A sweep launched from the page: jobs move through TAPIS states over ~a minute.
@@ -200,7 +207,7 @@
     if (path === '/api/me') return Promise.resolve(json(200, me));
     if (path === '/api/tapis/apps') return later(json(200, APPS));
     SWEEPS.forEach(advance);
-    if (path === '/api/tapis/systems') return later(json(200, SYSTEMS.map(({queues, ...x}) => x)));
+    if (path === '/api/tapis/systems') return later(json(200, [...SYSTEMS.map(({queues, ...x}) => x), ...STORAGE_ONLY]));
     if (path === '/api/tapis/exec-systems') return later(json(200, SYSTEMS));
     const check = spec => {
       if (!spec.command) return 'command is required';

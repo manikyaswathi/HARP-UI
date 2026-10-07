@@ -571,6 +571,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .appmeta{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted)}
 .appmeta b{font-weight:500;text-transform:uppercase;letter-spacing:.05em;font-size:10px;color:var(--teal-700);margin-right:4px}
 .appmeta span{min-width:0;word-break:break-all}
+.qrow .qcl{display:block;font-family:"JetBrains Mono",monospace;font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+#allocs .lbl .am{text-transform:none;letter-spacing:0;font-weight:400;margin-left:4px}
 </style>
 
 </head>
@@ -675,13 +677,15 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
       </div>
       <div class="card2" id="submitCard">
         <h3>Where results go</h3>
+        <p class="sub">Any TAPIS system you can write to. Jobs on other systems copy their results here through TAPIS.</p>
         <div class="three">
           <div class="field"><label class="lbl" for="storeSys">TAPIS system</label><select id="storeSys"></select></div>
           <div class="field" style="grid-column:span 2"><label class="lbl" for="store">Folder</label>
             <input class="ti" id="store" placeholder="/fs/scratch/PAS0000/you/harp_runs" autocomplete="off"></div>
-          <div class="field"><label class="lbl" for="alloc">Allocation</label>
-            <input class="ti" id="alloc" placeholder="-A PAS0000" autocomplete="off"></div>
         </div>
+        <h3 style="margin-top:8px">Allocations</h3>
+        <p class="sub">The project each system charges, passed to its scheduler. Leave empty if a system needs none.</p>
+        <div class="three" id="allocs"></div>
         <label class="confirmrow"><input type="checkbox" id="confirm"> I checked the plan above.</label>
         <div class="actions">
           <button class="btn btn-navy" id="submitBtn" type="button" disabled>Submit plan</button>
@@ -820,12 +824,26 @@ const qlist = s => s.queues && s.queues.length ? s.queues : [{name: '', default:
 const qkey = (s, q) => s.id + '|' + (q.name || '');
 const isGpu = q => /gpu/i.test((q.name || '') + ' ' + (q.description || '') + ' ' + (q.hpc_queue || ''));
 function queueByKey(k){ for (const s of SYSTEMS) for (const q of qlist(s)) if (qkey(s, q) === k) return {s, q}; return null; }
+let ALLOC = store.get('harp-alloc', {});      // system id -> scheduler options, e.g. "-A PAS2271"
 async function loadSystems(){
-  SYSTEMS = (await api('/api/tapis/exec-systems')).filter(s => s.enabled !== false);
-  $('storeSys').innerHTML = SYSTEMS.map(s => `<option value="${esc(s.id)}">${esc(s.id)}</option>`).join('');
+  const [execs, all] = await Promise.all([api('/api/tapis/exec-systems'), api('/api/tapis/systems').catch(() => [])]);
+  SYSTEMS = execs.filter(s => s.enabled !== false);
+  const storage = [...new Map([...SYSTEMS, ...all].map(s => [s.id, s])).values()];
+  $('storeSys').innerHTML = storage.map(s => `<option value="${esc(s.id)}">${esc(s.id)}${s.host ? ' · ' + esc(s.host) : ''}${
+    s.can_exec === false ? ' (storage)' : ''}</option>`).join('');
   const saved = store.get('harp-launch', {});
   if (saved.storeSys) $('storeSys').value = saved.storeSys;
-  for (const k of ['store', 'alloc']) if (saved[k]) $(k).value = saved[k];
+  if (saved.store) $('store').value = saved.store;
+}
+function renderAllocs(){
+  const ids = [...new Set(PLAN.flatMap(p => p.sweep.queues.map(k => k.split('|')[0])))].sort();
+  $('allocs').innerHTML = ids.length ? ids.map(id => { const h = (SYSTEMS.find(s => s.id === id) || {}).host || '';
+    const tacc = /tacc/i.test(h), ph = tacc ? '-A TACC-project' : '-A PAS0000';
+    return `<div class="field"><label class="lbl" for="alloc-${esc(id)}">${esc(id)}${h ? ` <span class="am">${esc(h)}</span>` : ''}</label>
+      <input class="ti alloc" id="alloc-${esc(id)}" data-sys="${esc(id)}" value="${esc(ALLOC[id] || '')}" placeholder="${ph}" autocomplete="off"></div>`; }).join('')
+    : '<p class="updated">Systems appear here once the plan has sweeps.</p>';
+  $('allocs').querySelectorAll('.alloc').forEach(el => el.addEventListener('input', () => {
+    ALLOC[el.dataset.sys] = el.value.trim(); store.set('harp-alloc', ALLOC); }));
 }
 
 /* ============================================================ 1. configure */
@@ -914,13 +932,13 @@ function renderSystems(){
       ${(s.runtimes || []).map(r => `<span class="rt dock">${esc(r)}</span>`).join(' ')}
       ${s.error ? `<span class="loginerr">queues unavailable: ${esc(s.error)}</span>` : ''}</div>
     ${qlist(s).map(q => { const k = qkey(s, q), on = SW.queues.includes(k);
-      const cores = SW.cores[k] ?? Math.min(4, q.max_cores || 4);
+      const cores = SW.cores[k] ?? 1;
       return `<label class="qrow${on ? ' on' : ''}">
         <input type="checkbox" class="qpick" data-k="${esc(k)}" ${on ? 'checked' : ''}>
         <span class="qn">${esc(q.name || 'default queue')}${q.default ? ' <span class="pill done">default</span>' : ''}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}
           ${q.description ? `<span class="am">${esc(q.description)}</span>` : q.hpc_queue && q.hpc_queue !== q.name ? `<span class="am">scheduler: ${esc(q.hpc_queue)}</span>` : ''}</span>
         <span class="lim">${limits(q)}</span>
-        <span class="qc"><input type="number" min="1" ${q.max_cores ? `max="${q.max_cores}"` : ''} class="qcores" data-k="${esc(k)}" value="${cores}"
+        <span class="qc"><span class="qcl">cores / job</span><input type="number" min="1" ${q.max_cores ? `max="${q.max_cores}"` : ''} class="qcores" data-k="${esc(k)}" value="${cores}"
           aria-label="Cores per job on ${esc(s.id)} ${esc(q.name)}" title="Cores per job"></span>
       </label>`; }).join('')}`).join('');
   $('systems').querySelectorAll('.qpick').forEach(el => el.addEventListener('change', () => {
@@ -986,7 +1004,6 @@ $('toReview').addEventListener('click', () => show('review'));
 /* ============================================================ 2. review */
 function specs(){
   const stamp = new Date().toISOString().slice(2, 16).replace(/[-:T]/g, '');
-  const alloc = $('alloc').value.trim() || null;
   return PLAN.map(p => {
     const slug = p.app.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'app';
     const sw = p.sweep;
@@ -995,9 +1012,9 @@ function specs(){
       run_sets: [{run_type: sw.run_type, parameters: Object.fromEntries(p.app.params.map(x =>
         [x.name, values(sw.params[x.name]).map(v => x.kind === 'int' || x.kind === 'float' ? Number(v) : v)]))}],
       targets: sw.queues.map(k => { const hit = queueByKey(k) || {s: {id: k.split('|')[0]}, q: {name: k.split('|')[1]}};
-        const {s, q} = hit, cores = sw.cores[k] ?? Math.min(4, q.max_cores || 4);
+        const {s, q} = hit, cores = sw.cores[k] ?? 1;
         return {system_id: s.id, queue: q.name || null, app_id: p.app.id, app_version: p.app.version,
-          scheduler_options: alloc, container_args: isGpu(q) ? '--nv' : null, node_count: 1,
+          scheduler_options: ALLOC[s.id] || null, container_args: isGpu(q) ? '--nv' : null, node_count: 1,
           cores_per_node: q.max_cores ? Math.min(cores, q.max_cores) : cores,
           memory_mb: q.max_memory_mb ? Math.min(q.max_memory_mb, Math.max(4000, cores * 4000)) : Math.max(4000, cores * 4000),
           max_minutes: Math.min(sw.timeout * sw.reps + 10, q.max_minutes > 0 ? q.max_minutes : Infinity),
@@ -1008,6 +1025,7 @@ function specs(){
 let CHECK = null;
 async function renderReview(){
   $('doneCard').hidden = true; $('submitCard').hidden = !PLAN.length;
+  renderAllocs();
   const rows = PLAN.flatMap(p => p.sweep.queues.map((k, i) => ({p, k, first: i === 0, span: p.sweep.queues.length})));
   const jobs = PLAN.reduce((n, p) => n + planJobs(p), 0);
   const runs = PLAN.reduce((n, p) => n + planJobs(p) * p.sweep.reps, 0);
@@ -1023,7 +1041,7 @@ async function renderReview(){
       const tail = first ? `<td rowspan="${span}" class="chk" data-plan="${p.id}">checking&hellip;</td>
         <td rowspan="${span}"><button class="rowbtn danger" data-rm="${p.id}" type="button">Remove</button></td>` : '';
       return `<tr>${lead}<td>${esc(k.replace('|', ' / '))}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}</td>
-        <td class="num">${n}</td><td class="num">${n * p.sweep.reps}</td><td class="num">${p.sweep.cores[k] ?? Math.min(4, q.max_cores || 4)}</td>
+        <td class="num">${n}</td><td class="num">${n * p.sweep.reps}</td><td class="num">${p.sweep.cores[k] ?? 1}</td>
         <td class="num">${fmtMin(Math.min(p.sweep.timeout * p.sweep.reps + 10, q.max_minutes > 0 ? q.max_minutes : Infinity))}</td>${tail}</tr>`; }).join('')
     : `<tr><td class="updated">The plan is empty. Add sweeps on <button class="rowbtn" id="goCfg" type="button">Configure</button>.</td></tr>`;
   const gc = $('goCfg'); if (gc) gc.addEventListener('click', () => show('configure'));
@@ -1047,11 +1065,11 @@ function reviewReady(){
     : !$('confirm').checked ? 'Tick the box to confirm.' : '';
   $('submitBtn').disabled = !!prob; $('submitMsg').textContent = prob;
 }
-['store', 'alloc', 'storeSys'].forEach(id => $(id).addEventListener('input', reviewReady));
+['store', 'storeSys'].forEach(id => $(id).addEventListener('input', reviewReady));
 $('confirm').addEventListener('change', reviewReady);
 $('submitBtn').addEventListener('click', async () => {
   const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Submitting…';
-  store.set('harp-launch', {storeSys: $('storeSys').value, store: $('store').value.trim(), alloc: $('alloc').value.trim()});
+  store.set('harp-launch', {storeSys: $('storeSys').value, store: $('store').value.trim()});
   try {
     const made = await api('/api/campaigns/batch', {method: 'POST', body: specs()});
     PLAN = []; savePlan(); $('confirm').checked = false;
