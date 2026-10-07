@@ -12,7 +12,7 @@ import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 
 from .campaign import (ACTIVE_CAMPAIGN_STATUSES, PROFILE_FILE_NAME, CampaignManager, CampaignStore,
@@ -25,8 +25,6 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 PROFILING_PAGE = os.environ.get(
     "HARP_PROFILING_PAGE",
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "profiling.html"))
-RUNS_PAGE = os.path.join(os.path.dirname(PROFILING_PAGE), "runs.html")
-PROFILE_DATA_PAGE = os.path.join(os.path.dirname(PROFILING_PAGE), "profile-data.html")
 MAX_PROFILE_ROWS = 5000
 # That page is a single file with inline script/style and Google Fonts.
 PROFILING_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; "
@@ -354,15 +352,16 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
     def profiling_page():
         return page(PROFILING_PAGE)
 
+    # Jobs and profiled data are tabs of the profiling page now.
     @app.get("/runs")
     @app.get("/runs.html")
     def runs_page():
-        return page(RUNS_PAGE)
+        return RedirectResponse("/profiling#jobs")
 
     @app.get("/profile-data")
     @app.get("/profile-data.html")
     def profile_data_page():
-        return page(PROFILE_DATA_PAGE)
+        return RedirectResponse("/profiling#data")
 
     @app.get("/")
     def index():

@@ -2,7 +2,7 @@
 """
 Build the offline demo of the HARP profiling pages.
 
-Copies ../../profiling.html, runs.html and profile-data.html into this folder with
+Copies ../../profiling.html into this folder with
 demo_mock.js inlined, so they open straight from disk (no server, no TAPIS)
 and link to each other. Re-run after changing either page:
 
@@ -42,5 +42,4 @@ def build(name):
 
 
 if __name__ == "__main__":
-    for page in ("profiling.html", "runs.html", "profile-data.html"):
-        build(page)
+    build("profiling.html")

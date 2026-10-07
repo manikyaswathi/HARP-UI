@@ -1,13 +1,12 @@
-# Offline demo of the HARP profiling pages
+# Offline demo of the HARP profiling page
 
-Open `profiling.html`, `runs.html` or `profile-data.html` in a browser — no server or TAPIS needed.
-Log in with any username and password. The pages link to each other.
+Open `profiling.html` in a browser. No server or TAPIS is needed: log in with any username and password.
+It runs on sample apps, systems, sweeps and data (`demo_mock.js`).
 
-They are copies of `../../profiling.html`, `../../runs.html` and `../../profile-data.html` with sample data
-(`demo_mock.js`) built in. After changing either real page, rebuild them:
+It is a copy of `../../profiling.html` with the sample data built in. After changing the real page, rebuild it:
 
 ```bash
 python3 DEMO/ui/build_demo.py
 ```
 
-The real pages are served by the HARP server at `/profiling`, `/runs` and `/profile-data`.
+The real page is served by the HARP server at `/profiling`.

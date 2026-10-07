@@ -192,11 +192,11 @@ def test_app_profile_merges_all_campaigns_of_an_app(ctx):
     assert client.get("/api/apps/other-app/profile.csv").status_code == 404
 
 
-def test_runs_and_profile_data_pages_are_served(ctx):
+def test_old_page_addresses_open_the_matching_tab(ctx):
     client, _, _ = ctx
-    for path in ("/runs", "/profile-data.html"):
-        r = client.get(path)
-        assert r.status_code == 200 and "iScheduler" in r.text, path
+    for path, tab in (("/runs", "#jobs"), ("/profile-data.html", "#data")):
+        r = client.get(path, follow_redirects=False)
+        assert r.status_code in (302, 307) and r.headers["location"] == "/profiling" + tab, path
 
 
 def test_rows_are_tagged_with_the_system_that_ran_them(ctx):

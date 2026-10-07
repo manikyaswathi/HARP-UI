@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Demo: Profiling design &mdash; iScheduler</title>
+<title>Demo: Profiling &mdash; iScheduler</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -449,6 +449,124 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .tlink{color:var(--teal-700);font-weight:600}
 .budget .kv .t{max-width:170px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
+
+/* ---- one-page profiling: tabs, plan, jobs, data ------------------------ */
+.tabs4{display:flex;flex-wrap:wrap;gap:4px;background:#fff;border:1px solid var(--line);border-radius:var(--r);
+  padding:5px;margin-bottom:20px;position:sticky;top:70px;z-index:10;box-shadow:0 8px 20px -16px rgba(17,41,63,.35)}
+.t4{flex:1 1 150px;display:flex;align-items:center;justify-content:center;gap:9px;font-family:"Space Grotesk",sans-serif;
+  font-size:14.5px;font-weight:500;color:var(--muted);background:none;border:none;border-radius:8px;padding:11px 12px;cursor:pointer}
+.t4:hover{color:var(--navy);background:#F6F8F9}
+.t4[aria-selected="true"]{background:var(--navy);color:#fff}
+.t4 .k{width:22px;height:22px;border-radius:50%;border:1px solid currentColor;display:inline-flex;align-items:center;
+  justify-content:center;font-family:"JetBrains Mono",monospace;font-size:11px;opacity:.75}
+.bdg{font-family:"JetBrains Mono",monospace;font-size:11px;font-weight:600;min-width:20px;padding:1px 7px;border-radius:10px;
+  background:var(--teal-50);color:var(--teal-700)}
+.t4[aria-selected="true"] .bdg{background:var(--teal);color:#fff}
+.bdg.live:not(.zero){background:var(--orange-50);color:var(--orange-700)}
+.t4[aria-selected="true"] .bdg.live:not(.zero){background:var(--orange);color:#fff}
+.bdg.zero{opacity:.55}
+.panel4[hidden]{display:none!important}
+.chead{display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;margin-bottom:12px}
+.chead h3{margin:0}
+.chead .spacer{flex:1}
+.applist.compact .appitem{padding:10px 14px}
+.three{display:grid;grid-template-columns:repeat(3,1fr);gap:13px;margin-bottom:12px}
+@media(max-width:640px){.three{grid-template-columns:1fr}.three .field[style]{grid-column:auto!important}}
+.swname{max-width:220px;font-weight:600;color:var(--navy)}
+.syshead{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 10px;margin:14px 0 8px}
+.syshead:first-child{margin-top:0}
+.syshead b{font-family:"Space Grotesk",sans-serif;font-size:15px;color:var(--navy)}
+.qrow{display:grid;grid-template-columns:24px minmax(130px,1fr) minmax(160px,2fr) 84px;gap:8px 12px;align-items:center;
+  padding:9px 12px;border:1px solid var(--line);border-radius:9px;margin-bottom:6px;cursor:pointer;background:#fff}
+.qrow:hover{border-color:#c7d3d8}
+.qrow.on{border-color:var(--teal);background:var(--teal-50)}
+.qrow input[type=checkbox]{width:18px;height:18px;accent-color:var(--teal);margin:0}
+.qrow .qn{font-weight:600;color:var(--navy);font-size:14px}
+.qrow .qn .am{display:block;font-weight:400}
+.qrow .lim{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);line-height:1.6}
+.qrow .lim span{display:inline-block;margin-right:10px}
+.qrow .qc{width:84px}
+.qrow .qc input{width:100%;font-family:"JetBrains Mono",monospace;font-size:12px;padding:6px 8px;border:1px solid var(--line);border-radius:6px}
+@media(max-width:640px){.qrow{grid-template-columns:24px 1fr 76px}.qrow .lim{grid-column:2 / -1;grid-row:2}}
+.ghostx{background:transparent;border:1px solid var(--panel-line);color:#CBD8E4;margin-top:10px}
+.ghostx:hover:not(:disabled){background:rgba(255,255,255,.05);border-color:#8CD0DE}
+.ghostx:disabled{background:transparent;color:#5d738a;border-color:var(--panel-line)}
+.budget h4 .t{float:right;color:#8CD0DE;text-transform:none;letter-spacing:0}
+.planlist{display:flex;flex-direction:column;gap:8px;max-height:340px;overflow:auto}
+.pitem{border:1px solid var(--panel-line);border-radius:9px;padding:10px 12px;font-size:12.5px}
+.pitem .pt{display:flex;gap:8px;align-items:baseline;justify-content:space-between}
+.pitem b{color:#fff;font-weight:600}
+.pitem .pm{font-family:"JetBrains Mono",monospace;font-size:11px;color:#7C92A8;margin-top:3px;line-height:1.5}
+.pitem .pa{display:flex;gap:12px;margin-top:6px}
+.pitem button{font:inherit;font-size:11.5px;background:none;border:none;color:#8CD0DE;cursor:pointer;padding:0}
+.pitem button.rm{color:#E4A39B}
+.planempty{font-size:12.5px;color:#7C92A8;border:1px dashed var(--panel-line);border-radius:9px;padding:14px;text-align:center}
+.launchmsg{font-size:12px;color:#F0C9C4;margin-top:8px;min-height:1em;line-height:1.5}
+.launchmsg.ok{color:#8CD0DE}
+.confirmrow{display:flex;gap:10px;align-items:center;font-size:14px;margin:4px 0 14px;cursor:pointer}
+.confirmrow input{width:auto}
+.actions{display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.metrics4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
+@media(max-width:760px){.metrics4{grid-template-columns:1fr 1fr}}
+.mt{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;min-width:0}
+.mt .v{font-family:"Space Grotesk",sans-serif;font-size:26px;font-weight:600;color:var(--navy);line-height:1.15;font-variant-numeric:tabular-nums}
+.mt .l{font-family:"JetBrains Mono",monospace;font-size:10.5px;letter-spacing:.05em;text-transform:uppercase;color:var(--muted);margin-top:4px}
+.scroll{overflow-x:auto;border:1px solid var(--line);border-radius:9px;max-width:100%}
+.scroll.tall{max-height:560px}
+.dt{width:100%;border-collapse:collapse;font-size:12.5px;font-variant-numeric:tabular-nums}
+.dt th{text-align:left;font-family:"JetBrains Mono",monospace;font-size:10px;letter-spacing:.05em;text-transform:uppercase;
+  color:var(--muted);font-weight:500;padding:9px 12px;background:#FCFCFB;border-bottom:1px solid var(--line);white-space:nowrap;position:sticky;top:0;z-index:1}
+.dt td{padding:8px 12px;border-top:1px solid #F0F2F3;white-space:nowrap;vertical-align:middle}
+.dt tr:first-child td{border-top:none}
+.dt .num{text-align:right;font-family:"JetBrains Mono",monospace}
+.dt .wt{color:var(--teal-700);font-weight:600}
+.dt .err{color:#A23A3A;font-size:11.5px;white-space:normal;max-width:260px;margin-top:3px}
+.dt .uuid{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted)}
+.dt .sortb{font:inherit;color:inherit;letter-spacing:inherit;text-transform:inherit;background:none;border:none;padding:0;cursor:pointer}
+.dt .sortb:hover{color:var(--navy)}
+.dt .rowbtn{font:inherit;font-size:12px;font-weight:600;background:none;border:none;cursor:pointer;padding:0;color:var(--teal-700)}
+.dt .rowbtn.danger{color:#A23A3A}
+.dt tr.sel td{background:var(--teal-50)}
+.prog{display:flex;height:7px;border-radius:4px;overflow:hidden;background:#EFF1F2;min-width:90px}
+.prog i{display:block;height:100%}
+.prog .f{background:var(--ok)}.prog .x{background:#C9564B}.prog .r{background:#CFE3E8}
+.st{font-family:"JetBrains Mono",monospace;font-size:10px;padding:2px 8px;border-radius:10px;letter-spacing:.03em;white-space:nowrap}
+.st.done{background:var(--ok-50);color:var(--ok)}.st.run{background:var(--teal-50);color:var(--teal-700)}
+.st.warn{background:var(--orange-50);color:var(--orange-700)}.st.bad{background:#FBE9E9;color:#A23A3A}
+.st.wait{background:#EFF1F2;color:var(--muted)}
+.fsel{width:auto;min-width:130px;font-size:12.5px;padding:7px 10px}
+.updated{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted)}
+.more{font-size:12.5px;color:var(--muted);margin-top:10px;display:flex;gap:12px;align-items:center}
+.linkbtn{font-family:inherit;font-size:13px;font-weight:600;color:var(--teal-700);background:none;border:none;cursor:pointer;padding:0}
+.dlbtn{font-family:inherit;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:7px;border:1px solid var(--line);
+  background:#fff;color:var(--navy);cursor:pointer}
+.dlbtn:hover{border-color:var(--navy)}
+.chips{display:flex;flex-wrap:wrap;gap:8px}
+.achip{display:flex;align-items:center;gap:10px;padding:8px 14px 8px 8px;border:1px solid var(--line);border-radius:10px;
+  background:#fff;cursor:pointer;font-family:inherit;text-align:left}
+.achip:hover{border-color:#c7d3d8}
+.achip[aria-pressed="true"]{border-color:var(--teal);background:var(--teal-50);box-shadow:inset 0 0 0 1px var(--teal)}
+.achip .ic{width:30px;height:30px;border-radius:7px;display:flex;align-items:center;justify-content:center;
+  font-family:"JetBrains Mono",monospace;font-size:10.5px;font-weight:600;background:var(--navy);color:#fff}
+.achip .an{font-weight:600;font-size:13.5px;color:var(--navy);display:block}
+.achip .am{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted)}
+.chipbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
+.fchip{font-family:"JetBrains Mono",monospace;font-size:11.5px;padding:5px 11px;border-radius:7px;border:1px solid var(--line);
+  background:#fff;color:var(--muted);cursor:pointer}
+.fchip[aria-pressed="true"]{border-color:var(--teal);background:var(--teal-50);color:var(--teal-700)}
+.fchip b{font-weight:600;margin-left:4px}
+.dgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.dgrid>*{min-width:0}
+@media(max-width:860px){.dgrid{grid-template-columns:1fr}}
+.ptables{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:14px}
+.ptables h4{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--teal-700);margin:0 0 6px}
+.toast{z-index:60}
+.pgrid>*{min-width:0}
+#sweepTable td:first-child{white-space:normal;word-break:break-word;min-width:170px;max-width:240px}
+#sweepTable td:nth-child(5){white-space:normal;min-width:110px;max-width:180px}
+#jobsTable td:nth-child(2){white-space:normal;word-break:break-word;max-width:190px}
+#jobsTable td:nth-child(3){white-space:normal;word-break:break-all;max-width:190px}
+#doneTable td:first-child,#doneTable td:nth-child(3){white-space:normal;word-break:break-all}
 </style>
 
 <style>
@@ -459,7 +577,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 </style>
 <script>
 /* Offline demo of the HARP profiling pages.
-   Stands in for the HARP server (/api/*) so profiling.html, runs.html and profile-data.html
+   Stands in for the HARP server (/api/*) so profiling.html
    can be opened straight from disk. The real pages talk to the HARP server,
    which talks to TAPIS. Built into the demo pages by build_demo.py. */
 (function(){
@@ -724,11 +842,11 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     const a = ev.target.closest('a[href]');
     if (!a) return;
     const href = a.getAttribute('href');
-    if (['profiling.html', 'runs.html', 'profile-data.html'].includes(href)) return;
+    if (href === 'profiling.html') return;
     if (!/\.html$/.test(href)) return;
     ev.preventDefault();
     let t = document.getElementById('demoToast');
-    t.textContent = 'Only Profiling, Runs and Profile data are part of this demo.';
+    t.textContent = 'Only the Profiling page is part of this demo.';
     t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
   });
 })();
@@ -744,8 +862,6 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <div class="nav-links">
     <a href="index.html">Overview</a>
     <a href="profiling.html" aria-current="page">Profiling</a>
-    <a href="runs.html">Profiling jobs</a>
-    <a href="profile-data.html">Profiled apps</a>
   </div>
   <div class="who" id="who" hidden>
     <span class="mono" id="whoName"></span>
@@ -756,8 +872,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 <header class="page-head"><div class="wrap-p">
   <div class="eyebrow">HARP &middot; Generate</div>
   <h1>Profiling</h1>
-  <p>Pick an app, configure its sweeps, and choose where they run. We generate the
-     profiling runs on TAPIS, then use them to build runtime estimators.</p>
+  <p>Plan profiling sweeps for your TAPIS apps, submit them, follow the jobs, and read the timings
+     they produce. Those timings train the runtime estimators.</p>
 </div></header>
 
 <section class="main"><div class="wrap-p">
@@ -777,118 +893,163 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   </div>
 
   <div id="appView" hidden>
-  <div class="steps" id="steps" role="list">
-    <div class="s" data-step="1" role="listitem"><span class="n">1</span><span class="t">App</span></div>
-    <div class="s" data-step="2" role="listitem"><span class="n">2</span><span class="t">Sweeps</span></div>
-    <div class="s" data-step="3" role="listitem"><span class="n">3</span><span class="t">Systems</span></div>
-    <div class="s" data-step="4" role="listitem"><span class="n">4</span><span class="t">Preview</span></div>
-    <div class="s" data-step="5" role="listitem"><span class="n">5</span><span class="t">Submit</span></div>
-  </div>
+    <div class="tabs4" role="tablist" aria-label="Profiling">
+      <button class="t4" role="tab" id="tab-configure" data-p="configure" aria-selected="true"><span class="k">1</span>Configure</button>
+      <button class="t4" role="tab" id="tab-review" data-p="review" aria-selected="false"><span class="k">2</span>Review &amp; submit <b class="bdg" id="bPlan">0</b></button>
+      <button class="t4" role="tab" id="tab-jobs" data-p="jobs" aria-selected="false"><span class="k">3</span>Jobs <b class="bdg live" id="bActive">0</b></button>
+      <button class="t4" role="tab" id="tab-data" data-p="data" aria-selected="false"><span class="k">4</span>Profiled data</button>
+    </div>
 
-  <div class="pgrid">
-    <div>
-      <!-- 1. app -->
-      <div class="stage" data-stage="1">
-        <div class="tabbar">
-          <button class="tabx" data-t="unprofiled" aria-selected="true">Not yet profiled
-            <span class="b" id="cUnprofiled">0</span></button>
-          <button class="tabx" data-t="profiled" aria-selected="false">Profiled apps
-            <span class="b" id="cProfiled">0</span></button>
-        </div>
-        <div class="card2">
-          <h3 id="listTitle">Select an app to profile</h3>
-          <p class="sub" id="listSub"></p>
-          <div class="applist" id="applist"></div>
-        </div>
-        <div class="card2" id="epCard" hidden>
-          <h3>How TAPIS runs this app</h3>
-          <div class="ep" id="epBlock"></div>
-        </div>
-      </div>
-
-      <!-- 2. sweeps -->
-      <div class="stage" data-stage="2" hidden>
-        <div class="card2 intro">
-          <h3>Configure sweeps</h3>
-          <p class="sub">Each sweep is a set of parameter values. Every combination becomes one TAPIS job.
-            Add several sweeps to profile different ranges.</p>
-        </div>
-        <div id="sweeps"></div>
-        <button class="btn btn-outline btn-sm" id="addSweep" type="button">+ Add sweep</button>
-      </div>
-
-      <!-- 3. systems -->
-      <div class="stage" data-stage="3" hidden>
-        <div class="card2 intro">
-          <h3>Choose systems and queues</h3>
-          <p class="sub">Your TAPIS execution systems, with their batch queues. Tick a queue under each sweep
-            that should run there. A sweep can run on several systems; several sweeps can share one.</p>
-        </div>
-        <div id="systems"></div>
-      </div>
-
-      <!-- 4. preview -->
-      <div class="stage" data-stage="4" hidden>
-        <div class="card2">
-          <h3>Preview</h3>
-          <p class="sub">One row per sweep and queue. Each row is submitted as its own TAPIS jobs.</p>
-          <div class="scroll"><table class="table" id="previewTable"></table></div>
-          <p class="loginerr" id="previewErr"></p>
-        </div>
-        <div class="card2">
-          <h3>Where results go</h3>
-          <div class="two">
-            <div class="field"><label class="lbl" for="storeSys">TAPIS system</label>
-              <select id="storeSys"></select></div>
-            <div class="field"><label class="lbl" for="alloc">Allocation</label>
-              <input class="ti" id="alloc" placeholder="-A PAS0000" autocomplete="off"></div>
+    <!-- 1. CONFIGURE ------------------------------------------------------ -->
+    <div class="panel4" id="p-configure" role="tabpanel" aria-labelledby="tab-configure">
+      <div class="pgrid">
+        <div>
+          <div class="card2">
+            <div class="chead"><h3>App</h3><span class="am" id="appHint"></span></div>
+            <div class="applist compact" id="applist"></div>
           </div>
-          <div class="field"><label class="lbl" for="store">Folder</label>
-            <input class="ti" id="store" placeholder="/fs/scratch/PAS0000/you/harp_runs" autocomplete="off"></div>
-          <label class="confirmrow"><input type="checkbox" id="confirm"> I checked the sweeps and queues above.</label>
-        </div>
-      </div>
 
-      <!-- 5. submit -->
-      <div class="stage" data-stage="5" hidden>
-        <div class="card2">
-          <h3 id="doneTitle">Submitting&hellip;</h3>
-          <p class="sub" id="doneSub"></p>
-          <div class="scroll"><table class="table" id="doneTable"></table></div>
-          <div class="step-actions" style="justify-content:flex-start;gap:10px">
-            <a class="btn btn-navy btn-sm" href="runs.html">Open profiling jobs</a>
-            <button class="btn btn-outline btn-sm" id="again" type="button">Profile another app</button>
+          <div class="card2" id="sweepCard" hidden>
+            <div class="chead"><h3>Sweep</h3>
+              <input class="ti swname" id="swName" aria-label="Sweep name" autocomplete="off">
+              <span class="pill" id="swCombos"></span></div>
+            <div class="three">
+              <div class="field"><label class="lbl" for="swType">Run type</label>
+                <select id="swType"><option value="SD">SD &middot; scaled-down</option><option value="FS">FS &middot; full-scale</option><option value="test_data">test_data &middot; held out</option></select></div>
+              <div class="field"><label class="lbl" for="swReps">Repetitions</label><input class="ti" id="swReps" type="number" min="1" value="1"></div>
+              <div class="field"><label class="lbl" for="swTimeout">Timeout per run (min)</label><input class="ti" id="swTimeout" type="number" min="1" value="20"></div>
+            </div>
+            <div class="atbl" id="argTable"></div>
+            <p class="loginerr" id="swErr"></p>
+          </div>
+
+          <div class="card2" id="sysCard" hidden>
+            <div class="chead"><h3>Systems and queues</h3><span class="am">from TAPIS</span></div>
+            <p class="sub">Tick every queue this sweep should run on. Each one gets its own TAPIS jobs.</p>
+            <div id="systems"></div>
           </div>
         </div>
+
+        <aside class="budget" id="planPanel">
+          <h4>This sweep</h4>
+          <div class="big" id="curJobs">0</div>
+          <div class="blab" id="curJobsLbl">TAPIS jobs</div>
+          <div class="formula" id="curFormula">Pick an app to start.</div>
+          <button class="btnx" id="addBtn" type="button" disabled>Add to plan</button>
+          <p class="launchmsg" id="addMsg" role="status"></p>
+
+          <h4 style="margin-top:22px">Plan <span class="t" id="planTotals"></span></h4>
+          <div id="planList" class="planlist"></div>
+          <button class="btnx ghostx" id="toReview" type="button" disabled>Review &amp; submit</button>
+        </aside>
       </div>
     </div>
 
-    <aside class="budget" id="budget">
-      <h4>Profiling plan</h4>
-      <div class="big" id="sumJobs">0</div>
-      <div class="blab" id="sumJobsLbl">TAPIS jobs</div>
-      <div class="kv"><span>app</span><span class="t" id="sumApp">&ndash;</span></div>
-      <div class="kv"><span>sweeps</span><span id="sumSweeps">0</span></div>
-      <div class="kv"><span>sweep &times; queue pairs</span><span id="sumPairs">0</span></div>
-      <div class="kv"><span>application runs</span><span id="sumRuns">0</span></div>
-      <div class="kv"><span>node-hours (worst case)</span><span id="sumHours">0</span></div>
-      <div id="alarm"></div>
-      <button class="btnx" id="nextBtn" type="button">Next</button>
-      <button class="btnx ghostx" id="backBtn" type="button">Back</button>
-      <p class="launchmsg" id="stepMsg" role="status"></p>
-    </aside>
-  </div>
+    <!-- 2. REVIEW & SUBMIT ---------------------------------------------- -->
+    <div class="panel4" id="p-review" role="tabpanel" aria-labelledby="tab-review" hidden>
+      <div class="card2">
+        <div class="chead"><h3>Plan</h3><span class="am" id="reviewTotals"></span></div>
+        <p class="sub">One row per sweep and queue. Each row becomes its own TAPIS jobs.</p>
+        <div class="scroll"><table class="dt" id="reviewTable"></table></div>
+        <p class="loginerr" id="reviewErr"></p>
+      </div>
+      <div class="card2" id="submitCard">
+        <h3>Where results go</h3>
+        <div class="three">
+          <div class="field"><label class="lbl" for="storeSys">TAPIS system</label><select id="storeSys"></select></div>
+          <div class="field" style="grid-column:span 2"><label class="lbl" for="store">Folder</label>
+            <input class="ti" id="store" placeholder="/fs/scratch/PAS0000/you/harp_runs" autocomplete="off"></div>
+          <div class="field"><label class="lbl" for="alloc">Allocation</label>
+            <input class="ti" id="alloc" placeholder="-A PAS0000" autocomplete="off"></div>
+        </div>
+        <label class="confirmrow"><input type="checkbox" id="confirm"> I checked the plan above.</label>
+        <div class="actions">
+          <button class="btn btn-navy" id="submitBtn" type="button" disabled>Submit plan</button>
+          <span class="loginerr" id="submitMsg" role="status"></span>
+        </div>
+      </div>
+      <div class="card2" id="doneCard" hidden>
+        <h3 id="doneTitle"></h3>
+        <p class="sub" id="doneSub"></p>
+        <div class="scroll"><table class="dt" id="doneTable"></table></div>
+      </div>
+    </div>
+
+    <!-- 3. JOBS ----------------------------------------------------------- -->
+    <div class="panel4" id="p-jobs" role="tabpanel" aria-labelledby="tab-jobs" hidden>
+      <div class="metrics4">
+        <div class="mt"><div class="v" id="jActive">0</div><div class="l">Running or queued</div></div>
+        <div class="mt"><div class="v" id="jWait">0</div><div class="l">Waiting to submit</div></div>
+        <div class="mt"><div class="v" id="jDone">0</div><div class="l">Finished</div></div>
+        <div class="mt"><div class="v" id="jFail">0</div><div class="l">Failed</div></div>
+      </div>
+      <div class="card2">
+        <div class="chead"><h3>Sweeps</h3><span class="spacer"></span><span class="updated" id="jUpdated"></span></div>
+        <div class="scroll"><table class="dt" id="sweepTable"></table></div>
+        <p class="loginerr" id="sweepErr"></p>
+      </div>
+      <div class="card2">
+        <div class="chead"><h3>TAPIS jobs</h3><span class="spacer"></span>
+          <select id="fApp" class="fsel" aria-label="Filter by app"></select>
+          <select id="fStatus" class="fsel" aria-label="Filter by status">
+            <option value="">Any status</option><option value="active">Running or queued</option>
+            <option value="waiting">Waiting to submit</option><option value="finished">Finished</option><option value="failed">Failed</option></select>
+          <select id="fSystem" class="fsel" aria-label="Filter by system"></select>
+          <select id="fSweep" class="fsel" aria-label="Filter by sweep"></select></div>
+        <div class="scroll tall"><table class="dt" id="jobsTable"></table></div>
+        <div class="more" id="jCount"></div>
+      </div>
+    </div>
+
+    <!-- 4. PROFILED DATA ---------------------------------------------------- -->
+    <div class="panel4" id="p-data" role="tabpanel" aria-labelledby="tab-data" hidden>
+      <div class="card2">
+        <div class="chead"><h3>App</h3><span class="am">apps with profiling data</span></div>
+        <div class="chips" id="dataApps"></div>
+      </div>
+      <div id="dataBody" hidden>
+        <div class="metrics4">
+          <div class="mt"><div class="v" id="dExec">0</div><div class="l">Executions</div></div>
+          <div class="mt"><div class="v" id="dSys">0</div><div class="l">Systems</div></div>
+          <div class="mt"><div class="v" id="dParams">0</div><div class="l">Parameters varied</div></div>
+          <div class="mt"><div class="v" id="dWall">&ndash;</div><div class="l">Median time</div></div>
+        </div>
+        <div class="dgrid">
+          <div class="card2"><h3>Time by run type</h3><p class="sub">SD scaled-down, FS full-scale, test_data held out.</p>
+            <div class="scroll"><table class="dt" id="typeTable"></table></div></div>
+          <div class="card2"><h3>Time by system</h3><p class="sub">Median time per run.</p>
+            <div class="scroll"><table class="dt" id="hwTable"></table></div></div>
+        </div>
+        <div class="card2"><h3>Time by parameter</h3><p class="sub">Median time for each value of every parameter that was varied.</p>
+          <div class="ptables" id="paramTables"></div></div>
+        <div class="card2">
+          <div class="chead"><h3>Executions</h3><span class="spacer"></span>
+            <span class="updated" id="dUpdated"></span>
+            <button class="dlbtn" id="colsBtn" type="button" aria-pressed="false">Show all columns</button>
+            <button class="dlbtn" id="dlBtn" type="button">Download CSV</button></div>
+          <div class="chipbar" id="dFilters"></div>
+          <div class="scroll tall"><table class="dt" id="dataTable"></table></div>
+          <div class="more" id="dMore"></div>
+          <p class="loginerr" id="dMissing"></p>
+        </div>
+      </div>
+      <div class="empty" id="dataEmpty">No profiling data yet. Submit a plan, and the timings appear here as jobs finish.</div>
+    </div>
   </div>
 </div></section>
-
+<div class="toast" id="toast" role="status"></div>
 <script>
-/* Profiling: pick an app, configure sweeps, choose TAPIS systems and queues,
-   preview, then submit. The HARP server turns each sweep x queue into TAPIS
-   jobs (one per parameter combination) and tracks them.
+/* Profiling, on one page:
+     1 Configure  - pick an app, set up a sweep, tick systems/queues, add it to the plan
+     2 Review     - the whole plan, checked by the server, submitted together
+     3 Jobs       - every sweep and TAPIS job, live
+     4 Data       - per app: executions and how long they took
+   The HARP server holds the TAPIS token, turns each sweep x queue into TAPIS
+   jobs (one per parameter combination), tracks them and merges the results.
 
    An app is ready for HARP when its TAPIS notes carry a "harp" block:
-     {"label": "...", "entrypoint": "...", "command": "python3 x.py {a} {b}",
-      "workdir": "/app/...", "params": [{"name":"a","arg":"--a","kind":"int","default":"1"}]} */
+     {"label","entrypoint","command":"python3 x.py {a} {b}","workdir",
+      "params":[{"name","arg","kind","default"}]} */
 
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -900,351 +1061,528 @@ async function api(path, opts = {}) {
   if (!res.ok) throw Object.assign(new Error(data.detail || res.statusText), {status: res.status});
   return data;
 }
+function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600); }
+const store = {get(k, d){ try { return JSON.parse(localStorage.getItem(k)) ?? d; } catch (e) { return d; } },
+               set(k, v){ try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }};
+const initials = s => s.split(/[\s_-]+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
+const median = xs => { if (!xs.length) return null; const s = [...xs].sort((a, b) => a - b), m = s.length >> 1;
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; };
+const fmtS = v => v == null ? '–' : v < 1 ? (v * 1000).toFixed(v < 0.01 ? 2 : 1) + ' ms' : v < 10 ? v.toFixed(2) + ' s'
+                : v < 600 ? v.toFixed(1) + ' s' : (v / 60).toFixed(1) + ' min';
+const fmtMem = mb => mb >= 1024 ? Math.round(mb / 1024) + ' GB' : mb + ' MB';
+const fmtMin = m => !m || m < 0 ? '–' : m >= 1440 ? +(m / 1440).toFixed(1) + ' d' : m >= 60 ? +(m / 60).toFixed(1) + ' h' : m + ' min';
+const ago = iso => { if (!iso) return ''; const m = Math.round((Date.now() - new Date(iso)) / 60000);
+  return m < 1 ? 'just now' : m < 60 ? m + ' min ago' : m < 1440 ? Math.round(m / 60) + ' h ago' : Math.round(m / 1440) + ' d ago'; };
 
-let APPS = [], SYSTEMS = [], app = null, tab = 'unprofiled', step = 1;
-let SWEEPS = [];            // [{id, name, run_type, reps, timeout, params: {name: {mode, raw}}}]
-let ASSIGN = {};            // sweep id -> Set of queue keys
-let QCORES = {};            // queue key -> cores per job
-let PREVIEW = null, nextId = 1;
+let APPS = [], SYSTEMS = [], CAMPS = [], JOBS = [];
+let panel = 'configure', jobsTimer = null, badgeTimer = null;
 
-/* ---------------------------------------------------------------- data */
+/* =================================================================== data */
 function toApp(a, runsByApp){
   const h = (a.notes && a.notes.harp) || {};
   let params = Array.isArray(h.params) ? h.params : [];
   if (!params.length && h.command)
     params = [...h.command.matchAll(/\{(\w+)\}/g)].map(m => ({name: m[1], arg: `{${m[1]}}`}));
   return {id: a.id, version: a.version, label: h.label || a.id, runtime: a.runtime || 'SINGULARITY',
-    image: a.image || '', entrypoint: h.entrypoint || h.command || 'container entrypoint',
-    command: h.command || '', workdir: h.workdir || '', runs: runsByApp[a.id] || 0,
+    image: a.image || '', command: h.command || '', workdir: h.workdir || '', runs: runsByApp[a.id] || 0,
     params: params.map(p => ({name: p.name, arg: p.arg || '', kind: p.kind || 'string', def: String(p.default ?? '')}))};
 }
 async function loadApps(){
   const [apps, camps] = await Promise.all([api('/api/tapis/apps'), api('/api/campaigns')]);
+  CAMPS = camps;
   const runsByApp = {};
-  for (const c of camps) for (const id of c.app_ids || [])
-    runsByApp[id] = (runsByApp[id] || 0) + (c.result ? c.result.rows : 0);
-  APPS = apps.map(a => toApp(a, runsByApp)).sort((x, y) => x.label.localeCompare(y.label));
+  for (const c of camps) for (const id of c.app_ids || []) runsByApp[id] = (runsByApp[id] || 0) + (c.result ? c.result.rows : 0);
+  APPS = apps.map(a => toApp(a, runsByApp)).sort((x, y) => (!y.command - !x.command) || x.label.localeCompare(y.label));
 }
-async function loadSystems(){
-  SYSTEMS = (await api('/api/tapis/exec-systems')).filter(s => s.enabled !== false);
-  for (const s of SYSTEMS) for (const q of qlist(s)) QCORES[qkey(s, q)] ??= Math.min(4, q.max_cores || 4);
-  $('storeSys').innerHTML = SYSTEMS.map(s => `<option value="${esc(s.id)}">${esc(s.id)}</option>`).join('');
-  try { const saved = JSON.parse(localStorage.getItem('harp-launch') || '{}');
-        if (saved.storeSys) $('storeSys').value = saved.storeSys;
-        for (const k of ['store', 'alloc']) if (saved[k]) $(k).value = saved[k]; } catch (e) {}
-}
-const qlist = s => s.queues && s.queues.length ? s.queues : [{name: '', hpc_queue: '', default: true}];
+const appName = id => (APPS.find(a => a.id === id) || {}).label || id;
+const qlist = s => s.queues && s.queues.length ? s.queues : [{name: '', default: true}];
 const qkey = (s, q) => s.id + '|' + (q.name || '');
 const isGpu = q => /gpu/i.test((q.name || '') + ' ' + (q.description || '') + ' ' + (q.hpc_queue || ''));
 function queueByKey(k){ for (const s of SYSTEMS) for (const q of qlist(s)) if (qkey(s, q) === k) return {s, q}; return null; }
+async function loadSystems(){
+  SYSTEMS = (await api('/api/tapis/exec-systems')).filter(s => s.enabled !== false);
+  $('storeSys').innerHTML = SYSTEMS.map(s => `<option value="${esc(s.id)}">${esc(s.id)}</option>`).join('');
+  const saved = store.get('harp-launch', {});
+  if (saved.storeSys) $('storeSys').value = saved.storeSys;
+  for (const k of ['store', 'alloc']) if (saved[k]) $(k).value = saved[k];
+}
 
-/* ------------------------------------------------------------- sweeps */
-function values(p, st){
-  const raw = (st.raw || '').trim();
-  if (!raw) return [];
-  return st.mode === 'list' ? raw.split(',').map(x => x.trim()).filter(Boolean) : [raw];
+/* ============================================================ 1. configure */
+// The sweep being edited. Queues and cores per queue are part of it.
+let app = null, SW = null, PLAN = store.get('harp-plan', []), planSeq = PLAN.reduce((n, p) => Math.max(n, p.id), 0);
+const values = st => { const raw = (st.raw || '').trim(); if (!raw) return [];
+  return st.mode === 'list' ? raw.split(',').map(x => x.trim()).filter(Boolean) : [raw]; };
+const combosOf = (a, sw) => a.params.reduce((n, p) => n * Math.max(1, values(sw.params[p.name]).length), 1);
+
+function freshSweep(a, keep){
+  const n = PLAN.filter(p => p.app.id === a.id).length + 1;
+  return {name: keep ? nextName(keep.name) : (n === 1 ? 'sd' : 'sweep-' + n), run_type: keep ? keep.run_type : 'SD',
+    reps: keep ? keep.reps : 1, timeout: keep ? keep.timeout : 20,
+    params: keep ? JSON.parse(JSON.stringify(keep.params)) : Object.fromEntries(a.params.map(p => [p.name, {mode: 'single', raw: p.def}])),
+    queues: keep ? [...keep.queues] : [], cores: keep ? {...keep.cores} : {}};
 }
-const combos = sw => app.params.reduce((n, p) => n * Math.max(1, values(p, sw.params[p.name]).length), 1);
-function newSweep(from){
-  const id = nextId++;
-  const sw = from ? JSON.parse(JSON.stringify({...from, id})) :
-    {id, run_type: 'SD', reps: 1, timeout: 20, params: Object.fromEntries(app.params.map(p => [p.name, {mode:'single', raw:p.def}]))};
-  sw.id = id; sw.name = from ? from.name + '-copy' : (SWEEPS.length ? 'sweep-' + (SWEEPS.length + 1) : 'sd-sweep');
-  ASSIGN[id] = new Set(from ? ASSIGN[from.id] : []);
-  return sw;
+function nextName(name){
+  const used = new Set(PLAN.filter(p => app && p.app.id === app.id).map(p => p.sweep.name));
+  if (!used.has(name)) return name;
+  const base = name.replace(/-\d+$/, ''); let i = 2; while (used.has(`${base}-${i}`)) i++; return `${base}-${i}`;
 }
-function sweepProblem(sw){
-  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,30}$/.test(sw.name)) return 'Name: letters, digits, - _ . (max 31).';
-  if (SWEEPS.filter(x => x.name === sw.name).length > 1) return 'Two sweeps share this name.';
-  for (const p of app.params) {
-    const v = values(p, sw.params[p.name]);
+function sweepProblem(a, sw){
+  if (!a.command) return 'This app has no HARP command yet. Register it with the HARP app notebook.';
+  if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,30}$/.test(sw.name)) return 'Sweep name: letters, digits, - _ . (max 31).';
+  if (PLAN.some(p => p.app.id === a.id && p.sweep.name === sw.name)) return `The plan already has a sweep "${sw.name}" for this app.`;
+  for (const p of a.params) {
+    const v = values(sw.params[p.name]);
     if (!v.length) return `Give "${p.name}" a value.`;
     if ((p.kind === 'int' || p.kind === 'float') && v.some(x => isNaN(+x))) return `"${p.name}" needs numbers.`;
   }
   if (!(sw.reps >= 1) || !(sw.timeout >= 1)) return 'Repetitions and timeout must be at least 1.';
+  if (!sw.queues.length) return 'Tick at least one queue.';
   return '';
 }
-function renderSweeps(){
-  $('sweeps').innerHTML = SWEEPS.map(sw => {
-    const prob = sweepProblem(sw), n = combos(sw);
-    const rows = app.params.map(p => { const st = sw.params[p.name], c = values(p, st).length;
+
+function renderApps(){
+  if (!APPS.length) { $('applist').innerHTML = '<div class="empty" style="border:none">No TAPIS apps found for your account.</div>'; return; }
+  $('appHint').textContent = `${APPS.filter(a => a.command).length} of ${APPS.length} ready for HARP`;
+  $('applist').innerHTML = APPS.map(a => `
+    <button class="appitem" data-id="${esc(a.id)}" aria-current="${!!(app && app.id === a.id)}" ${a.command ? '' : 'title="Needs a HARP command (app notebook)"'}>
+      <span class="ic">${esc(initials(a.label))}</span>
+      <span style="min-width:0"><span class="an">${esc(a.label)}</span>
+        <span class="am">${esc(a.id)} &middot; v${esc(a.version)} &middot; ${esc(a.params.map(p => p.name).join(', ') || 'no parameters')}</span></span>
+      <span class="ar"><span class="pill ${a.command ? (a.runs ? 'done' : 'none') : 'none'}">${
+        !a.command ? 'not HARP-ready' : a.runs ? a.runs.toLocaleString() + ' runs' : 'not profiled'}</span></span>
+    </button>`).join('');
+  $('applist').querySelectorAll('.appitem').forEach(b => b.addEventListener('click', () => pickApp(b.dataset.id)));
+}
+function pickApp(id, sweep){
+  app = APPS.find(a => a.id === id); if (!app) return;
+  SW = sweep || freshSweep(app);
+  renderApps();
+  $('sweepCard').hidden = $('sysCard').hidden = !app.command;
+  if (app.command) { renderSweepForm(); renderSystems(); }
+  updateCurrent();
+}
+function renderSweepForm(){
+  $('swName').value = SW.name; $('swType').value = SW.run_type; $('swReps').value = SW.reps; $('swTimeout').value = SW.timeout;
+  if (!app.params.length) { $('argTable').innerHTML = '<div class="empty">This app has no sweep parameters.</div>'; return; }
+  $('argTable').innerHTML = `<div class="ahead"><div>Parameter</div><div>How to vary</div><div>Value(s)</div></div>` +
+    app.params.map(p => { const st = SW.params[p.name], c = values(st).length;
       return `<div class="arow">
         <div><span class="aname">${esc(p.name)}</span><span class="aflag">${esc(p.arg)} &middot; ${esc(p.kind)}</span></div>
-        <div><select class="modesel" data-s="${sw.id}" data-p="${esc(p.name)}" aria-label="How to vary ${esc(p.name)}">
-          <option value="single" ${st.mode==='single'?'selected':''}>single</option>
-          <option value="list" ${st.mode==='list'?'selected':''}>list</option></select></div>
-        <div><input class="valin" data-s="${sw.id}" data-p="${esc(p.name)}" value="${esc(st.raw)}" placeholder="${esc(p.def)}" aria-label="${esc(p.name)} values">
-          <span class="vhint">${st.mode==='list'?'comma-separated':'one value'} &middot; <b>${c}</b> value${c===1?'':'s'}</span></div></div>`; }).join('');
-    return `<div class="card2 sweep" data-s="${sw.id}">
-      <div class="sweephead">
-        <input class="ti swname" data-s="${sw.id}" value="${esc(sw.name)}" aria-label="Sweep name">
-        <span class="pill ${prob ? 'none' : 'done'}">${n} job${n===1?'':'s'} per queue</span>
-        <span class="spacer"></span>
-        <button class="btn btn-outline btn-sm dup" data-s="${sw.id}" type="button">Duplicate</button>
-        ${SWEEPS.length > 1 ? `<button class="btn btn-outline btn-sm rm" data-s="${sw.id}" type="button">Remove</button>` : ''}
-      </div>
-      <div class="three">
-        <div class="field"><label class="lbl">Run type</label><select class="swf" data-s="${sw.id}" data-f="run_type">
-          ${['SD','FS','test_data'].map(t => `<option ${sw.run_type===t?'selected':''}>${t}</option>`).join('')}</select></div>
-        <div class="field"><label class="lbl">Repetitions</label><input class="ti swf" type="number" min="1" data-s="${sw.id}" data-f="reps" value="${sw.reps}"></div>
-        <div class="field"><label class="lbl">Timeout per run (min)</label><input class="ti swf" type="number" min="1" data-s="${sw.id}" data-f="timeout" value="${sw.timeout}"></div>
-      </div>
-      ${app.params.length ? `<div class="atbl"><div class="ahead"><div>Parameter</div><div>How to vary</div><div>Value(s)</div></div>${rows}</div>`
-                          : '<div class="empty">This app has no sweep parameters.</div>'}
-      <p class="loginerr">${esc(prob)}</p></div>`; }).join('');
-  const box = $('sweeps'), find = el => SWEEPS.find(s => s.id === +el.dataset.s);
-  box.querySelectorAll('.modesel').forEach(el => el.addEventListener('change', () => { find(el).params[el.dataset.p].mode = el.value; renderSweeps(); summary(); }));
-  box.querySelectorAll('.valin').forEach(el => el.addEventListener('change', () => { find(el).params[el.dataset.p].raw = el.value; renderSweeps(); summary(); }));
-  box.querySelectorAll('.valin').forEach(el => el.addEventListener('input', () => { find(el).params[el.dataset.p].raw = el.value; summary(); }));
-  box.querySelectorAll('.swname').forEach(el => el.addEventListener('change', () => { find(el).name = el.value.trim(); renderSweeps(); summary(); }));
-  box.querySelectorAll('.swf').forEach(el => el.addEventListener('change', () => {
-    const sw = find(el); sw[el.dataset.f] = el.dataset.f === 'run_type' ? el.value : +el.value; renderSweeps(); summary(); }));
-  box.querySelectorAll('.dup').forEach(el => el.addEventListener('click', () => {
-    const i = SWEEPS.findIndex(s => s.id === +el.dataset.s); SWEEPS.splice(i + 1, 0, newSweep(SWEEPS[i])); renderSweeps(); summary(); }));
-  box.querySelectorAll('.rm').forEach(el => el.addEventListener('click', () => {
-    SWEEPS = SWEEPS.filter(s => s.id !== +el.dataset.s); delete ASSIGN[+el.dataset.s]; renderSweeps(); summary(); }));
+        <div><select class="modesel" data-p="${esc(p.name)}" aria-label="How to vary ${esc(p.name)}">
+          <option value="single" ${st.mode === 'single' ? 'selected' : ''}>single</option>
+          <option value="list" ${st.mode === 'list' ? 'selected' : ''}>list</option></select></div>
+        <div><input class="valin" data-p="${esc(p.name)}" value="${esc(st.raw)}" placeholder="${esc(p.def)}" aria-label="${esc(p.name)} values">
+          <span class="vhint">${st.mode === 'list' ? 'comma-separated' : 'one value'} &middot; <b>${c}</b> value${c === 1 ? '' : 's'}</span></div></div>`; }).join('');
+  $('argTable').querySelectorAll('.modesel').forEach(el => el.addEventListener('change', () => {
+    SW.params[el.dataset.p].mode = el.value; renderSweepForm(); updateCurrent(); }));
+  $('argTable').querySelectorAll('.valin').forEach(el => {
+    el.addEventListener('input', () => { SW.params[el.dataset.p].raw = el.value; updateCurrent(); });
+    el.addEventListener('change', () => { renderSweepForm(); updateCurrent(); }); });
 }
-
-/* ------------------------------------------------------------ systems */
-const fmtMem = mb => mb ? (mb >= 1024 ? Math.round(mb / 1024) + ' GB' : mb + ' MB') : '–';
-const fmtMin = m => !m || m < 0 ? '–' : m >= 1440 ? (m / 1440).toFixed(m % 1440 ? 1 : 0) + ' d' : m >= 60 ? (m / 60).toFixed(m % 60 ? 1 : 0) + ' h' : m + ' min';
-const range = (a, b, f = x => x) => (a || b) ? (a && b && a !== b ? `${f(a)}–${f(b)}` : f(b || a)) : '–';
 function limits(q){
-  const parts = [
-    q.max_nodes > 0 ? `${range(q.min_nodes, q.max_nodes)} node${q.max_nodes === 1 ? '' : 's'}` : '',
-    q.max_cores ? `${range(q.min_cores, q.max_cores)} cores/node` : '',
-    q.max_memory_mb ? `${fmtMem(q.max_memory_mb)} memory` : '',
-    q.max_minutes > 0 ? `${fmtMin(q.max_minutes)} max` : '',
-    q.max_jobs_per_user > 0 ? `${q.max_jobs_per_user} jobs/user` : ''].filter(Boolean);
+  const parts = [q.max_nodes > 0 ? `${q.max_nodes} node${q.max_nodes === 1 ? '' : 's'} max` : '',
+    q.max_cores ? `${q.max_cores} cores/node` : '', q.max_memory_mb ? `${fmtMem(q.max_memory_mb)}` : '',
+    q.max_minutes > 0 ? `${fmtMin(q.max_minutes)} limit` : '', q.max_jobs_per_user > 0 ? `${q.max_jobs_per_user} jobs/user` : ''].filter(Boolean);
   return parts.length ? parts.map(x => `<span>${esc(x)}</span>`).join('') : '<span>no limits set</span>';
 }
 function renderSystems(){
   if (!SYSTEMS.length) { $('systems').innerHTML = '<div class="empty">No TAPIS execution systems found for your account.</div>'; return; }
-  const heads = SWEEPS.map(sw => `<th class="c" title="${esc(sw.name)}">${esc(sw.name)}</th>`).join('');
-  $('systems').innerHTML = SYSTEMS.map(s => `<div class="card2 sys">
-    <div class="syshead"><h3>${esc(s.id)}</h3>
-      <span class="am">${esc(s.host || '')}</span>
+  $('systems').innerHTML = SYSTEMS.map(s => `
+    <div class="syshead"><b>${esc(s.id)}</b><span class="am">${esc(s.host || '')}</span>
       ${s.batch_scheduler ? `<span class="rt sing">${esc(s.batch_scheduler)}</span>` : ''}
-      ${(s.runtimes || []).map(r => `<span class="rt dock">${esc(r)}</span>`).join(' ')}</div>
-    ${s.description ? `<p class="sub">${esc(s.description)}</p>` : ''}
-    ${s.error ? `<p class="loginerr">Could not read its queues: ${esc(s.error)}</p>` : ''}
-    <div class="scroll"><table class="table qt">
-      <tr><th>Queue</th><th>Limits</th><th>Cores per job</th>${heads}</tr>
-      ${qlist(s).map(q => { const k = qkey(s, q);
-        return `<tr><td><b>${esc(q.name || 'default')}</b>${q.default ? ' <span class="pill done">default</span>' : ''}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}
-            ${q.hpc_queue && q.hpc_queue !== q.name ? `<div class="am">scheduler: ${esc(q.hpc_queue)}</div>` : ''}
-            ${q.description ? `<div class="am">${esc(q.description)}</div>` : ''}</td>
-          <td class="lim">${limits(q)}</td>
-          <td><input class="valin qc" type="number" min="1" ${q.max_cores ? `max="${q.max_cores}"` : ''} data-k="${esc(k)}" value="${QCORES[k]}" aria-label="Cores per job on ${esc(s.id)} ${esc(q.name)}"></td>
-          ${SWEEPS.map(sw => `<td class="c"><input type="checkbox" class="as" data-s="${sw.id}" data-k="${esc(k)}" ${ASSIGN[sw.id].has(k) ? 'checked' : ''}
-              aria-label="Run ${esc(sw.name)} on ${esc(s.id)} ${esc(q.name)}"></td>`).join('')}</tr>`; }).join('')}
-    </table></div></div>`).join('');
-  $('systems').querySelectorAll('.as').forEach(el => el.addEventListener('change', () => {
-    el.checked ? ASSIGN[+el.dataset.s].add(el.dataset.k) : ASSIGN[+el.dataset.s].delete(el.dataset.k); summary(); }));
-  $('systems').querySelectorAll('.qc').forEach(el => el.addEventListener('change', () => {
-    QCORES[el.dataset.k] = Math.max(1, +el.value || 1); summary(); }));
+      ${(s.runtimes || []).map(r => `<span class="rt dock">${esc(r)}</span>`).join(' ')}
+      ${s.error ? `<span class="loginerr">queues unavailable: ${esc(s.error)}</span>` : ''}</div>
+    ${qlist(s).map(q => { const k = qkey(s, q), on = SW.queues.includes(k);
+      const cores = SW.cores[k] ?? Math.min(4, q.max_cores || 4);
+      return `<label class="qrow${on ? ' on' : ''}">
+        <input type="checkbox" class="qpick" data-k="${esc(k)}" ${on ? 'checked' : ''}>
+        <span class="qn">${esc(q.name || 'default queue')}${q.default ? ' <span class="pill done">default</span>' : ''}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}
+          ${q.description ? `<span class="am">${esc(q.description)}</span>` : q.hpc_queue && q.hpc_queue !== q.name ? `<span class="am">scheduler: ${esc(q.hpc_queue)}</span>` : ''}</span>
+        <span class="lim">${limits(q)}</span>
+        <span class="qc"><input type="number" min="1" ${q.max_cores ? `max="${q.max_cores}"` : ''} class="qcores" data-k="${esc(k)}" value="${cores}"
+          aria-label="Cores per job on ${esc(s.id)} ${esc(q.name)}" title="Cores per job"></span>
+      </label>`; }).join('')}`).join('');
+  $('systems').querySelectorAll('.qpick').forEach(el => el.addEventListener('change', () => {
+    SW.queues = el.checked ? [...new Set([...SW.queues, el.dataset.k])] : SW.queues.filter(k => k !== el.dataset.k);
+    el.closest('.qrow').classList.toggle('on', el.checked); updateCurrent(); }));
+  $('systems').querySelectorAll('.qcores').forEach(el =>
+    el.addEventListener('change', () => { SW.cores[el.dataset.k] = Math.max(1, +el.value || 1); updateCurrent(); }));
 }
+function updateCurrent(){
+  if (!app) return;
+  const n = app.command ? combosOf(app, SW) : 0, q = SW.queues.length;
+  $('swCombos').className = 'pill ' + (n ? 'done' : 'none');
+  $('swCombos').textContent = `${n} combination${n === 1 ? '' : 's'}`;
+  $('curJobs').textContent = (n * Math.max(q, 1)).toLocaleString();
+  $('curJobsLbl').textContent = q ? `TAPIS jobs on ${q} queue${q === 1 ? '' : 's'}` : 'combinations · tick a queue';
+  const swept = app.params.filter(p => values(SW.params[p.name]).length > 1);
+  $('curFormula').innerHTML = !app.command ? 'Register this app with the HARP app notebook first.'
+    : (swept.length ? swept.map(p => `<b>${values(SW.params[p.name]).length}</b> ${esc(p.name)}`).join(' &times; ') : 'every parameter fixed')
+      + ` &times; <b>${q}</b> queue${q === 1 ? '' : 's'} &times; <b>${SW.reps}</b> rep${SW.reps === 1 ? '' : 's'}`;
+  const prob = sweepProblem(app, SW);
+  $('swErr').textContent = prob && prob !== 'Tick at least one queue.' ? prob : '';
+  $('addBtn').disabled = !!prob; $('addMsg').className = 'launchmsg'; $('addMsg').textContent = prob;
+}
+['swName', 'swType', 'swReps', 'swTimeout'].forEach(id => $(id).addEventListener('input', () => {
+  if (!SW) return;
+  SW.name = $('swName').value.trim(); SW.run_type = $('swType').value;
+  SW.reps = Math.max(1, +$('swReps').value || 0); SW.timeout = Math.max(1, +$('swTimeout').value || 0);
+  updateCurrent(); }));
 
-/* ------------------------------------------------------------ preview */
-function pairs(){
-  return SWEEPS.flatMap(sw => [...ASSIGN[sw.id]].map(k => ({sw, k, ...queueByKey(k)}))).filter(p => p.s);
+/* ---- the plan (a cart of sweeps, kept across reloads in this browser) ---- */
+function addToPlan(){
+  if (!app || sweepProblem(app, SW)) return;
+  PLAN.push({id: ++planSeq, app: {id: app.id, version: app.version, label: app.label, command: app.command,
+             workdir: app.workdir, params: app.params}, sweep: JSON.parse(JSON.stringify(SW))});
+  savePlan();
+  const added = SW.name;
+  SW = freshSweep(app, SW);   // keep the settings so the next sweep is a small edit away
+  renderSweepForm(); renderSystems(); updateCurrent();
+  $('addMsg').className = 'launchmsg ok'; $('addMsg').textContent = `Added "${added}". Change values to add another sweep.`;
 }
+function savePlan(){ store.set('harp-plan', PLAN); renderPlan(); }
+const planJobs = p => combosOf(p.app, p.sweep) * p.sweep.queues.length;
+function renderPlan(){
+  const jobs = PLAN.reduce((n, p) => n + planJobs(p), 0);
+  $('bPlan').textContent = PLAN.length; $('bPlan').classList.toggle('zero', !PLAN.length);
+  $('planTotals').textContent = PLAN.length ? `${PLAN.length} sweep${PLAN.length === 1 ? '' : 's'} · ${jobs} jobs` : '';
+  $('toReview').disabled = !PLAN.length;
+  $('planList').innerHTML = PLAN.length ? PLAN.map(p => `<div class="pitem">
+      <div class="pt"><b>${esc(p.app.label)} &middot; ${esc(p.sweep.name)}</b><span class="pm">${planJobs(p)} jobs</span></div>
+      <div class="pm">${esc(p.sweep.run_type)} &middot; ${esc(p.sweep.queues.map(k => k.replace('|', '/')).join(', '))}</div>
+      <div class="pa"><button type="button" data-edit="${p.id}">Edit</button><button type="button" class="rm" data-rm="${p.id}">Remove</button></div></div>`).join('')
+    : '<div class="planempty">Add sweeps here, then review and submit them together.</div>';
+  $('planList').querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
+    PLAN = PLAN.filter(p => p.id !== +b.dataset.rm); savePlan(); updateCurrent(); }));
+  $('planList').querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
+    const p = PLAN.find(x => x.id === +b.dataset.edit); PLAN = PLAN.filter(x => x !== p); savePlan();
+    if (APPS.some(a => a.id === p.app.id)) { show('configure'); pickApp(p.app.id, p.sweep); toast(`Editing "${p.sweep.name}". Add it to the plan again when done.`); }
+  }));
+}
+$('addBtn').addEventListener('click', addToPlan);
+$('toReview').addEventListener('click', () => show('review'));
+
+/* ============================================================ 2. review */
 function specs(){
   const stamp = new Date().toISOString().slice(2, 16).replace(/[-:T]/g, '');
-  const slug = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'app';
   const alloc = $('alloc').value.trim() || null;
-  return SWEEPS.filter(sw => ASSIGN[sw.id].size).map(sw => ({
-    name: `${slug}-${sw.name}-${stamp}`.slice(0, 64), application: slug,
-    command: app.command, workdir: app.workdir,
-    repetitions: sw.reps, run_timeout_sec: sw.timeout * 60, combos_per_job: 1, distribution: 'replicate',
-    run_sets: [{run_type: sw.run_type, parameters: Object.fromEntries(app.params.map(p =>
-      [p.name, values(p, sw.params[p.name]).map(x => p.kind === 'int' || p.kind === 'float' ? Number(x) : x)]))}],
-    targets: [...ASSIGN[sw.id]].map(k => { const {s, q} = queueByKey(k), cores = QCORES[k] || 1;
-      return {system_id: s.id, queue: q.name || null, app_id: app.id, app_version: app.version,
-        scheduler_options: alloc, container_args: isGpu(q) ? '--nv' : null, node_count: 1,
-        cores_per_node: q.max_cores ? Math.min(cores, q.max_cores) : cores,
-        memory_mb: q.max_memory_mb ? Math.min(q.max_memory_mb, Math.max(4000, cores * 4000)) : Math.max(4000, cores * 4000),
-        max_minutes: Math.min(sw.timeout * sw.reps + 10, q.max_minutes > 0 ? q.max_minutes : Infinity),
-        max_concurrent_jobs: q.max_jobs_per_user > 0 ? Math.min(q.max_jobs_per_user, 10) : 4}; }),
-    storage: {system_id: $('storeSys').value, path: $('store').value.trim()}}));
+  return PLAN.map(p => {
+    const slug = p.app.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'app';
+    const sw = p.sweep;
+    return {name: `${slug}-${sw.name}-${stamp}`.slice(0, 64), application: slug, command: p.app.command, workdir: p.app.workdir,
+      repetitions: sw.reps, run_timeout_sec: sw.timeout * 60, combos_per_job: 1, distribution: 'replicate',
+      run_sets: [{run_type: sw.run_type, parameters: Object.fromEntries(p.app.params.map(x =>
+        [x.name, values(sw.params[x.name]).map(v => x.kind === 'int' || x.kind === 'float' ? Number(v) : v)]))}],
+      targets: sw.queues.map(k => { const hit = queueByKey(k) || {s: {id: k.split('|')[0]}, q: {name: k.split('|')[1]}};
+        const {s, q} = hit, cores = sw.cores[k] ?? Math.min(4, q.max_cores || 4);
+        return {system_id: s.id, queue: q.name || null, app_id: p.app.id, app_version: p.app.version,
+          scheduler_options: alloc, container_args: isGpu(q) ? '--nv' : null, node_count: 1,
+          cores_per_node: q.max_cores ? Math.min(cores, q.max_cores) : cores,
+          memory_mb: q.max_memory_mb ? Math.min(q.max_memory_mb, Math.max(4000, cores * 4000)) : Math.max(4000, cores * 4000),
+          max_minutes: Math.min(sw.timeout * sw.reps + 10, q.max_minutes > 0 ? q.max_minutes : Infinity),
+          max_concurrent_jobs: q.max_jobs_per_user > 0 ? Math.min(q.max_jobs_per_user, 10) : 4}; }),
+      storage: {system_id: $('storeSys').value, path: $('store').value.trim()}};
+  });
 }
-async function renderPreview(){
-  const ps = pairs();
-  $('previewTable').innerHTML = `<tr><th>Sweep</th><th>Type</th><th>System / queue</th><th class="num">Jobs</th><th class="num">Runs</th><th class="num">Cores</th><th class="num">Time limit</th><th>Check</th></tr>` +
-    ps.map(p => { const n = combos(p.sw), t = Math.min(p.sw.timeout * p.sw.reps + 10, p.q.max_minutes > 0 ? p.q.max_minutes : Infinity);
-      return `<tr data-sw="${esc(p.sw.name)}"><td><b>${esc(p.sw.name)}</b></td><td>${esc(p.sw.run_type)}</td>
-        <td>${esc(p.s.id)}${p.q.name ? ' / ' + esc(p.q.name) : ''}${isGpu(p.q) ? ' <span class="pill none">GPU</span>' : ''}</td>
-        <td class="num mono">${n}</td><td class="num mono">${n * p.sw.reps}</td><td class="num mono">${QCORES[p.k]}</td>
-        <td class="num mono">${fmtMin(t)}</td><td class="chk">checking&hellip;</td></tr>`; }).join('');
-  $('previewErr').textContent = '';
-  PREVIEW = null;
+let CHECK = null;
+async function renderReview(){
+  $('doneCard').hidden = true; $('submitCard').hidden = !PLAN.length;
+  const rows = PLAN.flatMap(p => p.sweep.queues.map((k, i) => ({p, k, first: i === 0, span: p.sweep.queues.length})));
+  const jobs = PLAN.reduce((n, p) => n + planJobs(p), 0);
+  const runs = PLAN.reduce((n, p) => n + planJobs(p) * p.sweep.reps, 0);
+  const hours = PLAN.reduce((n, p) => n + planJobs(p) * p.sweep.reps * p.sweep.timeout / 60, 0);
+  $('reviewTotals').textContent = PLAN.length ? `${jobs} TAPIS jobs · ${runs} runs · up to ${Math.round(hours)} node-hours` : '';
+  $('reviewTable').innerHTML = PLAN.length ? `<tr><th>App</th><th>Sweep</th><th>Type</th><th>Varies</th><th>System / queue</th>
+      <th class="num">Jobs</th><th class="num">Runs</th><th class="num">Cores</th><th class="num">Time limit</th><th>Check</th><th></th></tr>` +
+    rows.map(({p, k, first, span}) => { const hit = queueByKey(k), q = hit ? hit.q : {}, n = combosOf(p.app, p.sweep);
+      const varies = p.app.params.filter(x => values(p.sweep.params[x.name]).length > 1)
+        .map(x => `${x.name} ×${values(p.sweep.params[x.name]).length}`).join(', ') || 'fixed';
+      const lead = first ? `<td rowspan="${span}">${esc(p.app.label)}</td><td rowspan="${span}"><b>${esc(p.sweep.name)}</b></td>
+        <td rowspan="${span}">${esc(p.sweep.run_type)}</td><td rowspan="${span}" class="uuid">${esc(varies)}</td>` : '';
+      const tail = first ? `<td rowspan="${span}" class="chk" data-plan="${p.id}">checking&hellip;</td>
+        <td rowspan="${span}"><button class="rowbtn danger" data-rm="${p.id}" type="button">Remove</button></td>` : '';
+      return `<tr>${lead}<td>${esc(k.replace('|', ' / '))}${isGpu(q) ? ' <span class="pill none">GPU</span>' : ''}</td>
+        <td class="num">${n}</td><td class="num">${n * p.sweep.reps}</td><td class="num">${p.sweep.cores[k] ?? Math.min(4, q.max_cores || 4)}</td>
+        <td class="num">${fmtMin(Math.min(p.sweep.timeout * p.sweep.reps + 10, q.max_minutes > 0 ? q.max_minutes : Infinity))}</td>${tail}</tr>`; }).join('')
+    : `<tr><td class="updated">The plan is empty. Add sweeps on <button class="rowbtn" id="goCfg" type="button">Configure</button>.</td></tr>`;
+  const gc = $('goCfg'); if (gc) gc.addEventListener('click', () => show('configure'));
+  $('reviewTable').querySelectorAll('[data-rm]').forEach(b => b.addEventListener('click', () => {
+    PLAN = PLAN.filter(p => p.id !== +b.dataset.rm); savePlan(); renderReview(); }));
+  $('reviewErr').textContent = ''; CHECK = null; reviewReady();
+  if (!PLAN.length) return;
   const sp = specs().map(x => ({...x, storage: {system_id: x.storage.system_id || 'unset', path: x.storage.path || '/unset'}}));
   try {
-    const res = await api('/api/campaigns/batch/preview', {method:'POST', body: sp});
-    PREVIEW = res;
-    SWEEPS.forEach((sw, i) => {
-      const r = res.find(x => x.name && x.name.includes('-' + sw.name + '-'));
-      $('previewTable').querySelectorAll(`tr[data-sw="${CSS.escape(sw.name)}"] .chk`).forEach(td =>
-        td.innerHTML = !r ? '' : r.ok ? '<span class="pill done">ready</span>' : `<span class="pill none" title="${esc(r.error)}">fix</span>`);
-    });
-    const bad = res.filter(r => !r.ok);
-    if (bad.length) $('previewErr').textContent = bad.map(r => r.error).join(' · ');
-  } catch (e) { $('previewErr').textContent = 'Could not check the sweeps: ' + e.message; }
-  summary();
+    CHECK = await api('/api/campaigns/batch/preview', {method: 'POST', body: sp});
+    CHECK.forEach((r, i) => { const td = $('reviewTable').querySelector(`.chk[data-plan="${PLAN[i].id}"]`);
+      if (td) td.innerHTML = r.ok ? '<span class="st done">ready</span>' : `<span class="st bad" title="${esc(r.error)}">fix</span>`; });
+    const bad = CHECK.map((r, i) => r.ok ? '' : `${PLAN[i].sweep.name}: ${r.error}`).filter(Boolean);
+    $('reviewErr').textContent = bad.join(' · ');
+  } catch (e) { $('reviewErr').textContent = 'Could not check the plan: ' + e.message; }
+  reviewReady();
 }
-
-/* -------------------------------------------------------------- submit */
-async function submit(){
-  const sp = specs();
-  try { localStorage.setItem('harp-launch', JSON.stringify({storeSys: $('storeSys').value, store: $('store').value.trim(), alloc: $('alloc').value.trim()})); } catch (e) {}
-  go(5);
-  $('doneTitle').textContent = 'Submitting…'; $('doneSub').textContent = ''; $('doneTable').innerHTML = '';
+function reviewReady(){
+  const prob = !PLAN.length ? 'The plan is empty.' : !$('store').value.trim() ? 'Choose a results folder.'
+    : !CHECK ? 'Checking the plan…' : CHECK.some(r => !r.ok) ? 'Fix the sweeps marked “fix”.'
+    : !$('confirm').checked ? 'Tick the box to confirm.' : '';
+  $('submitBtn').disabled = !!prob; $('submitMsg').textContent = prob;
+}
+['store', 'alloc', 'storeSys'].forEach(id => $(id).addEventListener('input', reviewReady));
+$('confirm').addEventListener('change', reviewReady);
+$('submitBtn').addEventListener('click', async () => {
+  const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Submitting…';
+  store.set('harp-launch', {storeSys: $('storeSys').value, store: $('store').value.trim(), alloc: $('alloc').value.trim()});
   try {
-    const made = await api('/api/campaigns/batch', {method:'POST', body: sp});
-    $('doneTitle').textContent = `Submitted ${made.length} sweep${made.length===1?'':'s'}`;
-    $('doneSub').textContent = `${made.reduce((n, c) => n + c.jobs_total, 0)} TAPIS jobs are being submitted. Follow them on Profiling jobs.`;
+    const made = await api('/api/campaigns/batch', {method: 'POST', body: specs()});
+    PLAN = []; savePlan(); $('confirm').checked = false;
+    $('submitCard').hidden = true; $('doneCard').hidden = false;
+    $('reviewTable').innerHTML = ''; $('reviewTotals').textContent = '';
+    $('doneTitle').textContent = `Submitted ${made.length} sweep${made.length === 1 ? '' : 's'}`;
+    $('doneSub').textContent = `${made.reduce((n, c) => n + c.jobs_total, 0)} TAPIS jobs are on their way. Follow them on Jobs.`;
     $('doneTable').innerHTML = `<tr><th>Sweep</th><th class="num">TAPIS jobs</th><th>Results folder</th><th></th></tr>` +
-      made.map(c => `<tr><td><b>${esc(c.name)}</b></td><td class="num mono">${c.jobs_total}</td>
-        <td class="mono">${esc(c.storage.system_id)}:${esc(c.campaign_dir)}</td>
-        <td><a class="tlink" href="runs.html#${esc(c.id)}">Jobs &rarr;</a></td></tr>`).join('');
-    $('backBtn').hidden = true; $('nextBtn').hidden = true;
+      made.map(c => `<tr><td><b>${esc(c.name)}</b></td><td class="num">${c.jobs_total}</td>
+        <td class="uuid">${esc(c.storage.system_id)}:${esc(c.campaign_dir)}</td>
+        <td><button class="rowbtn" data-sweep="${esc(c.id)}" type="button">Jobs &rarr;</button></td></tr>`).join('');
+    $('doneTable').querySelectorAll('[data-sweep]').forEach(b => b.addEventListener('click', () => { FSET.sweep = b.dataset.sweep; show('jobs'); }));
+    refreshBadge(); loadApps().then(renderApps).catch(() => {});
   } catch (e) {
-    $('doneTitle').textContent = 'Not submitted';
-    $('doneSub').textContent = e.status === 401 ? 'Your session expired. Log in again, then submit.' : e.message;
-    $('backBtn').hidden = false;
-  }
+    $('submitMsg').textContent = e.status === 401 ? 'Your session expired. Log in again, then submit.' : e.message;
+  } finally { btn.textContent = 'Submit plan'; reviewReady(); }
+});
+
+/* ================================================================ 3. jobs */
+const SWEEP_ST = {DONE:['done','done'], DONE_WITH_ERRORS:['warn','done with errors'], RUNNING:['run','running'],
+  FINALIZING:['run','merging data'], WAITING_FOR_LOGIN:['warn','paused'], FAILED:['bad','failed'], CANCELLED:['bad','cancelled']};
+const JOB_ST = {NOT_SUBMITTED:['wait','waiting'], PENDING:['run','submitting'], PROCESSING_INPUTS:['run','submitting'],
+  STAGING_INPUTS:['run','staging'], STAGING_JOB:['run','staging'], SUBMITTING_JOB:['run','submitting'], QUEUED:['warn','queued'],
+  RUNNING:['run','running'], ARCHIVING:['run','copying output'], BLOCKED:['warn','blocked'], PAUSED:['warn','paused'],
+  FINISHED:['done','finished'], FAILED:['bad','failed'], SUBMIT_FAILED:['bad','not submitted'], CANCELLED:['bad','cancelled']};
+const pill = (map, s) => { const [c, t] = map[s] || ['run', String(s).toLowerCase()]; return `<span class="st ${c}">${esc(t)}</span>`; };
+const ACTIVE = ['RUNNING', 'WAITING_FOR_LOGIN', 'FINALIZING'];
+const isDone = s => s === 'FINISHED', isFail = s => ['FAILED', 'SUBMIT_FAILED', 'CANCELLED'].includes(s);
+const group = s => isDone(s) ? 'finished' : isFail(s) ? 'failed' : s === 'NOT_SUBMITTED' ? 'waiting' : 'active';
+const dur = j => j.submitted_at && j.ended_at ? (new Date(j.ended_at) - new Date(j.submitted_at)) / 1000
+               : j.submitted_at && group(j.status) === 'active' ? (Date.now() - new Date(j.submitted_at)) / 1000 : null;
+const fmtDur = s => s == null ? '–' : s < 90 ? Math.round(s) + ' s' : s < 5400 ? Math.round(s / 60) + ' min' : (s / 3600).toFixed(1) + ' h';
+const FSET = {app: '', status: '', system: '', sweep: ''};
+let jSort = 'submitted_at', jDir = -1, confirmCancel = null;
+
+async function loadJobs(){
+  [CAMPS, JOBS] = await Promise.all([api('/api/campaigns'), api('/api/jobs')]);
+  renderJobs();
+  $('jUpdated').textContent = 'updated ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit', second: '2-digit'});
+  clearTimeout(jobsTimer);
+  if (panel === 'jobs' && JOBS.some(j => ['active', 'waiting'].includes(group(j.status)))) jobsTimer = setTimeout(() => loadJobs().catch(() => {}), 8000);
+}
+function bar(f, x, total){ const r = total - f - x, p = n => (100 * n / Math.max(1, total)).toFixed(1) + '%';
+  return `<div class="prog" title="${f} finished, ${x} failed, ${r} left"><i class="f" style="width:${p(f)}"></i><i class="x" style="width:${p(x)}"></i><i class="r" style="width:${p(r)}"></i></div>`; }
+function renderJobs(){
+  const g = {}; for (const j of JOBS) g[group(j.status)] = (g[group(j.status)] || 0) + 1;
+  $('jActive').textContent = g.active || 0; $('jWait').textContent = g.waiting || 0;
+  $('jDone').textContent = g.finished || 0; $('jFail').textContent = g.failed || 0;
+  setBadge((g.active || 0) + (g.waiting || 0));
+
+  // sweeps
+  const camps = [...CAMPS].sort((a, b) => (ACTIVE.includes(b.status) - ACTIVE.includes(a.status)) || b.created_at.localeCompare(a.created_at));
+  $('sweepTable').innerHTML = camps.length ? `<tr><th>Sweep</th><th>App</th><th>Status</th><th>Progress</th><th>Hardware</th><th class="num">Runs</th><th>Started</th><th></th></tr>` +
+    camps.map(c => { const k = c.job_counts || {}, f = k.FINISHED || 0, x = (k.FAILED || 0) + (k.SUBMIT_FAILED || 0) + (k.CANCELLED || 0);
+      const hw = (c.hardware || []).map(h => h.system_id + (h.queue ? '/' + h.queue : '')).join(', ');
+      const act = ACTIVE.includes(c.status)
+        ? (confirmCancel === c.id ? `<button class="rowbtn danger" data-cancel="${esc(c.id)}" type="button">Confirm cancel</button>`
+                                  : `<button class="rowbtn danger" data-ask="${esc(c.id)}" type="button">Cancel</button>`)
+        : x ? `<button class="rowbtn" data-resub="${esc(c.id)}" type="button">Resubmit failed</button>` : '';
+      return `<tr class="${FSET.sweep === c.id ? 'sel' : ''}"><td><button class="rowbtn" data-only="${esc(c.id)}" type="button"><b>${esc(c.name)}</b></button></td>
+        <td>${esc((c.app_ids || []).map(appName).join(', '))}</td><td>${pill(SWEEP_ST, c.status)}</td>
+        <td>${bar(f, x, c.jobs_total)}<span class="updated">${f}/${c.jobs_total} finished${x ? ` · ${x} failed` : ''}</span></td>
+        <td class="uuid">${esc(hw)}</td><td class="num">${c.result ? c.result.rows.toLocaleString() : '–'}</td>
+        <td class="updated">${esc(ago(c.created_at))}</td><td>${act}</td></tr>`; }).join('')
+    : '<tr><td class="updated">No sweeps yet. Configure one and submit the plan.</td></tr>';
+  $('sweepTable').querySelectorAll('[data-only]').forEach(b => b.addEventListener('click', () => {
+    FSET.sweep = FSET.sweep === b.dataset.only ? '' : b.dataset.only; renderJobs(); }));
+  $('sweepTable').querySelectorAll('[data-ask]').forEach(b => b.addEventListener('click', () => {
+    confirmCancel = b.dataset.ask; renderJobs(); setTimeout(() => { if (confirmCancel === b.dataset.ask) { confirmCancel = null; renderJobs(); } }, 5000); }));
+  $('sweepTable').querySelectorAll('[data-cancel]').forEach(b => b.addEventListener('click', () => sweepAction(b.dataset.cancel, 'cancel')));
+  $('sweepTable').querySelectorAll('[data-resub]').forEach(b => b.addEventListener('click', () => sweepAction(b.dataset.resub, 'resubmit')));
+
+  // filters
+  const opts = (vals, label, all) => `<option value="">${all}</option>` + [...new Set(vals)].filter(Boolean).sort()
+    .map(v => `<option value="${esc(v)}">${esc(label(v))}</option>`).join('');
+  $('fApp').innerHTML = opts(JOBS.map(j => j.app_id), appName, 'All apps');
+  $('fSystem').innerHTML = opts(JOBS.map(j => j.system_id), v => v, 'All systems');
+  $('fSweep').innerHTML = opts(JOBS.map(j => j.sweep_id), id => (CAMPS.find(c => c.id === id) || {}).name || id, 'All sweeps');
+  for (const [id, k] of [['fApp', 'app'], ['fStatus', 'status'], ['fSystem', 'system'], ['fSweep', 'sweep']]) $(id).value = FSET[k];
+
+  // jobs table
+  const val = (j, k) => k === 'app' ? appName(j.app_id) : k === 'where' ? j.system_id + '/' + (j.queue || '')
+    : k === 'duration' ? (dur(j) ?? -1) : k === 'status' ? ['active', 'waiting', 'failed', 'finished'].indexOf(group(j.status)) + j.status : (j[k] ?? '');
+  const rows = JOBS.filter(j => (!FSET.app || j.app_id === FSET.app) && (!FSET.system || j.system_id === FSET.system)
+      && (!FSET.sweep || j.sweep_id === FSET.sweep) && (!FSET.status || group(j.status) === FSET.status))
+    .sort((a, b) => { const x = val(a, jSort), y = val(b, jSort); return (x < y ? -1 : x > y ? 1 : 0) * jDir; });
+  const COLS = [['app', 'App'], ['sweep', 'Sweep'], ['name', 'TAPIS job'], ['where', 'System / queue'], ['run_type', 'Type'],
+                ['status', 'Status'], ['submitted_at', 'Submitted'], ['duration', 'Duration'], ['uuid', 'TAPIS UUID']];
+  $('jobsTable').innerHTML = `<tr>${COLS.map(([k, l]) => `<th${k === 'duration' ? ' class="num"' : ''}><button class="sortb" data-k="${k}">${l}${jSort === k ? (jDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>` +
+    (rows.length ? rows.slice(0, 500).map(j => `<tr><td>${esc(appName(j.app_id))}</td><td>${esc(j.sweep)}</td><td class="uuid">${esc(j.name)}</td>
+      <td>${esc(j.system_id)}${j.queue ? ` <span class="am">/ ${esc(j.queue)}</span>` : ''}</td><td>${esc(j.run_type)}</td>
+      <td>${pill(JOB_ST, j.status)}${j.error ? `<div class="err">${esc(j.error)}</div>` : ''}</td>
+      <td class="updated">${esc(ago(j.submitted_at))}</td><td class="num">${fmtDur(dur(j))}</td><td class="uuid">${esc(j.uuid || '–')}</td></tr>`).join('')
+    : `<tr><td colspan="9" class="updated">${JOBS.length ? 'No jobs match these filters.' : 'No TAPIS jobs yet.'}</td></tr>`);
+  $('jobsTable').querySelectorAll('.sortb').forEach(b => b.addEventListener('click', () => {
+    if (jSort === b.dataset.k) jDir = -jDir; else { jSort = b.dataset.k; jDir = ['submitted_at', 'duration'].includes(jSort) ? -1 : 1; }
+    renderJobs(); }));
+  $('jCount').textContent = `${Math.min(rows.length, 500)} of ${JOBS.length} jobs shown` + (FSET.sweep ? ' · filtered to one sweep' : '');
+}
+[['fApp', 'app'], ['fStatus', 'status'], ['fSystem', 'system'], ['fSweep', 'sweep']].forEach(([id, k]) =>
+  $(id).addEventListener('change', () => { FSET[k] = $(id).value; renderJobs(); }));
+async function sweepAction(id, what){
+  confirmCancel = null; $('sweepErr').textContent = '';
+  try { await api(`/api/campaigns/${encodeURIComponent(id)}/${what}`, {method: 'POST'});
+        toast(what === 'cancel' ? 'Sweep cancelled.' : 'Failed jobs resubmitted.'); await loadJobs(); }
+  catch (e) { $('sweepErr').textContent = (what === 'cancel' ? 'Could not cancel: ' : 'Could not resubmit: ') + e.message; }
+}
+function setBadge(n){ $('bActive').textContent = n; $('bActive').classList.toggle('zero', !n); }
+async function refreshBadge(){
+  clearTimeout(badgeTimer);
+  try { const jobs = await api('/api/jobs'); setBadge(jobs.filter(j => ['active', 'waiting'].includes(group(j.status))).length); } catch (e) {}
+  badgeTimer = setTimeout(refreshBadge, 20000);
 }
 
-/* ------------------------------------------------------------- stepper */
-function stepProblem(n){
-  if (n >= 1 && !app) return 'Select an app.';
-  if (n >= 1 && !app.command) return 'This app has no HARP command yet. Register it with the HARP app notebook.';
-  if (n >= 2) { if (!SWEEPS.length) return 'Add a sweep.';
-    const bad = SWEEPS.map(sweepProblem).find(Boolean); if (bad) return 'Fix the sweeps: ' + bad; }
-  if (n >= 3) { const none = SWEEPS.find(sw => !ASSIGN[sw.id].size); if (none) return `Pick a queue for "${none.name}".`; }
-  if (n >= 4) { if (!$('store').value.trim()) return 'Choose a results folder.';
-    if (!PREVIEW || PREVIEW.some(r => !r.ok)) return 'Fix the problems shown in the preview.';
-    if (!$('confirm').checked) return 'Tick the confirmation to submit.'; }
-  return '';
+/* ========================================================= 4. profiled data */
+let dApp = null, prof = null, dFilter = 'all', dShown = 200, allCols = false, dSort = null, dDir = 1;
+function renderDataApps(){
+  const withData = [...new Set(CAMPS.flatMap(c => c.app_ids || []))];
+  $('dataEmpty').hidden = !!withData.length;
+  if (!withData.length) { $('dataApps').innerHTML = ''; $('dataBody').hidden = true; return; }
+  if (!dApp || !withData.includes(dApp)) dApp = withData[0];
+  $('dataApps').innerHTML = withData.map(id => { const runs = CAMPS.filter(c => (c.app_ids || []).includes(id)).reduce((n, c) => n + (c.result ? c.result.rows : 0), 0);
+    const live = CAMPS.some(c => (c.app_ids || []).includes(id) && ACTIVE.includes(c.status));
+    return `<button class="achip" data-id="${esc(id)}" aria-pressed="${dApp === id}" type="button"><span class="ic">${esc(initials(appName(id)))}</span>
+      <span><span class="an">${esc(appName(id))}</span><span class="am">${runs.toLocaleString()} runs merged${live ? ' · running' : ''}</span></span></button>`; }).join('');
+  $('dataApps').querySelectorAll('.achip').forEach(b => b.addEventListener('click', () => { dApp = b.dataset.id; dFilter = 'all'; dShown = 200; renderDataApps(); loadProfile(); }));
 }
-function go(n){
-  step = n;
-  document.querySelectorAll('.stage').forEach(el => el.hidden = +el.dataset.stage !== n);
-  document.querySelectorAll('#steps .s').forEach(el => {
-    const k = +el.dataset.step; el.classList.toggle('active', k === n); el.classList.toggle('done', k < n);
-    el.setAttribute('aria-current', k === n ? 'step' : 'false'); });
-  if (n === 2) renderSweeps();
-  if (n === 3) renderSystems();
-  if (n === 4) renderPreview();
-  $('backBtn').hidden = n === 1 || n === 5;
-  $('nextBtn').hidden = n === 5;
-  $('nextBtn').textContent = n === 4 ? 'Confirm and submit' : 'Next';
-  summary();
-  window.scrollTo({top: $('steps').offsetTop - 80, behavior: 'smooth'});
+async function loadProfile(){
+  if (!dApp) return;
+  try { prof = await api('/api/apps/' + encodeURIComponent(dApp) + '/profile'); }
+  catch (e) { $('dMissing').textContent = 'Could not load the data: ' + e.message; return; }
+  $('dataBody').hidden = false; renderProfile();
+  $('dUpdated').textContent = 'updated ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 }
-function summary(){
-  const ps = app ? pairs() : [];
-  const jobs = ps.reduce((n, p) => n + combos(p.sw), 0);
-  const runs = ps.reduce((n, p) => n + combos(p.sw) * p.sw.reps, 0);
-  const hours = ps.reduce((n, p) => n + combos(p.sw) * p.sw.reps * p.sw.timeout / 60, 0);
-  const combosOnly = !ps.length && app && SWEEPS.length;
-  const big = combosOnly ? SWEEPS.reduce((n, sw) => n + combos(sw), 0) : jobs;
-  $('sumJobs').textContent = big.toLocaleString();
-  $('sumJobs').className = 'big' + (hours > 5000 ? ' bad' : hours > 800 ? ' warn' : '');
-  $('sumJobsLbl').textContent = combosOnly ? `combination${big === 1 ? '' : 's'} · pick queues next`
-                                           : jobs === 1 ? 'TAPIS job' : 'TAPIS jobs';
-  $('sumApp').textContent = app ? app.label : '–';
-  $('sumSweeps').textContent = SWEEPS.length; $('sumPairs').textContent = ps.length;
-  $('sumRuns').textContent = runs.toLocaleString(); $('sumHours').textContent = Math.round(hours).toLocaleString();
-  $('alarm').innerHTML = hours > 5000 ? `<div class="alarm">${Math.round(hours).toLocaleString()} node-hours is beyond a normal allocation. Shorten a list.</div>`
-                       : jobs > 500 ? `<div class="alarm">${jobs} jobs is a lot. Try one queue first.</div>` : '';
-  const prob = step < 5 ? stepProblem(step) : '';
-  $('nextBtn').disabled = !!prob; $('stepMsg').textContent = prob;
+function renderProfile(){
+  const P = prof, walls = P.rows.map(r => parseFloat(r.walltime)).filter(Number.isFinite);
+  const varied = P.columns.filter(c => /^run_/.test(c) && c !== 'run_config' && c !== 'run_type' && new Set(P.rows.map(r => r[c])).size > 1);
+  $('dExec').textContent = P.total_rows.toLocaleString();
+  $('dSys').textContent = new Set(P.rows.map(r => r.system).filter(Boolean)).size;
+  $('dParams').textContent = varied.length; $('dWall').textContent = fmtS(median(walls));
+  const types = {};
+  for (const r of P.rows) { const w = parseFloat(r.walltime); if (Number.isFinite(w)) (types[r.run_type || '?'] ||= []).push(w); }
+  const order = ['SD', 'FS', 'test_data', ...Object.keys(types).filter(t => !['SD', 'FS', 'test_data'].includes(t))].filter(t => types[t]);
+  $('typeTable').innerHTML = order.length ? `<tr><th>Run type</th><th class="num">Runs</th><th class="num">Fastest</th><th class="num">Median</th><th class="num">Slowest</th></tr>` +
+    order.map(t => `<tr><td><b>${esc(t)}</b></td><td class="num">${types[t].length}</td><td class="num">${fmtS(Math.min(...types[t]))}</td>
+      <td class="num">${fmtS(median(types[t]))}</td><td class="num">${fmtS(Math.max(...types[t]))}</td></tr>`).join('') : '<tr><td class="updated">No finished runs yet.</td></tr>';
+  const bySys = {};
+  for (const r of P.rows) { const w = parseFloat(r.walltime); if (Number.isFinite(w)) ((bySys[r.system || 'unknown'] ||= {})[r.run_type || '?'] ||= []).push(w); }
+  const sys = Object.keys(bySys).sort();
+  $('hwTable').innerHTML = sys.length ? `<tr><th>System</th><th class="num">Runs</th>${order.map(t => `<th class="num">${esc(t)}</th>`).join('')}</tr>` +
+    sys.map(n => `<tr><td><b>${esc(n)}</b></td><td class="num">${Object.values(bySys[n]).flat().length}</td>${order.map(t =>
+      `<td class="num">${bySys[n][t] ? fmtS(median(bySys[n][t])) : '–'}</td>`).join('')}</tr>`).join('') : '<tr><td class="updated">No finished runs yet.</td></tr>';
+  const numSort = (a, b) => (isNaN(+a) || isNaN(+b)) ? String(a).localeCompare(String(b)) : +a - +b;
+  $('paramTables').innerHTML = varied.length ? varied.map(c => { const g = {};
+    for (const r of P.rows) { const w = parseFloat(r.walltime); if (Number.isFinite(w)) (g[r[c]] ||= []).push(w); }
+    return `<div><h4>${esc(c.replace(/^run_/, ''))}</h4><div class="scroll"><table class="dt"><tr><th>Value</th><th class="num">Runs</th><th class="num">Median</th></tr>
+      ${Object.keys(g).sort(numSort).map(v => `<tr><td><b>${esc(v)}</b></td><td class="num">${g[v].length}</td><td class="num">${fmtS(median(g[v]))}</td></tr>`).join('')}</table></div></div>`; }).join('')
+    : '<p class="updated">No parameter took more than one value yet.</p>';
+  const counts = {all: P.rows.length}; for (const r of P.rows) counts[r.run_type] = (counts[r.run_type] || 0) + 1;
+  $('dFilters').innerHTML = ['all', ...order].map(t => `<button class="fchip" data-f="${esc(t)}" aria-pressed="${dFilter === t}" type="button">${t === 'all' ? 'All' : esc(t)}<b>${counts[t] || 0}</b></button>`).join('');
+  $('dFilters').querySelectorAll('.fchip').forEach(b => b.addEventListener('click', () => { dFilter = b.dataset.f; dShown = 200; renderProfile(); }));
+  $('dMissing').textContent = P.missing.length ? 'Could not read data for: ' + P.missing.map(m => m.campaign).join(', ') : '';
+  renderExec();
 }
+function renderExec(){
+  const P = prof;
+  let rows = P.rows.filter(r => dFilter === 'all' || r.run_type === dFilter);
+  const focus = ['system', 'run_type', ...P.columns.filter(c => /^run_/.test(c) && c !== 'run_config' && c !== 'run_type'),
+                 'sys_tot_cores_count', 'sys_gpu_name', 'walltime'].filter(c => P.columns.includes(c));
+  const cols = allCols ? P.columns : focus;
+  const numeric = c => c === 'walltime' || /^sys_.*(count|mhz|bytes|mb)$/.test(c) || P.rows.slice(0, 50).every(r => r[c] === '' || r[c] == null || !isNaN(+r[c]));
+  const label = c => ({walltime: 'time (s)', sys_tot_cores_count: 'cores', sys_gpu_name: 'gpu', run_config: 'run_config', run_type: 'run_type'})[c] || c.replace(/^run_/, '');
+  if (dSort && cols.includes(dSort)) { const n = numeric(dSort);
+    rows = [...rows].sort((x, y) => (n ? (+x[dSort]) - (+y[dSort]) : String(x[dSort] ?? '').localeCompare(String(y[dSort] ?? ''))) * dDir); }
+  $('dataTable').innerHTML = rows.length ? `<tr>${cols.map(c => `<th${numeric(c) ? ' class="num"' : ''}><button class="sortb" data-c="${esc(c)}">${esc(label(c))}${dSort === c ? (dDir > 0 ? ' ▲' : ' ▼') : ''}</button></th>`).join('')}</tr>` +
+    rows.slice(0, dShown).map(r => '<tr>' + cols.map(c => { let v = r[c] ?? '';
+      if (c === 'walltime' && v !== '') v = (+v).toFixed(3);
+      if (/_bytes$/.test(c) && v !== '' && !isNaN(+v)) v = (+v / 2 ** 30).toFixed(1) + ' GiB';
+      return `<td class="${numeric(c) ? 'num' : ''}${c === 'walltime' ? ' wt' : ''}">${esc(v)}</td>`; }).join('') + '</tr>').join('')
+    : '<tr><td class="updated">No executions collected yet.</td></tr>';
+  $('dataTable').querySelectorAll('.sortb').forEach(b => b.addEventListener('click', () => {
+    if (dSort === b.dataset.c) dDir = -dDir; else { dSort = b.dataset.c; dDir = dSort === 'walltime' ? -1 : 1; } renderExec(); }));
+  const capped = P.total_rows > P.rows.length ? ` (first ${P.rows.length.toLocaleString()} of ${P.total_rows.toLocaleString()}; the CSV has all)` : '';
+  $('dMore').innerHTML = rows.length > dShown
+    ? `Showing ${dShown} of ${rows.length.toLocaleString()} executions${capped} <button class="linkbtn" id="moreBtn" type="button">Show more</button>`
+    : rows.length ? `${rows.length.toLocaleString()} executions${capped}` : '';
+  const mb = $('moreBtn'); if (mb) mb.addEventListener('click', () => { dShown += 200; renderExec(); });
+}
+$('colsBtn').addEventListener('click', () => { allCols = !allCols; $('colsBtn').setAttribute('aria-pressed', allCols);
+  $('colsBtn').textContent = allCols ? 'Show key columns' : 'Show all columns'; renderExec(); });
+$('dlBtn').addEventListener('click', async () => {
+  if (!dApp) return; const btn = $('dlBtn'); btn.disabled = true;
+  try { const res = await fetch('/api/apps/' + encodeURIComponent(dApp) + '/profile.csv');
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+    const url = URL.createObjectURL(await res.blob());
+    const a = Object.assign(document.createElement('a'), {href: url, download: dApp + '_profile.csv'});
+    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) { $('dMissing').textContent = 'Download failed: ' + e.message; } finally { btn.disabled = false; }
+});
 
-/* ------------------------------------------------------------ step 1 */
-function renderTabs(){
-  $('cProfiled').textContent = APPS.filter(a => a.runs).length;
-  $('cUnprofiled').textContent = APPS.filter(a => !a.runs).length;
+/* ================================================================== tabs */
+function show(p){
+  panel = p;
+  document.querySelectorAll('.t4').forEach(b => b.setAttribute('aria-selected', b.dataset.p === p));
+  document.querySelectorAll('.panel4').forEach(el => el.hidden = el.id !== 'p-' + p);
+  try { history.replaceState(null, '', '#' + p); } catch (e) {}
+  clearTimeout(jobsTimer);
+  if (p === 'review') renderReview();
+  if (p === 'jobs') loadJobs().catch(e => { $('sweepErr').textContent = 'Could not load jobs: ' + e.message; });
+  if (p === 'data') api('/api/campaigns').then(c => { CAMPS = c; renderDataApps(); return loadProfile(); }).catch(() => {});
 }
-function renderList(){
-  const apps = APPS.filter(a => tab === 'profiled' ? a.runs : !a.runs);
-  $('listSub').textContent = tab === 'profiled' ? 'Add more sweeps to an app you profiled before.' : 'Your TAPIS apps.';
-  if (!apps.length) { $('applist').innerHTML = `<div class="empty" style="border:none">${tab === 'profiled' ? 'Nothing profiled yet.' : 'No apps left to profile.'}</div>`; return; }
-  $('applist').innerHTML = apps.map(a => `
-    <button class="appitem" data-id="${esc(a.id)}" aria-current="${!!(app && app.id === a.id)}">
-      <span class="ic">${esc(a.label.split(/[\s_-]+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase())}</span>
-      <span style="min-width:0"><span class="an">${esc(a.label)}</span>
-        <span class="am">${esc(a.id)} &middot; v${esc(a.version)}</span></span>
-      <span class="ar"><span class="rt ${a.runtime === 'DOCKER' ? 'dock' : 'sing'}">${a.runtime === 'DOCKER' ? 'Docker' : 'Apptainer'}</span><br>
-        <span class="pill ${a.command ? (a.runs ? 'done' : 'none') : 'none'}" style="margin-top:5px;display:inline-block">${
-          !a.command ? 'not HARP-ready' : a.runs ? a.runs + ' runs' : 'not profiled'}</span></span>
-    </button>`).join('');
-  $('applist').querySelectorAll('.appitem').forEach(b => b.addEventListener('click', () => selectApp(b.dataset.id)));
-}
-function selectApp(id){
-  if (app && app.id === id) return;
-  app = APPS.find(a => a.id === id);
-  SWEEPS = []; ASSIGN = {}; nextId = 1; SWEEPS.push(newSweep());
-  renderList();
-  const docker = app.runtime === 'DOCKER';
-  $('epCard').hidden = false;
-  $('epBlock').innerHTML = `
-    <div class="eprow"><span class="eplbl">Image</span><code>${esc(app.image)}</code></div>
-    <div class="eprow"><span class="eplbl">Runtime</span><code>${esc(app.runtime)}</code><span class="ok" style="font-size:12px">${docker ? 'Docker' : 'Apptainer on HPC systems'}</span></div>
-    <div class="eprow"><span class="eplbl">Command</span><code>${esc(app.command || 'not set')}</code></div>
-    <div class="eprow"><span class="eplbl">Parameters</span><code>${esc(app.params.map(p => p.name).join(', ') || 'none')}</code></div>
-    <div class="eprow"><span class="eplbl">Job type</span><code>BATCH</code><span class="ok" style="font-size:12px">submit and wait</span></div>`;
-  summary();
-}
-document.querySelectorAll('.tabx').forEach(b => b.addEventListener('click', () => {
-  tab = b.dataset.t;
-  document.querySelectorAll('.tabx').forEach(x => x.setAttribute('aria-selected', x === b));
-  renderList();
-}));
+document.querySelectorAll('.t4').forEach(b => b.addEventListener('click', () => show(b.dataset.p)));
+document.querySelector('.tabs4').addEventListener('keydown', ev => {
+  if (!['ArrowLeft', 'ArrowRight'].includes(ev.key)) return;
+  const tabs = [...document.querySelectorAll('.t4')], i = tabs.findIndex(t => t.dataset.p === panel);
+  const n = tabs[(i + (ev.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; show(n.dataset.p); n.focus();
+});
 
-/* ------------------------------------------------------------- wiring */
-$('nextBtn').addEventListener('click', () => { if (step === 4) submit(); else if (!stepProblem(step)) go(step + 1); });
-$('backBtn').addEventListener('click', () => go(Math.max(1, step === 5 ? 4 : step - 1)));
-document.querySelectorAll('#steps .s').forEach(el => el.addEventListener('click', () => {
-  const n = +el.dataset.step;
-  if (step === 5 || n === step) return;
-  if (n < step || !stepProblem(n - 1)) go(n);
-}));
-$('addSweep').addEventListener('click', () => { SWEEPS.push(newSweep()); renderSweeps(); summary(); });
-['store', 'alloc', 'storeSys'].forEach(id => $(id).addEventListener('input', summary));
-$('confirm').addEventListener('change', summary);
-$('again').addEventListener('click', () => { app = null; SWEEPS = []; ASSIGN = {}; $('confirm').checked = false;
-  $('epCard').hidden = true; loadApps().then(() => { renderTabs(); renderList(); go(1); }); });
-
-/* ---- TAPIS login (the HARP server holds the token) ---- */
+/* ================================================================= login */
 function showLogin(msg){
+  clearTimeout(jobsTimer); clearTimeout(badgeTimer);
   $('loginPanel').hidden = false; $('appView').hidden = true; $('who').hidden = true;
   $('loginErr').textContent = msg || '';
 }
-async function showApps(me){
+async function showApp(me){
   $('loginPanel').hidden = true; $('appView').hidden = false; $('who').hidden = false;
   $('whoName').textContent = me.username + ' @ ' + me.base_url.replace('https://', '');
-  $('applist').innerHTML = '<div class="empty" style="border:none">Loading apps and systems&hellip;</div>';
+  $('applist').innerHTML = '<div class="empty" style="border:none">Loading your TAPIS apps and systems&hellip;</div>';
   try { await Promise.all([loadApps(), loadSystems()]); }
   catch (e) { if (e.status === 401) return showLogin('Session expired. Log in again.');
               $('applist').innerHTML = `<div class="empty" style="border:none">Could not load: ${esc(e.message)}</div>`; return; }
-  renderTabs(); renderList(); go(1);
+  renderApps(); renderPlan();
+  const ready = APPS.find(a => a.command); if (ready && !app) pickApp(ready.id);
+  refreshBadge();
+  const want = location.hash.slice(1);
+  show(['configure', 'review', 'jobs', 'data'].includes(want) ? want : 'configure');
 }
 $('loginForm').addEventListener('submit', async ev => {
   ev.preventDefault();
   const f = new FormData(ev.target), btn = ev.target.querySelector('button');
   btn.disabled = true; $('loginErr').textContent = '';
-  try { showApps(await api('/api/login', {method:'POST', body:{
+  try { showApp(await api('/api/login', {method: 'POST', body: {
           base_url: f.get('base_url').trim().replace(/\/+$/, ''), username: f.get('username').trim(), password: f.get('password')}})); }
   catch (e) { $('loginErr').textContent = e.message; }
   finally { btn.disabled = false; ev.target.password.value = ''; }
 });
 $('logoutBtn').addEventListener('click', async () => {
-  await api('/api/logout', {method:'POST'}).catch(() => {});
-  APPS = []; app = null; showLogin();
+  await api('/api/logout', {method: 'POST'}).catch(() => {});
+  app = null; SW = null; showLogin();
 });
-(async () => { try { showApps(await api('/api/me')); } catch (e) { showLogin(); } })();
+(async () => { try { showApp(await api('/api/me')); } catch (e) { showLogin(); } })();
 </script>
 </body>
 </html>

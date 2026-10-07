@@ -1,5 +1,5 @@
 /* Offline demo of the HARP profiling pages.
-   Stands in for the HARP server (/api/*) so profiling.html, runs.html and profile-data.html
+   Stands in for the HARP server (/api/*) so profiling.html
    can be opened straight from disk. The real pages talk to the HARP server,
    which talks to TAPIS. Built into the demo pages by build_demo.py. */
 (function(){
@@ -264,11 +264,11 @@
     const a = ev.target.closest('a[href]');
     if (!a) return;
     const href = a.getAttribute('href');
-    if (['profiling.html', 'runs.html', 'profile-data.html'].includes(href)) return;
+    if (href === 'profiling.html') return;
     if (!/\.html$/.test(href)) return;
     ev.preventDefault();
     let t = document.getElementById('demoToast');
-    t.textContent = 'Only Profiling, Runs and Profile data are part of this demo.';
+    t.textContent = 'Only the Profiling page is part of this demo.';
     t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
   });
 })();
