@@ -229,8 +229,35 @@ class CampaignManager:
                 except Exception as e:  # never let one campaign kill the poller
                     self._event(campaign, f"poller error: {e}")
                     self.store.save(campaign)
+            elif ((campaign.get("result") or {}).get("move") or {}).get("status") in ("PENDING", "COPYING"):
+                try:
+                    self._advance_move(campaign)
+                except Exception as e:
+                    campaign["result"]["move"].update(status="FAILED", error=str(e))
+                    self.store.save(campaign)
         for fn in self.tickers:
             fn(dict(self.gateways))
+
+    def _advance_move(self, campaign):
+        """Copy a finished sweep's folder (merged CSV, manifest, every job's output) to move_to."""
+        gateway = self.gateways.get(campaign["owner"])
+        if gateway is None or gateway.expired():
+            return   # resumes after the next login
+        move, storage = campaign["result"]["move"], campaign["spec"]["storage"]
+        with self._lock:
+            if move["status"] == "PENDING":
+                move["task_id"] = gateway.transfer(storage["system_id"], campaign["campaign_dir"], move["system_id"], move["path"])
+                move["status"] = "COPYING"
+                self._event(campaign, f"copying results to {move['system_id']}:{move['path']}")
+            else:
+                status = gateway.transfer_status(move["task_id"])
+                if status == "COMPLETED":
+                    move["status"] = "DONE"
+                    self._event(campaign, f"results copied to {move['system_id']}:{move['path']}")
+                elif status in ("FAILED", "FAILED_OPT", "CANCELLED"):
+                    move.update(status="FAILED", error=f"TAPIS transfer {status}")
+                    self._event(campaign, f"copy to {move['system_id']}:{move['path']} {status}")
+            self.store.save(campaign)
 
     def _advance(self, campaign):
         gateway = self.gateways.get(campaign["owner"])
@@ -347,6 +374,11 @@ class CampaignManager:
             self._event(campaign, campaign["error"])
             return
 
+        move = campaign["spec"].get("move_to")
+        if move:
+            # copy everything to the second location with a TAPIS file transfer (done by tick)
+            dest = f"{move['path'].rstrip('/')}/{campaign['campaign_dir'].rstrip('/').rsplit('/', 1)[-1]}"
+            result["move"] = {"status": "PENDING", "system_id": move["system_id"], "path": dest, "task_id": None, "error": None}
         campaign["result"] = result
         campaign["error"] = None
         if result["rows"] == 0:

@@ -144,3 +144,54 @@ def test_removed_routes_are_gone(ctx):
     for method, path in (("post", "/api/campaigns"), ("post", "/api/campaigns/batch"), ("post", "/api/tapis/check"),
                          ("get", "/api/tapis/files"), ("get", "/static/app.js"), ("post", "/api/campaigns/x/resubmit")):
         assert getattr(client, method)(path).status_code in (404, 405), path
+
+
+def test_results_can_be_copied_elsewhere_when_the_sweep_ends(ctx):
+    client, manager, gateways = ctx
+    _login(client)
+    p = plan(sweep(params={"method": ["pow"], "n": ["10"]}), move_to={"system_id": "pitzer", "path": "/fs/project/keep"})
+    assert preview(client, p)["ok"]
+    [c] = client.post("/api/plan/submit", json=p).json()
+    gw = gateways["alice"]
+    camp = manager.campaigns[c["id"]]
+    assert camp["spec"]["move_to"] == {"system_id": "pitzer", "path": "/fs/project/keep"}
+    manager.tick()
+    for u in gw.submitted:
+        gw.finish(u, b"run_type,walltime\nSD,1.0\n")
+    manager.tick()                     # finalize: merged CSV written, copy queued
+    move = camp["result"]["move"]
+    assert camp["status"] == "DONE" and move["status"] == "PENDING"
+    manager.tick()                     # transfer task created (no job, no allocation)
+    assert move["status"] == "COPYING" and gw.transfers[0][:3] == ("storage", camp["campaign_dir"], "pitzer")
+    manager.tick()
+    assert move["status"] == "DONE"
+    folder = camp["campaign_dir"].rsplit("/", 1)[-1]
+    assert ("pitzer", f"/fs/project/keep/{folder}/{camp['result']['csv_path'].rsplit('/', 1)[-1]}") in gw.files
+    assert client.get("/api/campaigns").json()[0]["result"]["move"]["status"] == "DONE"
+
+
+def test_failed_copy_is_reported_and_bad_locations_refused(ctx):
+    client, manager, gateways = ctx
+    _login(client)
+    r = preview(client, plan(move_to={"system_id": "pitzer", "path": "relative"}))
+    assert not r["ok"] and "absolute" in r["storage_error"]
+    r = preview(client, plan(move_to={"system_id": "storage", "path": "/scratch/harp_runs/"}))
+    assert not r["ok"] and "same as the results folder" in r["storage_error"]
+    [c] = client.post("/api/plan/submit", json=plan(sweep(params={"method": ["pow"], "n": ["10"]}),
+                                                     move_to={"system_id": "pitzer", "path": "/x"})).json()
+    gw = gateways["alice"]
+    gw.transfer_result = "FAILED"
+    manager.tick()
+    for u in gw.submitted:
+        gw.finish(u, b"run_type,walltime\nSD,1.0\n")
+    for _ in range(3):
+        manager.tick()
+    move = manager.campaigns[c["id"]]["result"]["move"]
+    assert move["status"] == "FAILED" and "FAILED" in move["error"]
+
+
+def test_apps_say_where_their_parameters_and_defaults_come_from(ctx):
+    client, _, gateways = ctx
+    _login(client)
+    [app] = client.get("/api/tapis/apps").json()
+    assert app["params_from"] == "notes" and app["defaults"] == {}

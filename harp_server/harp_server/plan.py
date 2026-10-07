@@ -37,9 +37,11 @@ def harp_app(a):
         params = [{"name": n, "arg": "{%s}" % n} for n in re.findall(r"\{(\w+)\}", command)]
     # role "build": the HARP build app (trains the estimators); anything else is an app to profile
     role = "build" if h.get("role") == "build" else "profile"
+    params_from = "notes" if isinstance(h.get("params"), list) and h.get("params") else ("command" if command else None)
     return {"id": a.get("id"), "version": a.get("version"), "label": h.get("label") or a.get("id"), "role": role,
             "image": a.get("image") or "", "runtime": a.get("runtime") or "SINGULARITY",
             "description": a.get("description") or "", "command": command, "workdir": h.get("workdir") or "",
+            "params_from": params_from, "defaults": a.get("defaults") or {},
             "params": [{"name": p["name"], "arg": p.get("arg") or "", "kind": p.get("kind") or "string",
                         "default": "" if p.get("default") is None else str(p["default"])}
                        for p in params if isinstance(p, dict) and p.get("name")]}
@@ -197,6 +199,14 @@ def build_plan(plan, gw):
         storage_error = "pick a TAPIS system for the results"
     elif not storage["path"].startswith("/"):
         storage_error = "the results folder must be an absolute path, e.g. /fs/scratch/PAS0000/harp_runs"
+    move = plan.get("move_to") or {}
+    move = {"system_id": (move.get("system_id") or "").strip(), "path": (move.get("path") or "").strip()}
+    if not storage_error and (move["system_id"] or move["path"]):
+        if not (move["system_id"] and move["path"].startswith("/")):
+            storage_error = "to copy the results elsewhere, pick a TAPIS system and an absolute folder"
+        elif (move["system_id"], move["path"].rstrip("/")) == (storage["system_id"], storage["path"].rstrip("/")):
+            storage_error = "the copy location is the same as the results folder"
+    move = move if move["system_id"] else None
 
     sweeps = plan.get("sweeps") or []
     apps = {a["id"]: harp_app(a) for a in gw.list_apps()}
@@ -220,6 +230,8 @@ def build_plan(plan, gw):
                 raise SpecError(f"the plan has two sweeps called {s.get('name')!r} for this app")
             names.add((s.get("app_id"), s.get("name")))
             spec, targets = build_sweep(s, apps, systems, allocations, storage, stamp)
+            if move:
+                spec["move_to"] = move
             out.append({"name": label, "spec": spec, "targets": targets})
         except SpecError as e:
             out.append({"name": label, "error": str(e), "targets": []})

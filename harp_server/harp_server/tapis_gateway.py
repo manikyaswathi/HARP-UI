@@ -143,8 +143,12 @@ class TapisGateway:
         apps = self._call(self.client.apps.getApps, listType="ALL", limit=-1, select="allAttributes")
         out = []
         for a in apps:
-            params = _get(_get(a, "jobAttributes"), "parameterSet")
+            attrs = _get(a, "jobAttributes")
+            params = _get(attrs, "parameterSet")
             out.append({
+                # the app's own job defaults; HARP overrides them per job
+                "defaults": {"cores_per_node": _get(attrs, "coresPerNode"), "memory_mb": _get(attrs, "memoryMB"),
+                             "max_minutes": _get(attrs, "maxMinutes")},
                 "id": _get(a, "id"), "version": _get(a, "version"),
                 "image": _get(a, "containerImage"), "runtime": _get(a, "runtime"),
                 "description": _get(a, "description") or "",
@@ -176,6 +180,18 @@ class TapisGateway:
 
     def cancel_job(self, uuid):
         self._call(self.client.jobs.cancelJob, jobUuid=uuid)
+
+    def transfer(self, src_system, src_path, dst_system, dst_path):
+        """Copy a file or folder between TAPIS systems with a Files transfer task (no job,
+        no allocation: TAPIS uses your credentials on both systems). Returns the task id."""
+        task = self._call(self.client.files.createTransferTask, tag="harp", elements=[
+            {"sourceURI": f"tapis://{src_system}/{src_path.lstrip('/')}",
+             "destinationURI": f"tapis://{dst_system}/{dst_path.lstrip('/')}"}])
+        return _get(task, "uuid")
+
+    def transfer_status(self, task_id):
+        """ACCEPTED, IN_PROGRESS, COMPLETED, FAILED, CANCELLED, ..."""
+        return _get(self._call(self.client.files.getTransferTask, transferTaskId=task_id), "status")
 
     def job_output_dir(self, uuid):
         """(system, path) of the job's output folder on the execution system,

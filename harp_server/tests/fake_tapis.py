@@ -100,6 +100,18 @@ class FakeGateway:
     def cancel_job(self, uuid):
         self.jobs[uuid]["status"] = "CANCELLED"
 
+    def transfer(self, src_system, src_path, dst_system, dst_path):
+        self._check_write(dst_system)
+        self.transfers = getattr(self, "transfers", [])
+        for (s, p), data in list(self.files.items()):
+            if s == src_system and (p == src_path or p.startswith(src_path.rstrip("/") + "/")):
+                self.files[(dst_system, dst_path.rstrip("/") + p[len(src_path.rstrip("/")):])] = data
+        self.transfers.append((src_system, src_path, dst_system, dst_path))
+        return f"xfer-{len(self.transfers)}"
+
+    def transfer_status(self, task_id):
+        return getattr(self, "transfer_result", "COMPLETED")
+
     def job_output_dir(self, uuid):
         return self.jobs[uuid]["request"]["execSystemId"], f"/exec/{uuid}"
 

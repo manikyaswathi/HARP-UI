@@ -89,6 +89,10 @@
     if (v.status !== 'CANCELLED')
       v.status = v.jobs_done < v.jobs_total ? 'RUNNING' : !sw.rows.length ? 'FAILED' : counts.FINISHED === v.jobs_total ? 'DONE' : 'DONE_WITH_ERRORS';
     v.result = v.status === 'RUNNING' ? null : {rows: sw.rows.length};
+    const mv = sw.spec && sw.spec.move_to;   // optional copy with a TAPIS file transfer, a few seconds after the end
+    if (v.result && mv) { sw.endedAt = sw.endedAt || Date.now();
+      v.result.move = {status: Date.now() - sw.endedAt > 6000 ? 'DONE' : 'COPYING', system_id: mv.system_id,
+                       path: `${mv.path.replace(/\/$/, '')}/${v.campaign_dir.split('/').pop()}`, error: null}; }
   }
   const eulerTime = p => (p.method === 'pow' ? 0.002 : 0.02) * Math.pow(p.n / 1000, p.method === 'factorial' ? 1.25 : 0.4) * (1 + p.precision / 512);
   const yoloTime = (p, host) => {
@@ -149,7 +153,7 @@
       hardware: spec.targets.map((t, ti) => ({key:'t' + ti, system_id:t.system_id, queue:t.queue, app_id:appId,
         cores_per_node:t.cores_per_node, memory_mb:t.memory_mb, gpu:!!t.container_args})),
       events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
-    const sw = {view, jobs, rows:[], live:{created, plan, reps:spec.repetitions}};
+    const sw = {view, jobs, rows:[], spec, live:{created, plan, reps:spec.repetitions}};
     recount(sw); return sw;
   }
   function advance(sw){
@@ -217,6 +221,8 @@
     if (!params.length && h.command) params = [...h.command.matchAll(/\{(\w+)\}/g)].map(m => ({name:m[1], arg:`{${m[1]}}`}));
     return {id:a.id, version:a.version, label:h.label || a.id, role: h.role === 'build' ? 'build' : 'profile', image:a.image || '', runtime:a.runtime || 'SINGULARITY',
       description:a.description || '', command:h.command || '', workdir:h.workdir || '',
+      params_from: Array.isArray(h.params) && h.params.length ? 'notes' : h.command ? 'command' : null,
+      defaults: a.id.includes('yolo') ? {cores_per_node:4, memory_mb:16000, max_minutes:60} : a.id.includes('euler') ? {cores_per_node:1, memory_mb:4000, max_minutes:60} : {},
       params: params.map(p => ({name:p.name, arg:p.arg || '', kind:p.kind || 'string', default: p.default == null ? '' : String(p.default)}))};
   }
   const isGpuQ = q => /gpu/i.test(`${q.name || ''} ${q.description || ''} ${q.hpc_queue || ''}`);
@@ -238,8 +244,10 @@
   }
   function buildPlan(plan){
     const st = plan.storage || {}, path = (st.path || '').trim();
+    const mv = plan.move_to;
     const storage_error = !st.system_id ? 'pick a TAPIS system for the results'
-      : !path.startsWith('/') ? 'the results folder must be an absolute path, e.g. /fs/scratch/PAS0000/harp_runs' : null;
+      : !path.startsWith('/') ? 'the results folder must be an absolute path, e.g. /fs/scratch/PAS0000/harp_runs'
+      : mv && !(mv.system_id && (mv.path || '').startsWith('/')) ? 'to copy the results elsewhere, pick a TAPIS system and an absolute folder' : null;
     const stamp = new Date().toISOString().slice(2, 16).replace(/[-:T]/g, '');
     const sweeps = plan.sweeps.map(s => {
       const name = `${s.app_id} / ${s.name}`;
@@ -265,7 +273,7 @@
           if (seen.has(sig)) throw `${t.system_id}/${t.queue} has two identical configurations`; seen.add(sig);
           return {...r, app_id:app.id, app_version:app.version}; });
         const slug = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 20) || 'app';
-        const spec = {name:`${slug}-${s.name}-${stamp}`.slice(0, 64), application:slug, command:app.command, workdir:app.workdir,
+        const spec = {move_to: plan.move_to || null, name:`${slug}-${s.name}-${stamp}`.slice(0, 64), application:slug, command:app.command, workdir:app.workdir,
           repetitions:s.repetitions, run_timeout_sec:s.timeout_min * 60, combos_per_job:1, distribution:'replicate',
           run_sets:[{run_type:s.run_type, parameters:params}], targets, storage:{system_id:st.system_id, path}};
         const n = cartesian(params).length;

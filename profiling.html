@@ -632,6 +632,12 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .bsub2{display:flex;align-items:center;font-family:"JetBrains Mono",monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:12px 0 6px}
 .bmhead{margin:18px 0 0}
 .bwhere{font-size:12px;color:var(--muted)}
+.fromapp{display:grid;grid-template-columns:120px 1fr;gap:6px 14px;margin:8px 0 0;font-size:12.5px}
+.fromapp dt{font-family:"JetBrains Mono",monospace;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--teal-700);padding-top:2px}
+.fromapp dd{margin:0;color:var(--ink);overflow-wrap:anywhere}
+@media(max-width:640px){.fromapp{grid-template-columns:1fr}.fromapp dd{margin-bottom:6px}}
+.appmeta .appfrom{width:100%}
+.movedet{margin:4px 0 14px;border:1px dashed var(--line);border-radius:9px;padding:8px 12px}
 .stabs{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:18px 0 10px}
 .st{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;padding:12px 16px;border-radius:var(--r);
   border:1px solid var(--line);background:#fff;cursor:pointer;font-family:inherit;color:var(--muted)}
@@ -771,13 +777,24 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
         <p class="loginerr" id="reviewErr"></p>
       </div>
       <div class="card2" id="submitCard">
-        <h3>Where results go</h3>
-        <p class="sub">Any TAPIS system you can write to. Jobs on other systems copy their results here through TAPIS.</p>
+        <div class="chead"><h3>Results location</h3><button type="button" class="help" data-help="results" aria-label="Where do results go?" aria-expanded="false">?</button></div>
+        <p class="sub">When each job ends, TAPIS copies its output here, and the merged profiling CSV is written here too.
+          Filled in from your last sweep or your account; change it if you like.</p>
         <div class="three">
           <div class="field"><label class="lbl" for="storeSys">TAPIS system</label><select id="storeSys"></select></div>
           <div class="field" style="grid-column:span 2"><label class="lbl" for="store">Folder</label>
             <input class="ti" id="store" placeholder="/fs/scratch/PAS0000/you/harp_runs" autocomplete="off"></div>
         </div>
+        <details class="bdet movedet" id="moveDet"><summary>Copy the results to another location (optional)</summary>
+          <p class="sub">When the sweep finishes, the server copies its whole folder (merged CSV, manifest, every job's output)
+            here with a TAPIS file transfer. No account is needed: transfers are not jobs and use your TAPIS login on both systems.
+            You only need permission to write to the folder. The original stays where it is.</p>
+          <div class="three">
+            <div class="field"><label class="lbl" for="moveSys">TAPIS system</label><select id="moveSys"></select></div>
+            <div class="field" style="grid-column:span 2"><label class="lbl" for="movePath">Folder</label>
+              <input class="ti" id="movePath" placeholder="/fs/project/PAS0000/harp_results" autocomplete="off"></div>
+          </div>
+        </details>
         <label class="confirmrow"><input type="checkbox" id="confirm"> I checked the plan above.</label>
         <div class="actions">
           <button class="btn btn-navy" id="submitBtn" type="button" disabled>Submit plan</button>
@@ -968,7 +985,7 @@ async function api(path, opts = {}) {
 function toast(msg){ const t = $('toast'); t.textContent = msg; t.classList.add('show');
   clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2600); }
 // Kept per TAPIS user (and tenant), so someone else logging in on this browser never sees your plan.
-let USERKEY = '';
+let USERKEY = '', ME_USER = '';
 const store = {get(k, d){ try { return JSON.parse(localStorage.getItem(k + USERKEY)) ?? d; } catch (e) { return d; } },
                set(k, v){ try { localStorage.setItem(k + USERKEY, JSON.stringify(v)); } catch (e) {} }};
 const initials = s => s.split(/[\s_-]+/).filter(Boolean).map(w => w[0]).join('').slice(0, 2).toUpperCase();
@@ -989,6 +1006,7 @@ let panel = 'configure', jobsTimer = null, badgeTimer = null;
 function toApp(a, runsByApp){
   return {id: a.id, version: a.version, label: a.label || a.id, runtime: a.runtime || 'SINGULARITY', image: a.image || '',
     command: a.command || '', workdir: a.workdir || '', runs: runsByApp[a.id] || 0,
+    params_from: a.params_from || null, defaults: a.defaults || {}, description: a.description || '',
     params: (a.params || []).map(p => ({name: p.name, arg: p.arg || '', kind: p.kind || 'string', def: String(p.default ?? '')}))};
 }
 async function loadApps(){
@@ -1010,9 +1028,11 @@ async function loadSystems(){
   const storage = [...new Map([...SYSTEMS, ...all].map(s => [s.id, s])).values()];
   $('storeSys').innerHTML = storage.map(s => `<option value="${esc(s.id)}">${esc(s.id)}${s.host ? ' · ' + esc(s.host) : ''}${
     s.can_exec === false ? ' (storage)' : ''}</option>`).join('');
+  $('moveSys').innerHTML = '<option value="">Don\'t copy</option>' + $('storeSys').innerHTML;
   const saved = store.get('harp-launch', {});
   if (saved.storeSys) $('storeSys').value = saved.storeSys;
   if (saved.store) $('store').value = saved.store;
+  if (saved.moveSys) { $('moveSys').value = saved.moveSys; $('movePath').value = saved.movePath || ''; $('moveDet').open = true; }
 }
 /* ============================================================ 1. configure */
 // Cores per job default to the queue's max cores per node (1 if TAPIS gives no limit).
@@ -1077,9 +1097,15 @@ function renderApps(){
   $('appSel').innerHTML = (app ? '' : '<option value="">Choose an app…</option>') +
     APPS.map(a => `<option value="${esc(a.id)}" ${app && app.id === a.id ? 'selected' : ''}>${esc(a.label)} (${esc(a.id)} v${esc(a.version)})</option>`).join('');
   if (!app) { $('appMeta').innerHTML = ''; return; }
-  const meta = [['Image', app.image], ['Parameters', app.params.map(p => p.name).join(', ') || 'none declared'],
-                ['Profiled', app.runs ? app.runs.toLocaleString() + ' runs so far' : 'not yet']];
-  $('appMeta').innerHTML = meta.map(([k, v]) => `<span><b>${k}</b> ${esc(v)}</span>`).join('');
+  const d = app.defaults || {}, dv = [d.cores_per_node && `${d.cores_per_node} core${d.cores_per_node === 1 ? '' : 's'}`, d.memory_mb && fmtMem(d.memory_mb), d.max_minutes && fmtMin(d.max_minutes)].filter(Boolean);
+  const from = {notes: "the app's TAPIS notes (harp block)", command: 'the {placeholders} in its command'}[app.params_from] || 'nothing yet';
+  const rows = [['Container', `${app.image || '–'} (${app.runtime})`], ['Command', app.command || 'not declared'], ['Work folder', app.workdir || '–'],
+    ['Parameters', `${app.params.map(p => p.name).join(', ') || 'none'}, from ${from}`],
+    ['App defaults', dv.length ? dv.join(' · ') + ' per job; your queue settings below replace them' : 'none; your queue settings below are used'],
+    ['Output', 'each job writes to /TapisOutput in the container; TAPIS copies it to the results location you pick on Review'],
+    ['Profiled', app.runs ? app.runs.toLocaleString() + ' runs so far' : 'not yet']];
+  $('appMeta').innerHTML = `<details class="bdet appfrom"><summary>From the TAPIS app ${esc(app.id)} v${esc(app.version)}</summary>
+    <dl class="fromapp">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${esc(v)}</dd>`).join('')}</dl></details>`;
 }
 $('appSel').addEventListener('change', () => { if ($('appSel').value) pickApp($('appSel').value); });
 function pickApp(id, sweep){
@@ -1248,7 +1274,8 @@ $('toReview').addEventListener('click', () => show('review'));
 // What the user picked. The server fills in everything else from TAPIS (command, defaults, limits).
 function planBody(){
   const ids = new Set(PLAN.flatMap(p => p.sweep.queues.map(k => k.split('|')[0])));
-  return {storage: {system_id: $('storeSys').value, path: $('store').value.trim()},
+  const move = $('moveSys').value && $('movePath').value.trim() ? {system_id: $('moveSys').value, path: $('movePath').value.trim()} : null;
+  return {storage: {system_id: $('storeSys').value, path: $('store').value.trim()}, move_to: move,
     allocations: Object.fromEntries([...ids].filter(id => ALLOC[id]).map(id => [id, ALLOC[id]])),
     sweeps: PLAN.map(p => { const sw = p.sweep;
       return {app_id: p.app.id, name: sw.name, run_type: sw.run_type, repetitions: sw.reps, timeout_min: sw.timeout,
@@ -1258,8 +1285,17 @@ function planBody(){
             memory_mb: c.mem_gb ? c.mem_gb * 1024 : null, max_minutes: c.minutes || null})); })}; })};
 }
 let CHECK = null;
+// A default results folder: the last one used, or on OSC /fs/scratch/<project>/<user>/harp_runs from the account.
+function defaultStore(){
+  if ($('store').value.trim() || !PLAN.length) return;
+  for (const id of [...new Set(PLAN.flatMap(p => p.sweep.queues.map(k => k.split('|')[0])))]) {
+    const s = SYSTEMS.find(x => x.id === id) || {}, proj = (ALLOC[id] || '').match(/-A\s*(\S+)/);
+    if (proj && /osc\.edu/i.test(s.host || '')) { $('storeSys').value = id; $('store').value = `/fs/scratch/${proj[1]}/${ME_USER}/harp_runs`; return; }
+  }
+}
 async function renderReview(){
   $('doneCard').hidden = true; $('submitCard').hidden = !PLAN.length;
+  defaultStore();
   const rows = PLAN.flatMap(p => { const all = p.sweep.queues.flatMap(k => cfgsOf(p.sweep, k).map(c => ({k, c})));
     return all.map(({k, c}, i) => ({p, k, c, i, first: i === 0, span: all.length})); });
   const jobs = PLAN.reduce((n, p) => n + planJobs(p), 0);
@@ -1304,15 +1340,17 @@ function reviewReady(){
   const path = $('store').value.trim();
   const prob = !PLAN.length ? 'The plan is empty.' : !path ? 'Choose a results folder.'
     : !path.startsWith('/') ? 'The results folder must be an absolute path, starting with /.'
+    : $('moveSys').value && !$('movePath').value.trim().startsWith('/') ? 'Give the copy location an absolute folder, or choose "Don\'t copy".'
     : !CHECK ? 'Checking the plan…' : CHECK.some(r => !r.ok) ? 'Fix the sweeps marked “fix”.'
     : !$('confirm').checked ? 'Tick the box to confirm.' : '';
   $('submitBtn').disabled = !!prob; $('submitMsg').textContent = prob;
 }
-['store', 'storeSys'].forEach(id => $(id).addEventListener('input', reviewReady));
+['store', 'storeSys', 'moveSys', 'movePath'].forEach(id => $(id).addEventListener('input', reviewReady));
 $('confirm').addEventListener('change', reviewReady);
 $('submitBtn').addEventListener('click', async () => {
   const btn = $('submitBtn'); btn.disabled = true; btn.textContent = 'Submitting…';
-  store.set('harp-launch', {storeSys: $('storeSys').value, store: $('store').value.trim()});
+  store.set('harp-launch', {storeSys: $('storeSys').value, store: $('store').value.trim(),
+                            moveSys: $('moveSys').value, movePath: $('movePath').value.trim()});
   try {
     const made = await api('/api/plan/submit', {method: 'POST', body: planBody()});
     PLAN = []; savePlan(); $('confirm').checked = false;
@@ -1364,6 +1402,9 @@ function renderJobs(){
   setBadge((g.active || 0) + (g.waiting || 0));
 
   // sweeps
+  const moveNote = c => { const m = (c.result || {}).move; if (!m) return '';
+    const t = {PENDING: 'copy queued to', COPYING: 'copying to', DONE: 'copied to', FAILED: 'copy failed:'}[m.status] || m.status;
+    return `<span class="updated" style="display:block;color:${m.status === 'FAILED' ? '#A23A3A' : ''}">${esc(t)} ${esc(m.system_id)}:${esc(m.path)}${m.error ? ' (' + esc(m.error) + ')' : ''}</span>`; };
   const sweepRuns = id => { const js = JOBS.filter(j => j.sweep_id === id), tot = js.reduce((n, j) => n + (j.runs_total || 0), 0);
     return tot ? `${js.reduce((n, j) => n + runsDone(j), 0).toLocaleString()} / ${tot.toLocaleString()}` : '–'; };
   const camps = [...CAMPS].sort((a, b) => (ACTIVE.includes(b.status) - ACTIVE.includes(a.status)) || b.created_at.localeCompare(a.created_at));
@@ -1375,7 +1416,7 @@ function renderJobs(){
                                   : `<button class="rowbtn danger" data-ask="${esc(c.id)}" type="button">Cancel</button>`) : '';
       return `<tr class="${FSET.sweep === c.id ? 'sel' : ''}"><td><button class="rowbtn" data-only="${esc(c.id)}" type="button"><b>${esc(c.name)}</b></button></td>
         <td>${esc((c.app_ids || []).map(appName).join(', '))}</td><td>${pill(SWEEP_ST, c.status)}</td>
-        <td>${bar(f, x, c.jobs_total)}<span class="updated">${f}/${c.jobs_total} finished${x ? ` · ${x} failed` : ''}</span></td>
+        <td>${bar(f, x, c.jobs_total)}<span class="updated">${f}/${c.jobs_total} finished${x ? ` · ${x} failed` : ''}</span>${moveNote(c)}</td>
         <td class="uuid">${esc(hw)}</td><td class="num">${sweepRuns(c.id)}</td>
         <td class="updated">${esc(ago(c.created_at))}</td><td>${act}</td></tr>`; }).join('')
     : '<tr><td class="updated">No sweeps yet. Configure one and submit the plan.</td></tr>';
@@ -1810,6 +1851,9 @@ const HELP = {
   runon: `<p><b>A TAPIS system</b>: the build runs as a TAPIS job of the HARP build app (one node, 4 cores, up to an hour) and shows up in <b>Jobs</b>. TAPIS copies the models to the folder you pick.</p>
     <p><b>This computer</b>: the HARP server runs the build itself, then saves the models to that folder through TAPIS. No queue wait.</p>
     <p>Either way the training data is cleaned first: runs without a time, and columns not filled in every run, are left out (see <b>Data checks</b>).</p>`,
+  results: `<p>Inside the container a job writes to <code>/TapisOutput</code>. When the job ends, <b>TAPIS</b> copies that folder to the results location (the job's archive location), on any system you can write to. That is set per job by the server, not by the app.</p>
+    <p>The server then merges every job's CSV into <code>&lt;app&gt;_&lt;timestamp&gt;.csv</code> in the sweep's folder, using TAPIS Files, without a job.</p>
+    <p><b>Copy to another location</b> uses a TAPIS file transfer. It needs no allocation account (that is only for compute jobs), just your TAPIS login on both systems and permission to write to the folder.</p>`,
   inference: `<p>An <b>estimate entry</b> is one run you want a time for: an app, one value per parameter, and the queue and cores it would get. These are the model's independent examples: runs it has not seen.</p>
     <p>Each entry is estimated once per queue you tick, with the model you pick for its app on <b>Select model</b>.</p>`,
   scores: `<p>Each model is scored on the <b>test_data</b> runs it never saw:</p>
@@ -1843,11 +1887,11 @@ function showLogin(msg){
   $('loginErr').textContent = msg || '';
 }
 async function showApp(me){
-  USERKEY = ':' + me.username + '@' + me.base_url.replace(/^https?:\/\//, '');
+  USERKEY = ':' + me.username + '@' + me.base_url.replace(/^https?:\/\//, ''); ME_USER = me.username;
   PLAN = store.get('harp-plan', []); planSeq = PLAN.reduce((n, p) => Math.max(n, p.id), 0);
   ALLOC = store.get('harp-alloc', {}); for (const k in BSEL) delete BSEL[k]; dApp = null; prof = null;
   EST = store.get('harp-est', []); EMODEL = store.get('harp-emodel', {}); eApp = null; EVALS = {}; EQ = {};
-  $('bPath').value = ''; $('bSys').innerHTML = ''; $('store').value = '';
+  $('bPath').value = ''; $('bSys').innerHTML = ''; $('store').value = ''; $('movePath').value = ''; $('moveDet').open = false;
   $('loginPanel').hidden = true; $('appView').hidden = false;
   $('appSel').innerHTML = '<option>Loading your TAPIS apps…</option>'; $('appSel').disabled = true;
   try { await Promise.all([loadApps(), loadSystems()]); }
