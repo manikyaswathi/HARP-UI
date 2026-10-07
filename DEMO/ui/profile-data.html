@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Profiling results &mdash; iScheduler</title>
+<title>Demo: Profile data &mdash; iScheduler</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -211,6 +211,7 @@ footer a:hover{color:#fff}
 .reveal.in{opacity:1;transform:none}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}.reveal{opacity:1;transform:none}.orbit{animation:none}}
 :focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+[hidden]{display:none!important}
 
 /* clickable loop steps */
 a.step{color:inherit;text-decoration:none;transition:background .12s}
@@ -417,14 +418,202 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .loginerr{font-size:12.5px;color:#A23A3A;margin-top:10px;min-height:1em}
 </style>
 
+<style>
+.demo-bar{background:var(--orange-50);color:var(--orange-700);font-size:13px;text-align:center;
+  padding:8px 16px;border-bottom:1px solid #F1DCC2}
+.demo-bar b{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.06em;
+  text-transform:uppercase;margin-right:2px}
+</style>
+<script>
+/* Offline demo of the HARP profiling pages.
+   Stands in for the HARP server (/api/*) so profiling.html, runs.html and profile-data.html
+   can be opened straight from disk. The real pages talk to the HARP server,
+   which talks to TAPIS. Built into the demo pages by build_demo.py. */
+(function(){
+  // ---- sample apps (as TAPIS would list them) ------------------------------
+  const harp = (label, entrypoint, command, params) => ({harp:{label, entrypoint, command, params}});
+  const APPS = [
+    {id:'harp-sweep-euler-swathi', version:'1.0.0', runtime:'SINGULARITY',
+     image:'docker://ghcr.io/manikyaswathi/harp-sweep-eulernumber:1.0.0', app_args:[],
+     notes: harp('Euler number','calc_e.py','python3 calc_e.py {method} {n} {precision}',[
+       {name:'method',arg:'{method}',kind:'string',default:'pow'},
+       {name:'n',arg:'{n}',kind:'int',default:'1000'},
+       {name:'precision',arg:'{precision}',kind:'int',default:'64'}])},
+    {id:'harp-sweep-yolo-swathi', version:'1.0.0', runtime:'SINGULARITY',
+     image:'docker://ghcr.io/manikyaswathi/harp-sweep-yolo:1.0.0', app_args:[],
+     notes: harp('Ultralytics YOLO','train_yolo.py',
+       'python3 train_yolo.py --model {model} --epochs {epochs} --imgsz {imgsz} --batch {batch} --device {device}',[
+       {name:'model',arg:'--model',kind:'string',default:'yolo11n'},
+       {name:'epochs',arg:'--epochs',kind:'int',default:'1'},
+       {name:'imgsz',arg:'--imgsz',kind:'int',default:'640'},
+       {name:'batch',arg:'--batch',kind:'int',default:'8'},
+       {name:'device',arg:'--device',kind:'string',default:'auto'}])},
+    {id:'megadetector-batch', version:'5.0', runtime:'DOCKER',
+     image:'docker.io/microsoft/megadetector:5.0', notes:{},
+     app_args:[{name:'batch',arg:'--batch'},{name:'imgsz',arg:'--imgsz'},{name:'threshold',arg:'--threshold'}]}
+  ];
+
+  // ---- sample profiling data (deterministic) --------------------------------
+  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const jitter = () => 0.92 + rnd() * 0.16;
+  const HW = {
+    pitzer:   {sys_name:'Linux', sys_tot_cores_count:40, sys_phy_mem_bytes:201326592000, sys_gpu_count:0, sys_gpu_name:'none'},
+    cardinal: {sys_name:'Linux', sys_tot_cores_count:96, sys_phy_mem_bytes:1080033280000, sys_gpu_count:4, sys_gpu_name:'NVIDIA H100'}};
+  function cartesian(params){
+    return Object.entries(params).reduce((acc, [k, vs]) => acc.flatMap(a => vs.map(v => ({...a, [k]: v}))), [{}]);
+  }
+  // A sweep with its TAPIS jobs (one combination per job), spread over hardware.
+  const QUEUE = {pitzer:'serial', cardinal:'gpu'};
+  let uuidN = 4100;
+  function sweep(name, appId, sets, reps, timeFn, hosts, opts = {}){
+    const created = Date.now() - (opts.hoursAgo || 1) * 3600e3;
+    const rows = [], jobs = []; let idx = 0;
+    for (const [runType, params] of sets) for (const p of cartesian(params)) {
+      const host = hosts[idx % hosts.length];
+      const job = {name:`${name}-${runType}-${String(idx).padStart(4,'0')}`, system_id:host, target:host, run_type:runType,
+                   combinations:1, uuid:null, error:null, submitted_at:null, ended_at:null, status:'FINISHED'};
+      const at = mins => new Date(created + mins * 60e3).toISOString();
+      if (opts.failEvery && idx % opts.failEvery === opts.failEvery - 1) {
+        Object.assign(job, {status:'FAILED', error:'job exceeded maxMinutes (30)'});
+      } else if (opts.runningFrom != null && idx >= opts.runningFrom) {
+        const k = idx - opts.runningFrom;
+        job.status = k < 2 ? 'RUNNING' : k < 3 ? 'QUEUED' : 'NOT_SUBMITTED';
+      }
+      if (job.status !== 'NOT_SUBMITTED') {
+        job.uuid = `${(uuidN++).toString(16)}e1c-7a2b-4c1d-9f00-${String(idx).padStart(12,'0')}-007`;
+        job.submitted_at = at(2 + idx * 3);
+      }
+      if (job.status === 'FINISHED' || job.status === 'FAILED') job.ended_at = at(8 + idx * 3);
+      if (job.status === 'FINISHED') for (let r = 0; r < reps; r++) {
+        const row = {campaign:name, system:host, run_config:`${job.name}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
+        for (const [k, v] of Object.entries(p)) row['run_' + k] = v;
+        row.walltime = +(timeFn(p, host) * jitter()).toFixed(5);
+        rows.push(row);
+      }
+      jobs.push(job); idx++;
+    }
+    const view = {id:name, name, application:appId, app_ids:[appId], created_at:new Date(created).toISOString(),
+      repetitions:reps, storage:{system_id:'pitzer'}, campaign_dir:`/fs/scratch/PAS2271/swathi/harp_runs/${name}`,
+      hardware: hosts.map(h => ({key:h, system_id:h, queue:QUEUE[h], app_id:appId,
+        cores_per_node: h === 'cardinal' ? 8 : 4, memory_mb: h === 'cardinal' ? 32000 : 16000, gpu: h === 'cardinal'})),
+      events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
+    const sw = {view, jobs, rows};
+    recount(sw);
+    return sw;
+  }
+  function recount(sw){
+    const v = sw.view, counts = {};
+    for (const j of sw.jobs) counts[j.status] = (counts[j.status] || 0) + 1;
+    const ended = s => ['FINISHED','FAILED','CANCELLED','SUBMIT_FAILED'].includes(s);
+    v.job_counts = counts; v.jobs_total = sw.jobs.length;
+    v.jobs_done = sw.jobs.filter(j => ended(j.status)).length;
+    if (v.status !== 'CANCELLED')
+      v.status = v.jobs_done < v.jobs_total ? 'RUNNING' : !sw.rows.length ? 'FAILED' : counts.FINISHED === v.jobs_total ? 'DONE' : 'DONE_WITH_ERRORS';
+    v.result = v.status === 'RUNNING' ? null : {rows: sw.rows.length};
+  }
+  const eulerTime = p => (p.method === 'pow' ? 0.002 : 0.02) * Math.pow(p.n / 1000, p.method === 'factorial' ? 1.25 : 0.4) * (1 + p.precision / 512);
+  const yoloTime = (p, host) => {
+    const size = {yolo11n:1, yolo11s:2.4, yolo11m:5.8}[p.model];
+    const gpu = host === 'cardinal' ? 0.08 : 1;
+    return 6 + p.epochs * size * Math.pow(p.imgsz / 320, 2) * (16 / p.batch) ** 0.15 * 22 * gpu;
+  };
+  const SWEEPS = [
+    sweep('euler-sd-fs', 'harp-sweep-euler-swathi', [
+      ['SD', {method:['pow','factorial'], n:[10,100,1000], precision:[64]}],
+      ['FS', {method:['pow','factorial'], n:[10000,50000], precision:[64,256]}],
+      ['test_data', {method:['factorial'], n:[20000], precision:[128]}]], 3, eulerTime, ['pitzer'], {failEvery:9, hoursAgo:30}),
+    sweep('euler-precision', 'harp-sweep-euler-swathi', [
+      ['SD', {method:['pow','factorial'], n:[1000], precision:[32,64,128,256,512]}]], 2, eulerTime, ['pitzer'], {hoursAgo:5}),
+    sweep('yolo-cpu-gpu', 'harp-sweep-yolo-swathi', [
+      ['SD', {model:['yolo11n','yolo11s'], epochs:[1,2], imgsz:[320,480], batch:[4,8], device:['auto']}],
+      ['FS', {model:['yolo11n','yolo11s','yolo11m'], epochs:[5], imgsz:[640], batch:[8,16], device:['auto']}],
+      ['test_data', {model:['yolo11s'], epochs:[3], imgsz:[640], batch:[8], device:['auto']}]], 1, yoloTime, ['pitzer','cardinal'], {runningFrom:19, hoursAgo:2})
+  ];
+
+  // ---- the fake /api ----------------------------------------------------------
+  const KEY = 'harp-demo-user';
+  const getMe = () => { try { return JSON.parse(sessionStorage.getItem(KEY)); } catch (e) { return window.__harpMe || null; } };
+  const setMe = v => { window.__harpMe = v; try { v ? sessionStorage.setItem(KEY, JSON.stringify(v)) : sessionStorage.removeItem(KEY); } catch (e) {} };
+  const json = (status, body) => new Response(JSON.stringify(body), {status, headers:{'Content-Type':'application/json'}});
+  const later = v => new Promise(r => setTimeout(() => r(v), 300));
+  const toCSV = (cols, rows) => [cols.join(','), ...rows.map(r => cols.map(c => r[c] ?? '').join(','))].join('\n') + '\n';
+  function profileOf(appId){
+    const mine = SWEEPS.filter(s => s.view.app_ids.includes(appId));
+    const rows = mine.flatMap(s => s.rows);  // running sweeps show their finished jobs
+    const cols = ['campaign', 'system'];
+    for (const r of rows) for (const k of Object.keys(r)) if (!cols.includes(k)) cols.push(k);
+    if (cols.includes('walltime')) { cols.splice(cols.indexOf('walltime'), 1); cols.push('walltime'); }
+    return {app_id:appId, campaigns:mine.map(s => s.view), columns:cols, rows, total_rows:rows.length, missing:[]};
+  }
+  const realFetch = window.fetch.bind(window);
+  window.fetch = function(url, opts = {}){
+    const path = decodeURIComponent(String(url));
+    if (path === 'hardware_targets.csv') return Promise.reject(new Error('demo uses embedded data'));
+    if (!path.startsWith('/api/')) return realFetch(url, opts);
+    let body = {}; try { body = opts.body ? JSON.parse(opts.body) : {}; } catch (e) {}
+    const me = getMe();
+    if (path === '/api/login') {
+      if (!body.username || !body.password) return later(json(400, {detail:'Enter your TAPIS username and password.'}));
+      const u = {username:body.username, base_url:body.base_url || 'https://icicle.tapis.io', expires_at:null};
+      setMe(u); return later(json(200, u));
+    }
+    if (path === '/api/logout') { setMe(null); return Promise.resolve(json(200, {ok:true})); }
+    if (!me) return Promise.resolve(json(401, {detail:'log in to TAPIS first'}));
+    if (path === '/api/me') return Promise.resolve(json(200, me));
+    if (path === '/api/tapis/apps') return later(json(200, APPS));
+    if (path === '/api/campaigns') return Promise.resolve(json(200, SWEEPS.map(s => s.view)));
+    let c = path.match(/^\/api\/campaigns\/([^/]+)(\/(cancel|resubmit))?$/);
+    if (c) {
+      const sw = SWEEPS.find(x => x.view.id === c[1]);
+      if (!sw) return Promise.resolve(json(404, {detail:'campaign not found'}));
+      const now = new Date().toISOString();
+      if (c[3] === 'cancel') {
+        for (const j of sw.jobs) if (!['FINISHED','FAILED'].includes(j.status)) Object.assign(j, {status:'CANCELLED', ended_at:now});
+        sw.view.status = 'CANCELLED'; sw.view.events.push({at:now, message:'cancelled by user'}); recount(sw);
+      } else if (c[3] === 'resubmit') {
+        let n = 0;
+        for (const j of sw.jobs) if (['FAILED','CANCELLED'].includes(j.status)) { Object.assign(j, {status:'NOT_SUBMITTED', uuid:null, error:null, ended_at:null}); n++; }
+        sw.view.status = 'RUNNING'; sw.view.events.push({at:now, message:`resubmitting ${n} jobs`}); recount(sw);
+        return later(json(200, {resubmitted:n}));
+      }
+      return later(json(200, {...sw.view, jobs:sw.jobs}));
+    }
+    let m = path.match(/^\/api\/apps\/(.+)\/profile\.csv$/);
+    if (m) { const p = profileOf(m[1]);
+      return Promise.resolve(p.rows.length ? new Response(toCSV(p.columns, p.rows), {status:200, headers:{'Content-Type':'text/csv'}})
+                                           : json(404, {detail:'no profiling data for this app yet'})); }
+    m = path.match(/^\/api\/apps\/(.+)\/profile$/);
+    if (m) return later(json(200, profileOf(m[1])));
+    return Promise.resolve(json(404, {detail:'not part of the demo'}));
+  };
+
+  // Only these two pages exist in the demo.
+  document.addEventListener('click', ev => {
+    const a = ev.target.closest('a[href]');
+    if (!a) return;
+    const href = a.getAttribute('href');
+    if (['profiling.html', 'runs.html', 'profile-data.html'].includes(href)) return;
+    if (!/\.html$/.test(href)) return;
+    ev.preventDefault();
+    let t = document.getElementById('demoToast');
+    t.textContent = 'Only Profiling, Runs and Profile data are part of this demo.';
+    t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
+  });
+})();
+</script>
 </head>
 <body>
+<div class="demo-bar" role="note">
+  <b>Demo</b> &middot; Sample data, not connected to TAPIS. Log in with any username and password.
+</div>
+<div class="toast" id="demoToast" role="status"></div>
 <nav><div class="wrap nav-in">
   <a class="wm" href="index.html"><span class="dot"></span>iScheduler</a>
   <div class="nav-links">
     <a href="index.html">Overview</a>
     <a href="profiling.html">Profiling</a>
-    <a href="results.html" aria-current="page">Results</a>
+    <a href="runs.html">Runs</a>
+    <a href="profile-data.html" aria-current="page">Profile data</a>
   </div>
   <div class="who" id="who" hidden>
     <span class="mono" id="whoName"></span>
@@ -433,7 +622,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <a class="nav-cta" href="submit.html">Submit a job</a>
 </div></nav>
 <style>
-/* Results page: summary first (metrics), then campaign progress, then the data. */
+/* Profile data page: summary first (metrics), then sweeps, then the data. */
 .metrics4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
 @media(max-width:760px){.metrics4{grid-template-columns:1fr 1fr}}
 .mt{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;min-width:0}
@@ -454,13 +643,14 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .dt .wt{color:var(--teal-700);font-weight:600}
 .prog{display:flex;height:7px;border-radius:4px;overflow:hidden;background:#EFF1F2;min-width:90px}
 .prog i{display:block;height:100%}
-.prog .f{background:var(--ok)}.prog .x{background:#C9564B}.prog .r{background:var(--teal-400)}
+.prog .f{background:var(--ok)}.prog .x{background:#C9564B}.prog .r{background:#CFE3E8}
 .st{font-family:"JetBrains Mono",monospace;font-size:10px;padding:2px 8px;border-radius:10px;
   letter-spacing:.03em;white-space:nowrap}
 .st.done{background:var(--ok-50);color:var(--ok)}
 .st.run{background:var(--teal-50);color:var(--teal-700)}
 .st.warn{background:var(--orange-50);color:var(--orange-700)}
 .st.bad{background:#FBE9E9;color:#A23A3A}
+.st.wait{background:#EFF1F2;color:var(--muted)}
 .chipbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
 .fchip{font-family:"JetBrains Mono",monospace;font-size:11.5px;padding:5px 11px;border-radius:7px;
   border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer}
@@ -478,13 +668,15 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .rgrid>*{min-width:0}
 @media(max-width:900px){.rgrid{grid-template-columns:1fr}}
 .appitem .ar .st{display:inline-block;margin-top:5px}
+.swlink{color:var(--navy);border-bottom:1px solid var(--line)}
+.swlink:hover{border-bottom-color:var(--teal);color:var(--teal-700)}
 .rgrid .appitem .an,.rgrid .appitem .am{display:block}
 </style>
 
 <header class="page-head"><div class="wrap-p">
   <div class="eyebrow">HARP &middot; Generate</div>
-  <h1>Profiling results</h1>
-  <p>Progress of each profiling sweep, and every run it collected.</p>
+  <h1>Profile data</h1>
+  <p>Everything gathered for each app, ready for building its estimators.</p>
 </div></header>
 
 <section><div class="wrap-p">
@@ -506,12 +698,12 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <div class="rgrid" id="appView" hidden>
     <div class="card2">
       <h3>Apps</h3>
-      <p class="sub">Apps with profiling sweeps.</p>
+      <p class="sub">Apps with profiling data.</p>
       <div class="applist" id="applist"></div>
     </div>
 
     <div id="detail">
-      <div class="empty" id="detailEmpty">Select an app to see its runs.</div>
+      <div class="empty" id="detailEmpty">Select an app to see its profile data.</div>
       <div id="detailBody" hidden>
         <div class="metrics4">
           <div class="mt"><div class="v" id="mCamp">0</div><div class="l">Sweeps</div></div>
@@ -530,6 +722,12 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
           <h3>Walltime by run type</h3>
           <p class="sub">Time per run. SD = scaled-down, FS = full-scale, test_data = held out.</p>
           <div class="scroll"><table class="dt" id="typeTable"></table></div>
+        </div>
+
+        <div class="card2">
+          <h3>Walltime by hardware</h3>
+          <p class="sub">Median time per run on each system.</p>
+          <div class="scroll"><table class="dt" id="hwTable"></table></div>
         </div>
 
         <div class="card2">
@@ -552,7 +750,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 </div></footer>
 
 <script>
-/* Results: what each profiling sweep produced, per app.
+/* Profile data: what the profiling sweeps gathered, per app.
    Data comes from the HARP server: /api/campaigns for progress, and
    /api/apps/<id>/profile for every collected run of that app. */
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c =>
@@ -641,7 +839,7 @@ function render(){
     cs.map(c => {
       const k = c.job_counts, f = k.FINISHED || 0, x = (k.FAILED||0) + (k.SUBMIT_FAILED||0) + (k.CANCELLED||0);
       const r = c.jobs_total - f - x, pct = n => (100 * n / Math.max(1, c.jobs_total)).toFixed(1) + '%';
-      return `<tr><td><b>${esc(c.name)}</b></td><td>${stPill(c.status)}</td>
+      return `<tr><td><a href="runs.html#${esc(c.id)}" class="swlink"><b>${esc(c.name)}</b></a></td><td>${stPill(c.status)}</td>
         <td><div class="prog" title="${f} finished, ${x} failed, ${r} queued or running">
               <i class="f" style="width:${pct(f)}"></i><i class="x" style="width:${pct(x)}"></i><i class="r" style="width:${pct(r)}"></i></div>
             <span class="updated">${f} ok${x ? ' · ' + x + ' failed' : ''}${r ? ' · ' + r + ' left' : ''}</span></td>
@@ -657,6 +855,19 @@ function render(){
     return `<tr><td><b>${esc(t)}</b></td><td class="num">${v.length}</td><td class="num">${fmtS(Math.min(...v))}</td>
       <td class="num">${fmtS(median(v))}</td><td class="num">${fmtS(Math.max(...v))}</td></tr>`; }).join('');
   $('typeTable').innerHTML = tr ? `<tr><th>Run type</th><th class="num">Runs</th><th class="num">Fastest</th><th class="num">Median</th><th class="num">Slowest</th></tr>` + tr
+    : '<tr><td class="updated">No finished runs yet.</td></tr>';
+
+  // walltime by hardware (system), median per run type
+  const bySys = {};
+  for (const r of P.rows) { const w = parseFloat(r.walltime); if (!Number.isFinite(w)) continue;
+    const k = r.system || 'unknown'; ((bySys[k] ||= {})[r.run_type || '?'] ||= []).push(w); }
+  const sysNames = Object.keys(bySys).sort();
+  const tcols = order.filter(t => types[t]);
+  $('hwTable').innerHTML = sysNames.length
+    ? `<tr><th>System</th><th class="num">Runs</th>${tcols.map(t => `<th class="num">${esc(t)} median</th>`).join('')}</tr>` +
+      sysNames.map(n => { const g = bySys[n], all = Object.values(g).flat();
+        return `<tr><td><b>${esc(n)}</b></td><td class="num">${all.length}</td>${tcols.map(t =>
+          `<td class="num">${g[t] ? fmtS(median(g[t])) : '–'}</td>`).join('')}</tr>`; }).join('')
     : '<tr><td class="updated">No finished runs yet.</td></tr>';
 
   // filters + data

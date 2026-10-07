@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Demo: Profiling results &mdash; iScheduler</title>
+<title>Runs &mdash; iScheduler</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -211,6 +211,7 @@ footer a:hover{color:#fff}
 .reveal.in{opacity:1;transform:none}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}.reveal{opacity:1;transform:none}.orbit{animation:none}}
 :focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+[hidden]{display:none!important}
 
 /* clickable loop steps */
 a.step{color:inherit;text-decoration:none;transition:background .12s}
@@ -417,159 +418,15 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .loginerr{font-size:12.5px;color:#A23A3A;margin-top:10px;min-height:1em}
 </style>
 
-<style>
-.demo-bar{background:var(--orange-50);color:var(--orange-700);font-size:13px;text-align:center;
-  padding:8px 16px;border-bottom:1px solid #F1DCC2}
-.demo-bar b{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.06em;
-  text-transform:uppercase;margin-right:2px}
-</style>
-<script>
-/* Offline demo of the HARP profiling pages.
-   Stands in for the HARP server (/api/*) so profiling.html and results.html
-   can be opened straight from disk. The real pages talk to the HARP server,
-   which talks to TAPIS. Built into the demo pages by build_demo.py. */
-(function(){
-  // ---- sample apps (as TAPIS would list them) ------------------------------
-  const harp = (label, entrypoint, command, params) => ({harp:{label, entrypoint, command, params}});
-  const APPS = [
-    {id:'harp-sweep-euler-swathi', version:'1.0.0', runtime:'SINGULARITY',
-     image:'docker://ghcr.io/manikyaswathi/harp-sweep-eulernumber:1.0.0', app_args:[],
-     notes: harp('Euler number','calc_e.py','python3 calc_e.py {method} {n} {precision}',[
-       {name:'method',arg:'{method}',kind:'string',default:'pow'},
-       {name:'n',arg:'{n}',kind:'int',default:'1000'},
-       {name:'precision',arg:'{precision}',kind:'int',default:'64'}])},
-    {id:'harp-sweep-yolo-swathi', version:'1.0.0', runtime:'SINGULARITY',
-     image:'docker://ghcr.io/manikyaswathi/harp-sweep-yolo:1.0.0', app_args:[],
-     notes: harp('Ultralytics YOLO','train_yolo.py',
-       'python3 train_yolo.py --model {model} --epochs {epochs} --imgsz {imgsz} --batch {batch} --device {device}',[
-       {name:'model',arg:'--model',kind:'string',default:'yolo11n'},
-       {name:'epochs',arg:'--epochs',kind:'int',default:'1'},
-       {name:'imgsz',arg:'--imgsz',kind:'int',default:'640'},
-       {name:'batch',arg:'--batch',kind:'int',default:'8'},
-       {name:'device',arg:'--device',kind:'string',default:'auto'}])},
-    {id:'megadetector-batch', version:'5.0', runtime:'DOCKER',
-     image:'docker.io/microsoft/megadetector:5.0', notes:{},
-     app_args:[{name:'batch',arg:'--batch'},{name:'imgsz',arg:'--imgsz'},{name:'threshold',arg:'--threshold'}]}
-  ];
-
-  // ---- sample profiling data (deterministic) --------------------------------
-  let seed = 7; const rnd = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
-  const jitter = () => 0.92 + rnd() * 0.16;
-  const HW = {
-    pitzer:   {sys_name:'Linux', sys_tot_cores_count:40, sys_phy_mem_bytes:201326592000, sys_gpu_count:0, sys_gpu_name:'none'},
-    cardinal: {sys_name:'Linux', sys_tot_cores_count:96, sys_phy_mem_bytes:1080033280000, sys_gpu_count:4, sys_gpu_name:'NVIDIA H100'}};
-  function cartesian(params){
-    return Object.entries(params).reduce((acc, [k, vs]) => acc.flatMap(a => vs.map(v => ({...a, [k]: v}))), [{}]);
-  }
-  function sweep(name, appId, sets, reps, timeFn, hosts, opts = {}){
-    const rows = []; let jobs = 0, idx = 0; const counts = {FINISHED:0};
-    for (const [runType, params] of sets) for (const p of cartesian(params)) {
-      const host = hosts[idx % hosts.length]; jobs++;
-      const job = `${name}-${runType}-${String(idx).padStart(4,'0')}`;
-      if (opts.failEvery && idx % opts.failEvery === opts.failEvery - 1) { counts.FAILED = (counts.FAILED||0) + 1; idx++; continue; }
-      if (opts.runningFrom != null && idx >= opts.runningFrom) { counts.RUNNING = (counts.RUNNING||0) + 1; idx++; continue; }
-      counts.FINISHED++;
-      for (let r = 0; r < reps; r++) {
-        const row = {campaign:name, run_config:`${job}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
-        for (const [k, v] of Object.entries(p)) row['run_' + k] = v;
-        row.walltime = +(timeFn(p, host) * jitter()).toFixed(5);
-        rows.push(row);
-      }
-      idx++;
-    }
-    const active = !!counts.RUNNING;
-    return {view:{id:name, name, application:appId, app_ids:[appId], status: active ? 'RUNNING' : counts.FAILED ? 'DONE_WITH_ERRORS' : 'DONE',
-                  created_at:new Date(Date.now() - (opts.hoursAgo || 1) * 3600e3).toISOString(),
-                  job_counts:counts, jobs_done:jobs - (counts.RUNNING||0), jobs_total:jobs,
-                  result: active ? null : {rows: rows.length}},
-            rows};
-  }
-  const eulerTime = p => (p.method === 'pow' ? 0.002 : 0.02) * Math.pow(p.n / 1000, p.method === 'factorial' ? 1.25 : 0.4) * (1 + p.precision / 512);
-  const yoloTime = (p, host) => {
-    const size = {yolo11n:1, yolo11s:2.4, yolo11m:5.8}[p.model];
-    const gpu = host === 'cardinal' ? 0.08 : 1;
-    return 6 + p.epochs * size * Math.pow(p.imgsz / 320, 2) * (16 / p.batch) ** 0.15 * 22 * gpu;
-  };
-  const SWEEPS = [
-    sweep('euler-sd-fs', 'harp-sweep-euler-swathi', [
-      ['SD', {method:['pow','factorial'], n:[10,100,1000], precision:[64]}],
-      ['FS', {method:['pow','factorial'], n:[10000,50000], precision:[64,256]}],
-      ['test_data', {method:['factorial'], n:[20000], precision:[128]}]], 3, eulerTime, ['pitzer'], {failEvery:9, hoursAgo:30}),
-    sweep('euler-precision', 'harp-sweep-euler-swathi', [
-      ['SD', {method:['pow','factorial'], n:[1000], precision:[32,64,128,256,512]}]], 2, eulerTime, ['pitzer'], {hoursAgo:5}),
-    sweep('yolo-cpu-gpu', 'harp-sweep-yolo-swathi', [
-      ['SD', {model:['yolo11n','yolo11s'], epochs:[1,2], imgsz:[320,480], batch:[4,8], device:['auto']}],
-      ['FS', {model:['yolo11n','yolo11s','yolo11m'], epochs:[5], imgsz:[640], batch:[8,16], device:['auto']}],
-      ['test_data', {model:['yolo11s'], epochs:[3], imgsz:[640], batch:[8], device:['auto']}]], 1, yoloTime, ['pitzer','cardinal'], {runningFrom:19, hoursAgo:2})
-  ];
-
-  // ---- the fake /api ----------------------------------------------------------
-  const KEY = 'harp-demo-user';
-  const getMe = () => { try { return JSON.parse(sessionStorage.getItem(KEY)); } catch (e) { return window.__harpMe || null; } };
-  const setMe = v => { window.__harpMe = v; try { v ? sessionStorage.setItem(KEY, JSON.stringify(v)) : sessionStorage.removeItem(KEY); } catch (e) {} };
-  const json = (status, body) => new Response(JSON.stringify(body), {status, headers:{'Content-Type':'application/json'}});
-  const later = v => new Promise(r => setTimeout(() => r(v), 300));
-  const toCSV = (cols, rows) => [cols.join(','), ...rows.map(r => cols.map(c => r[c] ?? '').join(','))].join('\n') + '\n';
-  function profileOf(appId){
-    const mine = SWEEPS.filter(s => s.view.app_ids.includes(appId));
-    const rows = mine.flatMap(s => s.rows);  // running sweeps show their finished jobs
-    const cols = ['campaign'];
-    for (const r of rows) for (const k of Object.keys(r)) if (!cols.includes(k)) cols.push(k);
-    if (cols.includes('walltime')) { cols.splice(cols.indexOf('walltime'), 1); cols.push('walltime'); }
-    return {app_id:appId, campaigns:mine.map(s => s.view), columns:cols, rows, total_rows:rows.length, missing:[]};
-  }
-  const realFetch = window.fetch.bind(window);
-  window.fetch = function(url, opts = {}){
-    const path = decodeURIComponent(String(url));
-    if (path === 'hardware_targets.csv') return Promise.reject(new Error('demo uses embedded data'));
-    if (!path.startsWith('/api/')) return realFetch(url, opts);
-    let body = {}; try { body = opts.body ? JSON.parse(opts.body) : {}; } catch (e) {}
-    const me = getMe();
-    if (path === '/api/login') {
-      if (!body.username || !body.password) return later(json(400, {detail:'Enter your TAPIS username and password.'}));
-      const u = {username:body.username, base_url:body.base_url || 'https://icicle.tapis.io', expires_at:null};
-      setMe(u); return later(json(200, u));
-    }
-    if (path === '/api/logout') { setMe(null); return Promise.resolve(json(200, {ok:true})); }
-    if (!me) return Promise.resolve(json(401, {detail:'log in to TAPIS first'}));
-    if (path === '/api/me') return Promise.resolve(json(200, me));
-    if (path === '/api/tapis/apps') return later(json(200, APPS));
-    if (path === '/api/campaigns') return Promise.resolve(json(200, SWEEPS.map(s => s.view)));
-    let m = path.match(/^\/api\/apps\/(.+)\/profile\.csv$/);
-    if (m) { const p = profileOf(m[1]);
-      return Promise.resolve(p.rows.length ? new Response(toCSV(p.columns, p.rows), {status:200, headers:{'Content-Type':'text/csv'}})
-                                           : json(404, {detail:'no profiling data for this app yet'})); }
-    m = path.match(/^\/api\/apps\/(.+)\/profile$/);
-    if (m) return later(json(200, profileOf(m[1])));
-    return Promise.resolve(json(404, {detail:'not part of the demo'}));
-  };
-
-  // Only these two pages exist in the demo.
-  document.addEventListener('click', ev => {
-    const a = ev.target.closest('a[href]');
-    if (!a) return;
-    const href = a.getAttribute('href');
-    if (href === 'profiling.html' || href === 'results.html') return;
-    if (!/\.html$/.test(href)) return;
-    ev.preventDefault();
-    let t = document.getElementById('demoToast');
-    t.textContent = 'Only the Profiling and Results pages are part of this demo.';
-    t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
-  });
-})();
-</script>
 </head>
 <body>
-<div class="demo-bar" role="note">
-  <b>Demo</b> &middot; Sample data, not connected to TAPIS. Log in with any username and password.
-</div>
-<div class="toast" id="demoToast" role="status"></div>
 <nav><div class="wrap nav-in">
   <a class="wm" href="index.html"><span class="dot"></span>iScheduler</a>
   <div class="nav-links">
     <a href="index.html">Overview</a>
     <a href="profiling.html">Profiling</a>
-    <a href="results.html" aria-current="page">Results</a>
+    <a href="runs.html" aria-current="page">Runs</a>
+    <a href="profile-data.html">Profile data</a>
   </div>
   <div class="who" id="who" hidden>
     <span class="mono" id="whoName"></span>
@@ -578,7 +435,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <a class="nav-cta" href="submit.html">Submit a job</a>
 </div></nav>
 <style>
-/* Results page: summary first (metrics), then campaign progress, then the data. */
+/* Profile data page: summary first (metrics), then sweeps, then the data. */
 .metrics4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px}
 @media(max-width:760px){.metrics4{grid-template-columns:1fr 1fr}}
 .mt{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:16px 18px;min-width:0}
@@ -599,13 +456,14 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .dt .wt{color:var(--teal-700);font-weight:600}
 .prog{display:flex;height:7px;border-radius:4px;overflow:hidden;background:#EFF1F2;min-width:90px}
 .prog i{display:block;height:100%}
-.prog .f{background:var(--ok)}.prog .x{background:#C9564B}.prog .r{background:var(--teal-400)}
+.prog .f{background:var(--ok)}.prog .x{background:#C9564B}.prog .r{background:#CFE3E8}
 .st{font-family:"JetBrains Mono",monospace;font-size:10px;padding:2px 8px;border-radius:10px;
   letter-spacing:.03em;white-space:nowrap}
 .st.done{background:var(--ok-50);color:var(--ok)}
 .st.run{background:var(--teal-50);color:var(--teal-700)}
 .st.warn{background:var(--orange-50);color:var(--orange-700)}
 .st.bad{background:#FBE9E9;color:#A23A3A}
+.st.wait{background:#EFF1F2;color:var(--muted)}
 .chipbar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;align-items:center}
 .fchip{font-family:"JetBrains Mono",monospace;font-size:11.5px;padding:5px 11px;border-radius:7px;
   border:1px solid var(--line);background:#fff;color:var(--muted);cursor:pointer}
@@ -623,13 +481,50 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .rgrid>*{min-width:0}
 @media(max-width:900px){.rgrid{grid-template-columns:1fr}}
 .appitem .ar .st{display:inline-block;margin-top:5px}
+.swlink{color:var(--navy);border-bottom:1px solid var(--line)}
+.swlink:hover{border-bottom-color:var(--teal);color:var(--teal-700)}
 .rgrid .appitem .an,.rgrid .appitem .am{display:block}
+</style>
+
+<style>
+/* Runs page: sweeps on the left; the chosen sweep's TAPIS jobs grouped by hardware on the right. */
+.swlist{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:9px;overflow:hidden}
+.switem{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid #F0F2F3;
+  padding:12px 14px;cursor:pointer;font-family:inherit}
+.switem:last-child{border-bottom:none}
+.switem:hover{background:#FCFDFD}
+.switem[aria-current="true"]{background:var(--teal-50);box-shadow:inset 3px 0 0 var(--teal)}
+.switem .top{display:flex;align-items:center;gap:8px;justify-content:space-between}
+.switem .nm{font-weight:600;font-size:14px;color:var(--navy);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.switem .sub2{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);margin:3px 0 7px}
+.hwcard{background:#fff;border:1px solid var(--line);border-radius:var(--r);margin-bottom:14px;overflow:hidden}
+.hwhead{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;padding:14px 18px;border-bottom:1px solid var(--line);background:#FCFCFB}
+.hwname{font-family:"Space Grotesk",sans-serif;font-weight:600;font-size:16px;color:var(--navy)}
+.hwname small{font-family:"JetBrains Mono",monospace;font-weight:400;font-size:11.5px;color:var(--muted);margin-left:6px}
+.hwmeta{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted)}
+.hwhead .prog{flex:1;min-width:120px;max-width:260px}
+.tag2{font-family:"JetBrains Mono",monospace;font-size:10px;padding:2px 7px;border-radius:4px;background:#EAF0F6;color:#3D6A96;text-transform:uppercase;letter-spacing:.04em}
+.dt td.err{color:#A23A3A;white-space:normal;font-size:12px;max-width:340px}
+.uuid{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted)}
+.actions{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.btn-danger{font-family:inherit;font-size:12.5px;font-weight:600;padding:7px 13px;border-radius:7px;
+  border:1px solid #E7B9B4;background:#fff;color:#A23A3A;cursor:pointer}
+.btn-danger:hover{border-color:#A23A3A}
+.confirm{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--ink);
+  background:#FBE9E9;border-radius:8px;padding:8px 12px}
+.events{max-height:220px;overflow:auto;font-size:12.5px}
+.events div{padding:6px 0;border-bottom:1px solid #F0F2F3;display:flex;gap:12px}
+.events div:last-child{border-bottom:none}
+.events .t{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);flex:none}
+.sweephead{display:flex;flex-wrap:wrap;align-items:center;gap:10px 14px;margin-bottom:14px}
+.sweephead h2{font-size:22px;color:var(--navy);margin:0}
+.sweephead .spacer{flex:1}
 </style>
 
 <header class="page-head"><div class="wrap-p">
   <div class="eyebrow">HARP &middot; Generate</div>
-  <h1>Profiling results</h1>
-  <p>Progress of each profiling sweep, and every run it collected.</p>
+  <h1>Runs</h1>
+  <p>Live status of each profiling sweep. Every job is one TAPIS job on one machine.</p>
 </div></header>
 
 <section><div class="wrap-p">
@@ -650,40 +545,42 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 
   <div class="rgrid" id="appView" hidden>
     <div class="card2">
-      <h3>Apps</h3>
-      <p class="sub">Apps with profiling sweeps.</p>
-      <div class="applist" id="applist"></div>
+      <h3>Sweeps</h3>
+      <p class="sub">Running first.</p>
+      <div class="swlist" id="swlist"></div>
     </div>
 
-    <div id="detail">
-      <div class="empty" id="detailEmpty">Select an app to see its runs.</div>
+    <div>
+      <div class="empty" id="detailEmpty">Select a sweep to see its jobs.</div>
       <div id="detailBody" hidden>
+        <div class="sweephead">
+          <h2 id="swName"></h2><span id="swStatus"></span><span class="spacer"></span>
+          <span class="updated" id="updated"></span>
+        </div>
         <div class="metrics4">
-          <div class="mt"><div class="v" id="mCamp">0</div><div class="l">Sweeps</div></div>
-          <div class="mt"><div class="v" id="mJobs">0</div><div class="l">Jobs completed</div></div>
-          <div class="mt"><div class="v" id="mRows">0</div><div class="l">Runs collected</div></div>
-          <div class="mt"><div class="v" id="mWall">&ndash;</div><div class="l">Median walltime</div></div>
+          <div class="mt"><div class="v" id="mDone">0</div><div class="l">Jobs finished</div></div>
+          <div class="mt"><div class="v" id="mRun">0</div><div class="l">Running or queued</div></div>
+          <div class="mt"><div class="v" id="mWait">0</div><div class="l">Waiting to submit</div></div>
+          <div class="mt"><div class="v" id="mFail">0</div><div class="l">Failed</div></div>
         </div>
-
         <div class="card2">
-          <div class="chipbar"><h3 style="margin:0">Sweeps</h3><span class="spacer"></span>
-            <span class="updated" id="updated"></span></div>
-          <div class="scroll"><table class="dt" id="campTable"></table></div>
+          <div class="actions">
+            <span class="sub" id="swApp" style="margin:0"></span><span class="spacer" style="flex:1"></span>
+            <a class="dlbtn" href="profile-data.html" id="dataLink">Profile data &rarr;</a>
+            <button class="dlbtn" id="resubBtn" hidden>Resubmit failed jobs</button>
+            <button class="btn-danger" id="cancelBtn" hidden>Cancel sweep</button>
+          </div>
+          <div class="confirm" id="cancelConfirm" hidden style="margin-top:12px">
+            <span id="cancelMsg"></span>
+            <button class="btn-danger" id="cancelYes">Cancel jobs</button>
+            <button class="dlbtn" id="cancelNo">Keep running</button>
+          </div>
+          <p class="loginerr" id="actErr"></p>
         </div>
-
+        <div id="hwCards"></div>
         <div class="card2">
-          <h3>Walltime by run type</h3>
-          <p class="sub">Time per run. SD = scaled-down, FS = full-scale, test_data = held out.</p>
-          <div class="scroll"><table class="dt" id="typeTable"></table></div>
-        </div>
-
-        <div class="card2">
-          <div class="chipbar"><h3 style="margin:0">Profiling data</h3><span class="spacer"></span>
-            <button class="dlbtn" id="dlBtn">Download CSV</button></div>
-          <div class="chipbar" id="filters"></div>
-          <div class="scroll" style="max-height:520px"><table class="dt" id="dataTable"></table></div>
-          <div class="more" id="more"></div>
-          <p class="loginerr" id="missing"></p>
+          <h3>Activity</h3>
+          <div class="events" id="events"></div>
         </div>
       </div>
     </div>
@@ -697,9 +594,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 </div></footer>
 
 <script>
-/* Results: what each profiling sweep produced, per app.
-   Data comes from the HARP server: /api/campaigns for progress, and
-   /api/apps/<id>/profile for every collected run of that app. */
+/* Runs: each sweep's TAPIS jobs, grouped by the hardware they run on.
+   Data comes from the HARP server: /api/campaigns and /api/campaigns/<id>. */
 const esc = v => String(v ?? '').replace(/[&<>"']/g, c =>
   ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(path, opts = {}) {
@@ -711,140 +607,115 @@ async function api(path, opts = {}) {
 }
 const $ = id => document.getElementById(id);
 const ACTIVE = ['RUNNING', 'WAITING_FOR_LOGIN', 'FINALIZING'];
-const STATUS = {DONE:['done','done'], DONE_WITH_ERRORS:['warn','done with errors'], RUNNING:['run','running'],
-  FINALIZING:['run','merging'], WAITING_FOR_LOGIN:['warn','paused'], FAILED:['bad','failed'], CANCELLED:['bad','cancelled']};
-const stPill = s => { const [c, t] = STATUS[s] || ['run', s.toLowerCase()]; return `<span class="st ${c}">${esc(t)}</span>`; };
-const PAGE = 200;
-
-let APPS = [], current = null, profile = null, filter = 'all', shown = PAGE, timer = null;
-
-function median(xs){ if(!xs.length) return null; const s=[...xs].sort((a,b)=>a-b), m=s.length>>1;
-  return s.length%2 ? s[m] : (s[m-1]+s[m])/2; }
-const fmtS = v => v==null ? '–' : v < 1 ? (v*1000).toFixed(v < 0.01 ? 2 : 1)+' ms' : v < 10 ? v.toFixed(2)+' s' : v < 600 ? v.toFixed(1)+' s' : (v/60).toFixed(1)+' min';
+const SWEEP = {DONE:['done','done'], DONE_WITH_ERRORS:['warn','done with errors'], RUNNING:['run','running'],
+  FINALIZING:['run','merging data'], WAITING_FOR_LOGIN:['warn','paused, log in'], FAILED:['bad','failed'], CANCELLED:['bad','cancelled']};
+// TAPIS job states, in words
+const JOB = {NOT_SUBMITTED:['wait', 'waiting'], PENDING:['run','submitting'], PROCESSING_INPUTS:['run','submitting'],
+  STAGING_INPUTS:['run','staging'], STAGING_JOB:['run','staging'], SUBMITTING_JOB:['run','submitting'],
+  QUEUED:['warn','queued'], RUNNING:['run','running'], ARCHIVING:['run','copying output'], BLOCKED:['warn','blocked'],
+  PAUSED:['warn','paused'], FINISHED:['done','finished'], FAILED:['bad','failed'], SUBMIT_FAILED:['bad','not submitted'],
+  CANCELLED:['bad','cancelled']};
+const pill = (map, s) => { const [c, t] = map[s] || ['run', String(s).toLowerCase()]; return `<span class="st ${c}">${esc(t)}</span>`; };
+const isDone = s => ['FINISHED'].includes(s), isFail = s => ['FAILED','SUBMIT_FAILED','CANCELLED'].includes(s);
 const ago = iso => { if(!iso) return ''; const m=Math.round((Date.now()-new Date(iso))/60000);
   return m<1?'just now':m<60?m+' min ago':m<1440?Math.round(m/60)+' h ago':Math.round(m/1440)+' d ago'; };
+function bar(f, x, r, total){ const p = n => (100 * n / Math.max(1, total)).toFixed(1) + '%';
+  return `<div class="prog" title="${f} finished, ${x} failed, ${r} left"><i class="f" style="width:${p(f)}"></i><i class="x" style="width:${p(x)}"></i><i class="r" style="width:${p(r)}"></i></div>`; }
 
-/* ---- app list ---- */
-async function loadApps(){
-  const [apps, camps] = await Promise.all([api('/api/tapis/apps'), api('/api/campaigns')]);
-  const byApp = {};
-  for (const c of camps) for (const id of c.app_ids || []) (byApp[id] ||= []).push(c);
-  APPS = apps.filter(a => byApp[a.id]).map(a => {
-    const cs = byApp[a.id];
-    const h = (a.notes && a.notes.harp) || {};
-    return {id:a.id, version:a.version, label:h.label || a.id, campaigns:cs,
-            active: cs.some(c => ACTIVE.includes(c.status))};
-  }).sort((x,y) => x.label.localeCompare(y.label));
+let SWEEPS = [], APPNAMES = {}, current = null, timer = null;
+
+async function loadSweeps(){
+  const [camps, apps] = await Promise.all([api('/api/campaigns'), api('/api/tapis/apps').catch(() => [])]);
+  for (const a of apps) APPNAMES[a.id] = (a.notes && a.notes.harp && a.notes.harp.label) || a.id;
+  SWEEPS = camps.sort((a, b) => (ACTIVE.includes(b.status) - ACTIVE.includes(a.status)) || b.created_at.localeCompare(a.created_at));
   renderList();
 }
 function renderList(){
-  const box = $('applist');
-  if (!APPS.length) { box.innerHTML = '<div class="empty" style="border:none">No sweeps yet. Start one on the <a href="profiling.html" style="color:var(--teal-700);font-weight:600">Profiling</a> page.</div>'; return; }
-  box.innerHTML = APPS.map(a => `
-    <button class="appitem" data-id="${esc(a.id)}" aria-current="${!!(current && current.id===a.id)}">
-      <span class="ic">${esc(a.label.split(/[\s_-]+/).filter(Boolean).map(w=>w[0]).join('').slice(0,2).toUpperCase())}</span>
-      <span style="min-width:0"><span class="an">${esc(a.label)}</span>
-        <span class="am">${a.campaigns.length} sweep${a.campaigns.length===1?'':'s'}</span></span>
-      <span class="ar">${a.active ? stPill('RUNNING') : stPill('DONE')}</span>
-    </button>`).join('');
-  box.querySelectorAll('.appitem').forEach(b => b.addEventListener('click', () => selectApp(b.dataset.id)));
+  const box = $('swlist');
+  if (!SWEEPS.length) { box.innerHTML = '<div class="empty" style="border:none">No sweeps yet. Start one on the <a href="profiling.html" style="color:var(--teal-700);font-weight:600">Profiling</a> page.</div>'; return; }
+  box.innerHTML = SWEEPS.map(c => {
+    const k = c.job_counts, f = k.FINISHED || 0, x = (k.FAILED||0) + (k.SUBMIT_FAILED||0) + (k.CANCELLED||0);
+    const app = (c.app_ids || []).map(id => APPNAMES[id] || id).join(', ');
+    return `<button class="switem" data-id="${esc(c.id)}" aria-current="${!!(current && current === c.id)}">
+      <span class="top"><span class="nm">${esc(c.name)}</span>${pill(SWEEP, c.status)}</span>
+      <span class="sub2" style="display:block">${esc(app)} &middot; ${c.jobs_total} jobs &middot; ${esc(ago(c.created_at))}</span>
+      ${bar(f, x, c.jobs_total - f - x, c.jobs_total)}</button>`; }).join('');
+  box.querySelectorAll('.switem').forEach(b => b.addEventListener('click', () => select(b.dataset.id)));
 }
 
-/* ---- one app ---- */
-async function selectApp(id){
-  current = APPS.find(a => a.id === id); filter = 'all'; shown = PAGE;
-  renderList();
-  $('detailEmpty').hidden = true; $('detailBody').hidden = false;
+async function select(id){
+  current = id; $('cancelConfirm').hidden = true; $('actErr').textContent = '';
+  try { history.replaceState(null, '', '#' + id); } catch (e) {}
+  renderList(); $('detailEmpty').hidden = true; $('detailBody').hidden = false;
   await refresh();
 }
 async function refresh(){
-  if (!current) return;
   clearTimeout(timer);
-  try { profile = await api('/api/apps/' + encodeURIComponent(current.id) + '/profile'); }
-  catch (e) { if (e.status === 401) return showLogin('Session expired. Log in again.');
-              $('missing').textContent = 'Could not load results: ' + e.message; return; }
-  render();
-  $('updated').textContent = 'updated ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
-  if (profile.campaigns.some(c => ACTIVE.includes(c.status))) timer = setTimeout(async () => {
-    await loadApps().catch(() => {}); refresh(); }, 10000);
-}
-
-function render(){
-  const P = profile, cs = P.campaigns;
-  const walls = P.rows.map(r => parseFloat(r.walltime)).filter(Number.isFinite);
-  const jd = cs.reduce((n,c) => n + (c.job_counts.FINISHED || 0), 0);
-  const jt = cs.reduce((n,c) => n + c.jobs_total, 0);
-  $('mCamp').textContent = cs.length;
-  $('mJobs').innerHTML = `${jd}<small> / ${jt}</small>`;
-  $('mRows').textContent = P.total_rows.toLocaleString();
-  $('mWall').textContent = fmtS(median(walls));
-
-  // sweeps: progress per sweep
-  const perSweep = {};
-  for (const r of P.rows) perSweep[r.campaign] = (perSweep[r.campaign] || 0) + 1;
-  $('campTable').innerHTML = `<tr><th>Sweep</th><th>Status</th><th>Jobs</th><th class="num">Runs</th><th>Started</th></tr>` +
-    cs.map(c => {
-      const k = c.job_counts, f = k.FINISHED || 0, x = (k.FAILED||0) + (k.SUBMIT_FAILED||0) + (k.CANCELLED||0);
-      const r = c.jobs_total - f - x, pct = n => (100 * n / Math.max(1, c.jobs_total)).toFixed(1) + '%';
-      return `<tr><td><b>${esc(c.name)}</b></td><td>${stPill(c.status)}</td>
-        <td><div class="prog" title="${f} finished, ${x} failed, ${r} queued or running">
-              <i class="f" style="width:${pct(f)}"></i><i class="x" style="width:${pct(x)}"></i><i class="r" style="width:${pct(r)}"></i></div>
-            <span class="updated">${f} ok${x ? ' · ' + x + ' failed' : ''}${r ? ' · ' + r + ' left' : ''}</span></td>
-        <td class="num">${(perSweep[c.name] || 0).toLocaleString()}</td>
-        <td class="updated">${esc(ago(c.created_at))}</td></tr>`;
-    }).join('');
-
-  // walltime by run type
-  const types = {};
-  for (const r of P.rows) { const w = parseFloat(r.walltime); if (Number.isFinite(w)) (types[r.run_type || '?'] ||= []).push(w); }
-  const order = ['SD', 'FS', 'test_data', ...Object.keys(types).filter(t => !['SD','FS','test_data'].includes(t))];
-  const tr = order.filter(t => types[t]).map(t => { const v = types[t];
-    return `<tr><td><b>${esc(t)}</b></td><td class="num">${v.length}</td><td class="num">${fmtS(Math.min(...v))}</td>
-      <td class="num">${fmtS(median(v))}</td><td class="num">${fmtS(Math.max(...v))}</td></tr>`; }).join('');
-  $('typeTable').innerHTML = tr ? `<tr><th>Run type</th><th class="num">Runs</th><th class="num">Fastest</th><th class="num">Median</th><th class="num">Slowest</th></tr>` + tr
-    : '<tr><td class="updated">No finished runs yet.</td></tr>';
-
-  // filters + data
-  const counts = {all: P.rows.length};
-  for (const r of P.rows) counts[r.run_type] = (counts[r.run_type] || 0) + 1;
-  $('filters').innerHTML = ['all', ...order.filter(t => counts[t])].map(t =>
-    `<button class="fchip" data-f="${esc(t)}" aria-pressed="${filter===t}">${t==='all'?'All':esc(t)}<b>${counts[t]||0}</b></button>`).join('');
-  $('filters').querySelectorAll('.fchip').forEach(b => b.addEventListener('click', () => { filter = b.dataset.f; shown = PAGE; render(); }));
-  renderData();
-  $('missing').textContent = P.missing.length ? 'Could not read data for: ' + P.missing.map(m => m.campaign).join(', ') : '';
-}
-
-function renderData(){
-  const P = profile;
-  const rows = P.rows.filter(r => filter === 'all' || r.run_type === filter);
-  const cols = P.columns;
-  const numeric = c => c === 'walltime' || /^sys_.*(count|mhz|bytes|mb)$/.test(c) || P.rows.slice(0, 50).every(r => r[c] === '' || r[c] == null || !isNaN(+r[c]));
-  const head = cols.map(c => `<th class="${numeric(c) ? 'num' : ''}">${esc(c === 'run_config' || c === 'run_type' ? c : c.replace(/^run_/, ''))}</th>`).join('');
-  const body = rows.slice(0, shown).map(r => '<tr>' + cols.map(c => {
-    let v = r[c] ?? '';
-    if (c === 'walltime' && v !== '') v = (+v).toFixed(3);
-    if (/_bytes$/.test(c) && v !== '' && !isNaN(+v)) v = (+v / 2**30).toFixed(1) + ' GiB';
-    return `<td class="${numeric(c) ? 'num' : ''}${c === 'walltime' ? ' wt' : ''}">${esc(v)}</td>`;
-  }).join('') + '</tr>').join('');
-  $('dataTable').innerHTML = rows.length ? `<tr>${head}</tr>${body}` : '<tr><td class="updated">No runs collected yet.</td></tr>';
-  const capped = P.total_rows > P.rows.length ? ` (first ${P.rows.length.toLocaleString()} of ${P.total_rows.toLocaleString()}; download the CSV for all)` : '';
-  $('more').innerHTML = rows.length > shown
-    ? `Showing ${shown.toLocaleString()} of ${rows.length.toLocaleString()} runs${capped} <button class="linkbtn" id="moreBtn">Show ${Math.min(PAGE, rows.length - shown)} more</button>`
-    : rows.length ? `${rows.length.toLocaleString()} runs${capped}` : '';
-  const mb = $('moreBtn'); if (mb) mb.addEventListener('click', () => { shown += PAGE; renderData(); });
-}
-
-$('dlBtn').addEventListener('click', async () => {
   if (!current) return;
-  const btn = $('dlBtn'); btn.disabled = true;
-  try {
-    const res = await fetch('/api/apps/' + encodeURIComponent(current.id) + '/profile.csv');
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
-    const url = URL.createObjectURL(await res.blob());
-    const a = Object.assign(document.createElement('a'), {href: url, download: current.id + '_profile.csv'});
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (e) { $('missing').textContent = 'Download failed: ' + e.message; }
-  finally { btn.disabled = false; }
+  let c;
+  try { c = await api('/api/campaigns/' + encodeURIComponent(current)); }
+  catch (e) { if (e.status === 401) return showLogin('Session expired. Log in again.');
+              $('actErr').textContent = 'Could not load this sweep: ' + e.message; return; }
+  render(c);
+  $('updated').textContent = 'updated ' + new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+  if (ACTIVE.includes(c.status)) timer = setTimeout(async () => { await loadSweeps().catch(() => {}); refresh(); }, 5000);
+}
+
+function render(c){
+  const jobs = c.jobs;
+  const n = s => jobs.filter(j => s(j.status)).length;
+  $('swName').textContent = c.name; $('swStatus').innerHTML = pill(SWEEP, c.status);
+  $('mDone').innerHTML = `${n(isDone)}<small> / ${jobs.length}</small>`;
+  $('mRun').textContent = n(s => !isDone(s) && !isFail(s) && s !== 'NOT_SUBMITTED');
+  $('mWait').textContent = n(s => s === 'NOT_SUBMITTED');
+  $('mFail').textContent = n(isFail);
+  const app = (c.app_ids || []).map(id => APPNAMES[id] || id).join(', ');
+  $('swApp').textContent = `${app} · ${c.repetitions || 1} repetition${(c.repetitions||1) === 1 ? '' : 's'} per combination · results in ${c.storage.system_id}:${c.campaign_dir}`;
+  $('cancelBtn').hidden = !ACTIVE.includes(c.status);
+  $('resubBtn').hidden = ACTIVE.includes(c.status) || !n(isFail);
+
+  // one card per hardware target
+  const hw = c.hardware && c.hardware.length ? c.hardware
+           : [...new Set(jobs.map(j => j.system_id))].map(s => ({key: s, system_id: s}));
+  $('hwCards').innerHTML = hw.map(h => {
+    const mine = jobs.filter(j => (j.target || j.system_id) === h.key);
+    if (!mine.length) return '';
+    const f = mine.filter(j => isDone(j.status)).length, x = mine.filter(j => isFail(j.status)).length;
+    const meta = [h.cores_per_node && h.cores_per_node + ' cores', h.memory_mb && Math.round(h.memory_mb / 1024) + ' GB'].filter(Boolean).join(' · ');
+    return `<div class="hwcard">
+      <div class="hwhead">
+        <span class="hwname">${esc(h.system_id)}${h.queue ? `<small>${esc(h.queue)}</small>` : ''}</span>
+        ${h.gpu ? '<span class="tag2">GPU</span>' : ''}
+        <span class="hwmeta">${esc(meta)}</span>
+        ${bar(f, x, mine.length - f - x, mine.length)}
+        <span class="hwmeta">${f} / ${mine.length} finished${x ? ` · ${x} failed` : ''}</span>
+      </div>
+      <div class="scroll" style="border:none;border-radius:0"><table class="dt">
+        <tr><th>TAPIS job</th><th>Type</th><th class="num">Combos</th><th>Status</th><th>TAPIS UUID</th><th>Updated</th><th>Problem</th></tr>
+        ${mine.map(j => `<tr><td><b>${esc(j.name)}</b></td><td>${esc(j.run_type)}</td><td class="num">${j.combinations}</td>
+          <td>${pill(JOB, j.status)}</td><td class="uuid">${esc(j.uuid || '–')}</td>
+          <td class="updated">${esc(ago(j.ended_at || j.submitted_at))}</td><td class="err">${esc(j.error || '')}</td></tr>`).join('')}
+      </table></div></div>`; }).join('');
+
+  $('events').innerHTML = (c.events || []).slice().reverse().map(e =>
+    `<div><span class="t">${esc(new Date(e.at).toLocaleString([], {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}))}</span><span>${esc(e.message)}</span></div>`).join('')
+    || '<div class="updated">Nothing yet.</div>';
+}
+
+$('cancelBtn').addEventListener('click', () => {
+  const c = SWEEPS.find(s => s.id === current);
+  $('cancelMsg').textContent = `Cancel the ${c ? c.jobs_total - c.jobs_done : 'remaining'} jobs that have not finished?`;
+  $('cancelConfirm').hidden = false;
+});
+$('cancelNo').addEventListener('click', () => { $('cancelConfirm').hidden = true; });
+$('cancelYes').addEventListener('click', async () => {
+  $('cancelConfirm').hidden = true;
+  try { await api('/api/campaigns/' + encodeURIComponent(current) + '/cancel', {method:'POST'}); await loadSweeps(); refresh(); }
+  catch (e) { $('actErr').textContent = 'Could not cancel: ' + e.message; }
+});
+$('resubBtn').addEventListener('click', async () => {
+  try { await api('/api/campaigns/' + encodeURIComponent(current) + '/resubmit', {method:'POST'}); await loadSweeps(); refresh(); }
+  catch (e) { $('actErr').textContent = 'Could not resubmit: ' + e.message; }
 });
 
 /* ---- TAPIS login (the HARP server holds the token) ---- */
@@ -856,12 +727,13 @@ function showLogin(msg){
 async function showApps(me){
   $('loginPanel').hidden = true; $('appView').hidden = false; $('who').hidden = false;
   $('whoName').textContent = me.username + ' @ ' + me.base_url.replace('https://', '');
-  $('applist').innerHTML = '<div class="empty" style="border:none">Loading&hellip;</div>';
-  try { await loadApps(); }
+  $('swlist').innerHTML = '<div class="empty" style="border:none">Loading&hellip;</div>';
+  try { await loadSweeps(); }
   catch (e) { if (e.status === 401) return showLogin('Session expired. Log in again.');
-              $('applist').innerHTML = `<div class="empty" style="border:none">Could not load: ${esc(e.message)}</div>`; return; }
-  const pick = APPS.find(a => a.active) || APPS[0];
-  if (pick) selectApp(pick.id);
+              $('swlist').innerHTML = `<div class="empty" style="border:none">Could not load: ${esc(e.message)}</div>`; return; }
+  const want = location.hash.slice(1);
+  const pick = SWEEPS.find(s => s.id === want) || SWEEPS[0];
+  if (pick) select(pick.id);
 }
 $('loginForm').addEventListener('submit', async ev => {
   ev.preventDefault();
@@ -874,7 +746,7 @@ $('loginForm').addEventListener('submit', async ev => {
 });
 $('logoutBtn').addEventListener('click', async () => {
   await api('/api/logout', {method:'POST'}).catch(() => {});
-  APPS = []; current = null; showLogin();
+  SWEEPS = []; current = null; showLogin();
 });
 (async () => { try { showApps(await api('/api/me')); } catch (e) { showLogin(); } })();
 </script>

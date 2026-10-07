@@ -211,6 +211,7 @@ footer a:hover{color:#fff}
 .reveal.in{opacity:1;transform:none}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}.reveal{opacity:1;transform:none}.orbit{animation:none}}
 :focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+[hidden]{display:none!important}
 
 /* clickable loop steps */
 a.step{color:inherit;text-decoration:none;transition:background .12s}
@@ -429,7 +430,7 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
 </style>
 <script>
 /* Offline demo of the HARP profiling pages.
-   Stands in for the HARP server (/api/*) so profiling.html and results.html
+   Stands in for the HARP server (/api/*) so profiling.html, runs.html and profile-data.html
    can be opened straight from disk. The real pages talk to the HARP server,
    which talks to TAPIS. Built into the demo pages by build_demo.py. */
 (function(){
@@ -465,28 +466,54 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
   function cartesian(params){
     return Object.entries(params).reduce((acc, [k, vs]) => acc.flatMap(a => vs.map(v => ({...a, [k]: v}))), [{}]);
   }
+  // A sweep with its TAPIS jobs (one combination per job), spread over hardware.
+  const QUEUE = {pitzer:'serial', cardinal:'gpu'};
+  let uuidN = 4100;
   function sweep(name, appId, sets, reps, timeFn, hosts, opts = {}){
-    const rows = []; let jobs = 0, idx = 0; const counts = {FINISHED:0};
+    const created = Date.now() - (opts.hoursAgo || 1) * 3600e3;
+    const rows = [], jobs = []; let idx = 0;
     for (const [runType, params] of sets) for (const p of cartesian(params)) {
-      const host = hosts[idx % hosts.length]; jobs++;
-      const job = `${name}-${runType}-${String(idx).padStart(4,'0')}`;
-      if (opts.failEvery && idx % opts.failEvery === opts.failEvery - 1) { counts.FAILED = (counts.FAILED||0) + 1; idx++; continue; }
-      if (opts.runningFrom != null && idx >= opts.runningFrom) { counts.RUNNING = (counts.RUNNING||0) + 1; idx++; continue; }
-      counts.FINISHED++;
-      for (let r = 0; r < reps; r++) {
-        const row = {campaign:name, run_config:`${job}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
+      const host = hosts[idx % hosts.length];
+      const job = {name:`${name}-${runType}-${String(idx).padStart(4,'0')}`, system_id:host, target:host, run_type:runType,
+                   combinations:1, uuid:null, error:null, submitted_at:null, ended_at:null, status:'FINISHED'};
+      const at = mins => new Date(created + mins * 60e3).toISOString();
+      if (opts.failEvery && idx % opts.failEvery === opts.failEvery - 1) {
+        Object.assign(job, {status:'FAILED', error:'job exceeded maxMinutes (30)'});
+      } else if (opts.runningFrom != null && idx >= opts.runningFrom) {
+        const k = idx - opts.runningFrom;
+        job.status = k < 2 ? 'RUNNING' : k < 3 ? 'QUEUED' : 'NOT_SUBMITTED';
+      }
+      if (job.status !== 'NOT_SUBMITTED') {
+        job.uuid = `${(uuidN++).toString(16)}e1c-7a2b-4c1d-9f00-${String(idx).padStart(12,'0')}-007`;
+        job.submitted_at = at(2 + idx * 3);
+      }
+      if (job.status === 'FINISHED' || job.status === 'FAILED') job.ended_at = at(8 + idx * 3);
+      if (job.status === 'FINISHED') for (let r = 0; r < reps; r++) {
+        const row = {campaign:name, system:host, run_config:`${job.name}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
         for (const [k, v] of Object.entries(p)) row['run_' + k] = v;
         row.walltime = +(timeFn(p, host) * jitter()).toFixed(5);
         rows.push(row);
       }
-      idx++;
+      jobs.push(job); idx++;
     }
-    const active = !!counts.RUNNING;
-    return {view:{id:name, name, application:appId, app_ids:[appId], status: active ? 'RUNNING' : counts.FAILED ? 'DONE_WITH_ERRORS' : 'DONE',
-                  created_at:new Date(Date.now() - (opts.hoursAgo || 1) * 3600e3).toISOString(),
-                  job_counts:counts, jobs_done:jobs - (counts.RUNNING||0), jobs_total:jobs,
-                  result: active ? null : {rows: rows.length}},
-            rows};
+    const view = {id:name, name, application:appId, app_ids:[appId], created_at:new Date(created).toISOString(),
+      repetitions:reps, storage:{system_id:'pitzer'}, campaign_dir:`/fs/scratch/PAS2271/swathi/harp_runs/${name}`,
+      hardware: hosts.map(h => ({key:h, system_id:h, queue:QUEUE[h], app_id:appId,
+        cores_per_node: h === 'cardinal' ? 8 : 4, memory_mb: h === 'cardinal' ? 32000 : 16000, gpu: h === 'cardinal'})),
+      events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
+    const sw = {view, jobs, rows};
+    recount(sw);
+    return sw;
+  }
+  function recount(sw){
+    const v = sw.view, counts = {};
+    for (const j of sw.jobs) counts[j.status] = (counts[j.status] || 0) + 1;
+    const ended = s => ['FINISHED','FAILED','CANCELLED','SUBMIT_FAILED'].includes(s);
+    v.job_counts = counts; v.jobs_total = sw.jobs.length;
+    v.jobs_done = sw.jobs.filter(j => ended(j.status)).length;
+    if (v.status !== 'CANCELLED')
+      v.status = v.jobs_done < v.jobs_total ? 'RUNNING' : !sw.rows.length ? 'FAILED' : counts.FINISHED === v.jobs_total ? 'DONE' : 'DONE_WITH_ERRORS';
+    v.result = v.status === 'RUNNING' ? null : {rows: sw.rows.length};
   }
   const eulerTime = p => (p.method === 'pow' ? 0.002 : 0.02) * Math.pow(p.n / 1000, p.method === 'factorial' ? 1.25 : 0.4) * (1 + p.precision / 512);
   const yoloTime = (p, host) => {
@@ -517,7 +544,7 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
   function profileOf(appId){
     const mine = SWEEPS.filter(s => s.view.app_ids.includes(appId));
     const rows = mine.flatMap(s => s.rows);  // running sweeps show their finished jobs
-    const cols = ['campaign'];
+    const cols = ['campaign', 'system'];
     for (const r of rows) for (const k of Object.keys(r)) if (!cols.includes(k)) cols.push(k);
     if (cols.includes('walltime')) { cols.splice(cols.indexOf('walltime'), 1); cols.push('walltime'); }
     return {app_id:appId, campaigns:mine.map(s => s.view), columns:cols, rows, total_rows:rows.length, missing:[]};
@@ -539,6 +566,22 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
     if (path === '/api/me') return Promise.resolve(json(200, me));
     if (path === '/api/tapis/apps') return later(json(200, APPS));
     if (path === '/api/campaigns') return Promise.resolve(json(200, SWEEPS.map(s => s.view)));
+    let c = path.match(/^\/api\/campaigns\/([^/]+)(\/(cancel|resubmit))?$/);
+    if (c) {
+      const sw = SWEEPS.find(x => x.view.id === c[1]);
+      if (!sw) return Promise.resolve(json(404, {detail:'campaign not found'}));
+      const now = new Date().toISOString();
+      if (c[3] === 'cancel') {
+        for (const j of sw.jobs) if (!['FINISHED','FAILED'].includes(j.status)) Object.assign(j, {status:'CANCELLED', ended_at:now});
+        sw.view.status = 'CANCELLED'; sw.view.events.push({at:now, message:'cancelled by user'}); recount(sw);
+      } else if (c[3] === 'resubmit') {
+        let n = 0;
+        for (const j of sw.jobs) if (['FAILED','CANCELLED'].includes(j.status)) { Object.assign(j, {status:'NOT_SUBMITTED', uuid:null, error:null, ended_at:null}); n++; }
+        sw.view.status = 'RUNNING'; sw.view.events.push({at:now, message:`resubmitting ${n} jobs`}); recount(sw);
+        return later(json(200, {resubmitted:n}));
+      }
+      return later(json(200, {...sw.view, jobs:sw.jobs}));
+    }
     let m = path.match(/^\/api\/apps\/(.+)\/profile\.csv$/);
     if (m) { const p = profileOf(m[1]);
       return Promise.resolve(p.rows.length ? new Response(toCSV(p.columns, p.rows), {status:200, headers:{'Content-Type':'text/csv'}})
@@ -553,11 +596,11 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
     const a = ev.target.closest('a[href]');
     if (!a) return;
     const href = a.getAttribute('href');
-    if (href === 'profiling.html' || href === 'results.html') return;
+    if (['profiling.html', 'runs.html', 'profile-data.html'].includes(href)) return;
     if (!/\.html$/.test(href)) return;
     ev.preventDefault();
     let t = document.getElementById('demoToast');
-    t.textContent = 'Only the Profiling and Results pages are part of this demo.';
+    t.textContent = 'Only Profiling, Runs and Profile data are part of this demo.';
     t.classList.add('show'); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove('show'), 2200);
   });
 })();
@@ -573,7 +616,8 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
   <div class="nav-links">
     <a href="index.html">Overview</a>
     <a href="profiling.html" aria-current="page">Profiling</a>
-    <a href="results.html">Results</a>
+    <a href="runs.html">Runs</a>
+    <a href="profile-data.html">Profile data</a>
   </div>
   <div class="who" id="who" hidden>
     <span class="mono" id="whoName"></span>
@@ -813,7 +857,7 @@ function renderList(){
     tab==='profiled'?'Profiled applications':'Register for profiling';
   document.getElementById('listSub').textContent =
     tab==='profiled'
-      ? 'Pick one to extend its sweep. Its runs are on the Results page.'
+      ? 'Pick one to extend its sweep. Its data is on the Profile data page.'
       : 'Your TAPIS apps. Pick one to profile.';
   const box=document.getElementById('applist');
   if(!apps.length){box.innerHTML='<div class="empty" style="border:none">'

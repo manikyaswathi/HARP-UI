@@ -344,9 +344,15 @@ def campaign_view(c, include_jobs=True):
                  "storage": c["spec"]["storage"], "job_counts": counts,
                  "jobs_done": done, "jobs_total": len(c["jobs"]),
                  "app_ids": sorted({t["app_id"] for t in c["spec"]["targets"]}),
+                 "hardware": [{"key": t["key"], "system_id": t["system_id"], "queue": t.get("queue"),
+                               "app_id": t["app_id"], "cores_per_node": t.get("cores_per_node"),
+                               "memory_mb": t.get("memory_mb"), "gpu": bool(t.get("container_args"))}
+                              for t in c["spec"]["targets"]],
+                 "repetitions": c["spec"]["repetitions"],
                  "events": c["events"][-30:]})
     if include_jobs:
         view["jobs"] = [{k: j[k] for k in ("name", "system_id", "run_type", "status", "uuid",
                                             "error", "submitted_at", "ended_at")}
-                        | {"combinations": len(j["combinations"])} for j in c["jobs"]]
+                        | {"combinations": len(j["combinations"]), "target": j["target"]}
+                        for j in c["jobs"]]
     return view

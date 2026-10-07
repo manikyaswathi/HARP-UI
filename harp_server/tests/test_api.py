@@ -182,20 +182,37 @@ def test_app_profile_merges_all_campaigns_of_an_app(ctx):
 
     r = client.get("/api/apps/harp-sweep-euler/profile").json()
     assert len(r["campaigns"]) == 2 and all(c["status"] == "DONE" for c in r["campaigns"])
-    assert r["columns"] == ["campaign", "run_type", "run_n", "walltime"]
+    assert r["columns"] == ["campaign", "system", "run_type", "run_n", "walltime"]
     assert r["total_rows"] == 8 and {row["campaign"] for row in r["rows"]} == {"sweep-a", "sweep-b"}
 
     csv_text = client.get("/api/apps/harp-sweep-euler/profile.csv").text.splitlines()
-    assert csv_text[0] == "campaign,run_type,run_n,walltime" and len(csv_text) == 9
+    assert csv_text[0] == "campaign,system,run_type,run_n,walltime" and len(csv_text) == 9
 
     assert client.get("/api/apps/other-app/profile").json()["total_rows"] == 0
     assert client.get("/api/apps/other-app/profile.csv").status_code == 404
 
 
-def test_results_page_is_served(ctx):
+def test_runs_and_profile_data_pages_are_served(ctx):
     client, _, _ = ctx
-    r = client.get("/results.html")
-    assert r.status_code in (200, 404)  # 404 only until results.html exists
+    for path in ("/runs", "/profile-data.html"):
+        r = client.get(path)
+        assert r.status_code == 200 and "iScheduler" in r.text, path
+
+
+def test_rows_are_tagged_with_the_system_that_ran_them(ctx):
+    client, manager, gateways = ctx
+    _login(client)
+    client.post("/api/campaigns", json=euler_spec(name="hw"))
+    gw = gateways["alice"]
+    def csv_for(u):
+        job = gw.jobs[u]["request"]["name"]
+        return f"run_config,run_type,walltime\n{job}.run-0.iteration-0,SD,1.0\n".encode()
+    _finish_all(manager, gw, csv_for)
+    rows = client.get("/api/apps/harp-sweep-euler/profile").json()["rows"]
+    assert {r["system"] for r in rows} == {"pitzer", "stampede"}
+    view = client.get(f"/api/campaigns/{list(manager.campaigns)[0]}").json()
+    assert [h["system_id"] for h in view["hardware"]] == ["pitzer", "stampede"]
+    assert {j["target"] for j in view["jobs"]} == {"t0", "t1"}
 
 
 def test_app_profile_shows_finished_jobs_while_sweep_runs(ctx):

@@ -25,7 +25,8 @@ STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 PROFILING_PAGE = os.environ.get(
     "HARP_PROFILING_PAGE",
     os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "profiling.html"))
-RESULTS_PAGE = os.path.join(os.path.dirname(PROFILING_PAGE), "results.html")
+RUNS_PAGE = os.path.join(os.path.dirname(PROFILING_PAGE), "runs.html")
+PROFILE_DATA_PAGE = os.path.join(os.path.dirname(PROFILING_PAGE), "profile-data.html")
 MAX_PROFILE_ROWS = 5000
 # That page is a single file with inline script/style and Google Fonts.
 PROFILING_CSP = ("default-src 'self'; script-src 'self' 'unsafe-inline'; "
@@ -238,8 +239,10 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
 
     def app_rows(app_id, gw):
         """Every profiling row collected for an app, across all its campaigns."""
-        columns, rows, missing = ["campaign"], [], []
+        columns, rows, missing = ["campaign", "system"], [], []
         for c in app_campaigns(app_id, gw):
+            # run_config is "<job name>.run-<i>.iteration-<r>"; map it back to the job's system
+            job_system = {j["name"]: j["system_id"] for j in c["jobs"]}
             system = c["spec"]["storage"]["system_id"]
             merged = (c.get("result") or {}).get("csv_path")
             # Once a sweep is merged read its one CSV; while it runs, read the CSV
@@ -258,7 +261,9 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
                 for name in reader.fieldnames or []:
                     if name not in columns:
                         columns.append(name)
-                rows.extend({"campaign": c["spec"]["name"], **r} for r in reader)
+                rows.extend({"campaign": c["spec"]["name"],
+                             "system": job_system.get((r.get("run_config") or "").split(".run-")[0], ""),
+                             **r} for r in reader)
         if "walltime" in columns:  # keep walltime last, like the CSVs
             columns.remove("walltime")
             columns.append("walltime")
@@ -298,10 +303,15 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
     def profiling_page():
         return page(PROFILING_PAGE)
 
-    @app.get("/results")
-    @app.get("/results.html")
-    def results_page():
-        return page(RESULTS_PAGE)
+    @app.get("/runs")
+    @app.get("/runs.html")
+    def runs_page():
+        return page(RUNS_PAGE)
+
+    @app.get("/profile-data")
+    @app.get("/profile-data.html")
+    def profile_data_page():
+        return page(PROFILE_DATA_PAGE)
 
     @app.get("/")
     def index():

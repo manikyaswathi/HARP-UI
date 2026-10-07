@@ -211,6 +211,7 @@ footer a:hover{color:#fff}
 .reveal.in{opacity:1;transform:none}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}.reveal{opacity:1;transform:none}.orbit{animation:none}}
 :focus-visible{outline:2px solid var(--teal);outline-offset:2px}
+[hidden]{display:none!important}
 
 /* clickable loop steps */
 a.step{color:inherit;text-decoration:none;transition:background .12s}
@@ -428,7 +429,8 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
   <div class="nav-links">
     <a href="index.html">Overview</a>
     <a href="profiling.html" aria-current="page">Profiling</a>
-    <a href="results.html">Results</a>
+    <a href="runs.html">Runs</a>
+    <a href="profile-data.html">Profile data</a>
   </div>
   <div class="who" id="who" hidden>
     <span class="mono" id="whoName"></span>
@@ -668,7 +670,7 @@ function renderList(){
     tab==='profiled'?'Profiled applications':'Register for profiling';
   document.getElementById('listSub').textContent =
     tab==='profiled'
-      ? 'Pick one to extend its sweep. Its runs are on the Results page.'
+      ? 'Pick one to extend its sweep. Its data is on the Profile data page.'
       : 'Your TAPIS apps. Pick one to profile.';
   const box=document.getElementById('applist');
   if(!apps.length){box.innerHTML='<div class="empty" style="border:none">'
