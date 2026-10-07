@@ -212,6 +212,7 @@ footer a:hover{color:#fff}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;scroll-behavior:auto}.reveal{opacity:1;transform:none}.orbit{animation:none}}
 :focus-visible{outline:2px solid var(--teal);outline-offset:2px}
 [hidden]{display:none!important}
+section.main{padding-bottom:90px}
 
 /* clickable loop steps */
 a.step{color:inherit;text-decoration:none;transition:background .12s}
@@ -496,7 +497,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   <p>What profiling measured for each app: every execution, where it ran and how long it took.</p>
 </div></header>
 
-<section><div class="wrap-p">
+<section class="main"><div class="wrap-p">
   <div class="card2 login" id="loginPanel" hidden>
     <h3>Log in to TAPIS</h3>
     <p class="sub">Shows the sweeps you started.</p>
@@ -562,11 +563,6 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   </div>
 </div></section>
 
-<footer><div class="wrap foot-grid">
-  <div><strong>iScheduler</strong><br>Automated planning and scheduling of compute jobs. A research project.</div>
-  <div>Profiling runs feed the<br>runtime and memory estimators.</div>
-  <div>The Ohio State University<br>Computer Science and Engineering</div>
-</div></footer>
 
 <script>
 /* Profile data: what the profiling sweeps gathered, per app.
