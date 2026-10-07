@@ -55,6 +55,9 @@ def build_job_request(campaign, job):
                      "archiveFilter": {"includeLaunchFiles": False}}
     if target.get("scheduler_options"):
         parameter_set["schedulerOptions"] = [{"arg": target["scheduler_options"]}]
+    if target.get("container_args"):
+        # e.g. "--nv" so Singularity exposes the node's GPUs to the container
+        parameter_set["containerArgs"] = [{"arg": target["container_args"]}]
     request = {
         "name": job["name"],
         "description": f"HARP sweep {spec['name']} ({job['run_type']}, {len(job['combinations'])} combinations)",

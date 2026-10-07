@@ -84,6 +84,23 @@ def system_details():
     return details
 
 
+def gpu_details():
+    """GPUs visible to the job (Singularity needs --nv). Zero when there are none."""
+    details = {"sys_gpu_count": 0, "sys_gpu_name": "none", "sys_gpu_mem_mb": 0}
+    if not shutil.which("nvidia-smi"):
+        return details
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=name,memory.total", "--format=csv,noheader,nounits"],
+                             capture_output=True, text=True, timeout=30).stdout
+        gpus = [line.split(",") for line in out.strip().splitlines() if line.strip()]
+        if gpus:
+            details.update(sys_gpu_count=len(gpus), sys_gpu_name=gpus[0][0].strip(),
+                           sys_gpu_mem_mb=int(float(gpus[0][1])))
+    except (OSError, subprocess.SubprocessError, ValueError, IndexError):
+        pass
+    return details
+
+
 def build_command(template, params):
     # Format every token separately so parameter values never get re-split.
     return [token.format(**params) for token in shlex.split(template)]
@@ -128,6 +145,7 @@ def run_job(spec, out_dir):
     repetitions = int(spec.get("repetitions", 1))
     timeout = spec.get("run_timeout_sec") or None
     sys_details = system_details()
+    sys_details.update(gpu_details())
 
     profile_rows, failure_rows = [], []
     for combo in spec["combinations"]:

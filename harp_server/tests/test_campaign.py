@@ -163,3 +163,13 @@ def test_merge_handles_differing_columns():
     merged, rows = merge_csvs([b"a,walltime\n1,2\n", b"a,b,walltime\n3,4,5\n"])
     assert rows == 2
     assert merged.decode().splitlines() == ["a,b,walltime", "1,,2", "3,4,5"]
+
+
+def test_container_args_are_passed_to_tapis(setup):
+    gw, manager = setup
+    spec = euler_spec()
+    spec["targets"][1]["container_args"] = "--nv"
+    c = manager.create(spec, gw)
+    by_system = {j["system_id"]: build_job_request(c, j) for j in c["jobs"]}
+    assert by_system["stampede"]["parameterSet"]["containerArgs"] == [{"arg": "--nv"}]
+    assert "containerArgs" not in by_system["pitzer"]["parameterSet"]

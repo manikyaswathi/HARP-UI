@@ -163,6 +163,8 @@ function addTarget(t = {}) {
       <label>HARP app (container) <select class="t-app">${appOpts}</select></label>
       <label>Queue <select class="t-queue"><option value="">system default</option></select></label>
       <label>Scheduler options <input class="t-sched" placeholder="-A PAS0000" value="${esc(t.scheduler_options)}"></label>
+      <label>Container args <input class="t-cargs" placeholder="--nv (GPU queues)" value="${esc(t.container_args)}">
+        <small>Use --nv on GPU queues so the container sees the GPUs.</small></label>
       <label>Nodes <input class="t-nodes" type="number" min="1" value="${esc(t.node_count ?? 1)}"></label>
       <label>Cores per node <input class="t-cores" type="number" min="1" value="${esc(t.cores_per_node ?? 1)}"></label>
       <label>Memory (MB) <input class="t-mem" type="number" min="1" value="${esc(t.memory_mb ?? 4000)}"></label>
@@ -247,6 +249,7 @@ function collectSpec() {
       return {
         system_id: $(".t-system", d).value, app_id, app_version, queue: $(".t-queue", d).value || null,
         scheduler_options: $(".t-sched", d).value.trim() || null,
+        container_args: $(".t-cargs", d).value.trim() || null,
         node_count: num(".t-nodes", d), cores_per_node: num(".t-cores", d), memory_mb: num(".t-mem", d),
         max_minutes: num(".t-min", d), max_concurrent_jobs: num(".t-conc", d), weight: num(".t-weight", d),
       };
@@ -266,6 +269,20 @@ function loadSpec(s) {
   $("#f-storage-path").value = s.storage?.path || "";
 }
 
+$("#load-yolo-example").onclick = () => loadSpec({
+  name: "yolo-sweep", application: "yolo",
+  command: "python3 train_yolo.py --model {model} --epochs {epochs} --imgsz {imgsz} --batch {batch} --device {device}",
+  workdir: "/app/02-yolo",
+  repetitions: 1, run_timeout_sec: 3600, combos_per_job: 1, distribution: "split",
+  run_sets: [
+    { run_type: "SD", parameters: { model: ["yolo11n", "yolo11s"], epochs: [1, 2], imgsz: [320, 480], batch: [4, 8], device: ["auto"] } },
+    { run_type: "FS", parameters: { model: ["yolo11n", "yolo11s", "yolo11m"], epochs: [5], imgsz: [640], batch: [8, 16], device: ["auto"] } },
+    { run_type: "test_data", parameters: { model: ["yolo11s"], epochs: [3], imgsz: [640], batch: [8], device: ["auto"] } },
+  ],
+  targets: [{ queue: "serial", cores_per_node: 4, memory_mb: 16000, max_minutes: 60 },
+            { queue: "gpuserial-40core", container_args: "--nv", cores_per_node: 8, memory_mb: 32000, max_minutes: 60 }],
+  storage: {},
+});
 $("#load-example").onclick = () => loadSpec({
   name: "euler-sweep", application: "euler",
   command: "python3 calc_e.py {method} {n} {precision}", workdir: "/app/01-eulers_number",

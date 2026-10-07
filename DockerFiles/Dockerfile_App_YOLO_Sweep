@@ -1,0 +1,61 @@
+# HARP sweep job container for Ultralytics YOLO training (see Dockerfile_App_Template_Sweep).
+#
+# - Ultralytics is installed from https://github.com/ultralytics/ultralytics at a pinned tag.
+# - Works on CPU and GPU: PyTorch is the CUDA 12.6 build. On GPU queues set "Container args" to
+#   --nv in the HARP UI so Singularity exposes the GPUs; device=auto then uses the GPU.
+# - The coco8 dataset and yolo11n/s/m weights are baked in, so jobs need no internet.
+#
+# Build from the repository root:
+#   docker build -f DockerFiles/Dockerfile_App_YOLO_Sweep -t <registry>/harp-sweep-yolo:1.0.0 .
+# Small CPU-only variant (no CUDA):
+#   docker build --build-arg TORCH_INDEX_URL=https://download.pytorch.org/whl/cpu \
+#                -f DockerFiles/Dockerfile_App_YOLO_Sweep -t <registry>/harp-sweep-yolo:1.0.0-cpu .
+
+FROM python:3.11-slim
+
+ARG ULTRALYTICS_REF=v8.4.174
+ARG ASSETS_URL=https://github.com/ultralytics/assets/releases/download
+ARG TORCH_INDEX_URL=
+# torch 2.7.1 from PyPI is built for CUDA 12.6, which runs on NVIDIA drivers >= 525 (typical on
+# HPC GPU nodes). Newer torch wheels on PyPI target CUDA 13 and need drivers >= 580.
+ARG TORCH_SPEC="torch==2.7.1 torchvision==0.22.1"
+
+# 1. PyTorch (CUDA build by default, CPU build if TORCH_INDEX_URL is set)
+RUN if [ -n "$TORCH_INDEX_URL" ]; then \
+      pip install --no-cache-dir $TORCH_SPEC --index-url "$TORCH_INDEX_URL"; \
+    else \
+      pip install --no-cache-dir $TORCH_SPEC; \
+    fi
+
+# 2. Ultralytics from the GitHub repo at the pinned tag. OpenCV is swapped for its headless
+#    build so no system graphics libraries (and no apt-get) are needed.
+RUN pip install --no-cache-dir psutil \
+      "https://github.com/ultralytics/ultralytics/archive/refs/tags/${ULTRALYTICS_REF}.tar.gz" \
+ && pip uninstall -y opencv-python \
+ && pip install --no-cache-dir opencv-python-headless
+
+# 3. HARP job runner (do not modify)
+ADD job_runner /app/HARP/job_runner
+
+# 4. The YOLO app, its weights and the coco8 dataset
+ADD examples/02-yolo /app/02-yolo
+RUN python3 - <<PYEOF
+import os, shutil, urllib.request, zipfile
+app, assets = "/app/02-yolo", "${ASSETS_URL}"
+os.makedirs(f"{app}/weights", exist_ok=True)
+for m in ("yolo11n", "yolo11s", "yolo11m"):
+    urllib.request.urlretrieve(f"{assets}/v8.3.0/{m}.pt", f"{app}/weights/{m}.pt")
+# Ultralytics' GPU AMP self-check loads ./yolo11n.pt from the working directory
+shutil.copy(f"{app}/weights/yolo11n.pt", f"{app}/yolo11n.pt")
+urllib.request.urlretrieve(f"{assets}/v0.0.0/coco8.zip", "/tmp/coco8.zip")
+zipfile.ZipFile("/tmp/coco8.zip").extractall(f"{app}/datasets")
+os.remove("/tmp/coco8.zip")
+PYEOF
+RUN chmod -R a+rX /app
+
+ENV APP_HOME=/app/02-yolo \
+    YOLO_OFFLINE=1 \
+    YOLO_CONFIG_DIR=/tmp \
+    MPLCONFIGDIR=/tmp/matplotlib
+
+ENTRYPOINT ["python3", "/app/HARP/job_runner/harp_job_runner.py"]
