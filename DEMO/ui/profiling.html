@@ -416,12 +416,14 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .who[hidden]{display:none}
 .login{max-width:420px;margin:0 auto}
 .loginerr{font-size:12.5px;color:#A23A3A;margin-top:10px;min-height:1em}
+.budget select{width:100%}
+.budget .lbl{color:#9DB3C6}
+.budget .two{align-items:end}
+.budget .two select,.budget .two input.ti{height:38px}
+.launchmsg{font-size:12px;color:#F0C9C4;margin-top:10px;min-height:1em;line-height:1.5}
+.launchmsg.ok{color:#8CD0DE}
 </style>
 
-<script>
-/* Embedded survey data; served CSVs take precedence. */
-const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardinal","login_hostname":"localhost","queue_name":"serial","queue_state":"UP","node_type_fingerprint":"dda09d0bf2fce729","node_type_label":"cpu-104c-502gb","node_count":"3","cpu_vendor":"","cpu_model":"","cpu_source":"FEATURE_MAP","sockets":"2","cores_per_socket":"52","threads_per_core":"1","cores_per_node":"104","host_memory_mb":"515000","host_memory_mb_per_core":"4951.923","architecture":"x86_64","gpu_vendor":"","gpu_model":"","gpus_per_node":"","gpu_memory_mb":"","gpu_memory_mb_total_per_node":"","gpu_architecture":"","compute_capability":"","xla_device_kind":"","gpu_precisions":"","queue_max_nodes":"1","queue_max_minutes":"10080","queue_max_memory_mb":"515000","queue_cores_total":"312","queue_gpus_total":"0","is_heterogeneous_queue":"false","limits_complete":"true","unknown_limits":"","collected_at":"2026-07-22T09:17:23.543112+00:00"},{"center_code":"OSC","system_code":"cardinal","login_hostname":"localhost","queue_name":"gpu","queue_state":"UP","node_type_fingerprint":"6b233a513779c616","node_type_label":"gpu-h100-x4-96c","node_count":"2","cpu_vendor":"Intel","cpu_model":"Intel Xeon","cpu_source":"LOGIN_NODE","sockets":"2","cores_per_socket":"48","threads_per_core":"1","cores_per_node":"96","host_memory_mb":"1030000","host_memory_mb_per_core":"10729.167","architecture":"x86_64","gpu_vendor":"NVIDIA","gpu_model":"h100","gpus_per_node":"4","gpu_memory_mb":"81920","gpu_memory_mb_total_per_node":"327680","gpu_architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","gpu_precisions":"BF16;FP16;FP32;FP64;FP8;INT8;TF32","queue_max_nodes":"-1","queue_max_minutes":"-1","queue_max_memory_mb":"1030000","queue_cores_total":"192","queue_gpus_total":"8","is_heterogeneous_queue":"true","limits_complete":"true","unknown_limits":"","collected_at":"2026-07-22T09:17:23.543112+00:00"},{"center_code":"OSC","system_code":"cardinal","login_hostname":"localhost","queue_name":"gpu","queue_state":"UP","node_type_fingerprint":"fd5d13d54dbc05e1","node_type_label":"gpu-a100-x2-48c","node_count":"1","cpu_vendor":"Intel","cpu_model":"Intel Xeon","cpu_source":"LOGIN_NODE","sockets":"2","cores_per_socket":"24","threads_per_core":"1","cores_per_node":"48","host_memory_mb":"380000","host_memory_mb_per_core":"7916.667","architecture":"x86_64","gpu_vendor":"NVIDIA","gpu_model":"a100","gpus_per_node":"2","gpu_memory_mb":"81920","gpu_memory_mb_total_per_node":"163840","gpu_architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","gpu_precisions":"BF16;FP16;FP32;FP64;INT8;TF32","queue_max_nodes":"-1","queue_max_minutes":"-1","queue_max_memory_mb":"1030000","queue_cores_total":"48","queue_gpus_total":"2","is_heterogeneous_queue":"true","limits_complete":"true","unknown_limits":"","collected_at":"2026-07-22T09:17:23.543112+00:00"},{"center_code":"TACC","system_code":"frontera","login_hostname":"localhost","queue_name":"serial","queue_state":"UP","node_type_fingerprint":"dda09d0bf2fce729","node_type_label":"cpu-104c-502gb","node_count":"3","cpu_vendor":"","cpu_model":"","cpu_source":"FEATURE_MAP","sockets":"2","cores_per_socket":"52","threads_per_core":"1","cores_per_node":"104","host_memory_mb":"515000","host_memory_mb_per_core":"4951.923","architecture":"x86_64","gpu_vendor":"","gpu_model":"","gpus_per_node":"","gpu_memory_mb":"","gpu_memory_mb_total_per_node":"","gpu_architecture":"","compute_capability":"","xla_device_kind":"","gpu_precisions":"","queue_max_nodes":"1","queue_max_minutes":"10080","queue_max_memory_mb":"515000","queue_cores_total":"312","queue_gpus_total":"0","is_heterogeneous_queue":"false","limits_complete":"true","unknown_limits":"","collected_at":"2026-07-22T09:17:23.710015+00:00"},{"center_code":"TACC","system_code":"frontera","login_hostname":"localhost","queue_name":"gpu","queue_state":"UP","node_type_fingerprint":"6b233a513779c616","node_type_label":"gpu-h100-x4-96c","node_count":"2","cpu_vendor":"Intel","cpu_model":"Intel Xeon","cpu_source":"LOGIN_NODE","sockets":"2","cores_per_socket":"48","threads_per_core":"1","cores_per_node":"96","host_memory_mb":"1030000","host_memory_mb_per_core":"10729.167","architecture":"x86_64","gpu_vendor":"NVIDIA","gpu_model":"h100","gpus_per_node":"4","gpu_memory_mb":"81920","gpu_memory_mb_total_per_node":"327680","gpu_architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","gpu_precisions":"BF16;FP16;FP32;FP64;FP8;INT8;TF32","queue_max_nodes":"-1","queue_max_minutes":"-1","queue_max_memory_mb":"1030000","queue_cores_total":"192","queue_gpus_total":"8","is_heterogeneous_queue":"true","limits_complete":"true","unknown_limits":"","collected_at":"2026-07-22T09:17:23.710015+00:00"},{"center_code":"TACC","system_code":"frontera","login_hostname":"localhost","queue_name":"gpu","queue_state":"UP","node_type_fingerprint":"fd5d13d54dbc05e1","node_type_label":"gpu-a100-x2-48c","node_count":"1","cpu_vendor":"Intel","cpu_model":"Intel Xeon","cpu_source":"LOGIN_NODE","sockets":"2","cores_per_socket":"24","threads_per_core":"1","cores_per_node":"48","host_memory_mb":"380000","host_memory_mb_per_core":"7916.667","architecture":"x86_64","gpu_vendor":"NVIDIA","gpu_model":"a100","gpus_per_node":"2","gpu_memory_mb":"81920","gpu_memory_mb_total_per_node":"163840","gpu_architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","gpu_precisions":"BF16;FP16;FP32;FP64;INT8;TF32","queue_max_nodes":"-1","queue_max_minutes":"-1","queue_max_memory_mb":"1030000","queue_cores_total":"48","queue_gpus_total":"2","is_heterogeneous_queue":"true","limits_complete":"true","unknown_limits":"","collected_at":"2026-07-22T09:17:23.710015+00:00"}],"queues":[{"center_code":"OSC","system_code":"cardinal","queue_name":"serial","is_default":"true","state":"UP","min_nodes":"1","max_nodes":"1","min_minutes":"","max_minutes":"10080","default_minutes":"60","max_memory_mb_per_node":"515000","max_memory_mb_per_cpu":"","default_memory_mb_per_cpu":"4096","max_cpus_per_node":"104","priority_tier":"1","preemption_mode":"OFF","oversubscribe":"YES:4","allows_node_sharing":"true","total_nodes":"3","total_cpus":"312","observed_max_cores_per_node":"104","observed_max_memory_mb":"515000","observed_max_gpus_per_node":"0","is_heterogeneous":"false","limits_complete":"true","unknown_limits":""},{"center_code":"OSC","system_code":"cardinal","queue_name":"gpu","is_default":"false","state":"UP","min_nodes":"1","max_nodes":"-1","min_minutes":"","max_minutes":"-1","default_minutes":"","max_memory_mb_per_node":"","max_memory_mb_per_cpu":"","default_memory_mb_per_cpu":"","max_cpus_per_node":"-1","priority_tier":"2","preemption_mode":"OFF","oversubscribe":"NO","allows_node_sharing":"false","total_nodes":"3","total_cpus":"240","observed_max_cores_per_node":"96","observed_max_memory_mb":"1030000","observed_max_gpus_per_node":"4","is_heterogeneous":"true","limits_complete":"true","unknown_limits":""},{"center_code":"OSC","system_code":"cardinal","queue_name":"broken","is_default":"false","state":"UP","min_nodes":"","max_nodes":"","min_minutes":"","max_minutes":"","default_minutes":"","max_memory_mb_per_node":"","max_memory_mb_per_cpu":"","default_memory_mb_per_cpu":"","max_cpus_per_node":"","priority_tier":"","preemption_mode":"","oversubscribe":"","allows_node_sharing":"false","total_nodes":"","total_cpus":"","observed_max_cores_per_node":"","observed_max_memory_mb":"","observed_max_gpus_per_node":"","is_heterogeneous":"false","limits_complete":"false","unknown_limits":"max_cores_per_node;max_memory_mb;max_minutes;max_nodes"},{"center_code":"OSC","system_code":"cardinal","queue_name":"maint","is_default":"false","state":"INACTIVE","min_nodes":"","max_nodes":"4","min_minutes":"","max_minutes":"240","default_minutes":"","max_memory_mb_per_node":"","max_memory_mb_per_cpu":"","default_memory_mb_per_cpu":"","max_cpus_per_node":"","priority_tier":"","preemption_mode":"","oversubscribe":"","allows_node_sharing":"false","total_nodes":"","total_cpus":"","observed_max_cores_per_node":"","observed_max_memory_mb":"","observed_max_gpus_per_node":"","is_heterogeneous":"false","limits_complete":"false","unknown_limits":"max_cores_per_node;max_memory_mb"},{"center_code":"TACC","system_code":"frontera","queue_name":"serial","is_default":"true","state":"UP","min_nodes":"1","max_nodes":"1","min_minutes":"","max_minutes":"10080","default_minutes":"60","max_memory_mb_per_node":"515000","max_memory_mb_per_cpu":"","default_memory_mb_per_cpu":"4096","max_cpus_per_node":"104","priority_tier":"1","preemption_mode":"OFF","oversubscribe":"YES:4","allows_node_sharing":"true","total_nodes":"3","total_cpus":"312","observed_max_cores_per_node":"104","observed_max_memory_mb":"515000","observed_max_gpus_per_node":"0","is_heterogeneous":"false","limits_complete":"true","unknown_limits":""},{"center_code":"TACC","system_code":"frontera","queue_name":"gpu","is_default":"false","state":"UP","min_nodes":"1","max_nodes":"-1","min_minutes":"","max_minutes":"-1","default_minutes":"","max_memory_mb_per_node":"","max_memory_mb_per_cpu":"","default_memory_mb_per_cpu":"","max_cpus_per_node":"-1","priority_tier":"2","preemption_mode":"OFF","oversubscribe":"NO","allows_node_sharing":"false","total_nodes":"3","total_cpus":"240","observed_max_cores_per_node":"96","observed_max_memory_mb":"1030000","observed_max_gpus_per_node":"4","is_heterogeneous":"true","limits_complete":"true","unknown_limits":""},{"center_code":"TACC","system_code":"frontera","queue_name":"broken","is_default":"false","state":"UP","min_nodes":"","max_nodes":"","min_minutes":"","max_minutes":"","default_minutes":"","max_memory_mb_per_node":"","max_memory_mb_per_cpu":"","default_memory_mb_per_cpu":"","max_cpus_per_node":"","priority_tier":"","preemption_mode":"","oversubscribe":"","allows_node_sharing":"false","total_nodes":"","total_cpus":"","observed_max_cores_per_node":"","observed_max_memory_mb":"","observed_max_gpus_per_node":"","is_heterogeneous":"false","limits_complete":"false","unknown_limits":"max_cores_per_node;max_memory_mb;max_minutes;max_nodes"},{"center_code":"TACC","system_code":"frontera","queue_name":"maint","is_default":"false","state":"INACTIVE","min_nodes":"","max_nodes":"4","min_minutes":"","max_minutes":"240","default_minutes":"","max_memory_mb_per_node":"","max_memory_mb_per_cpu":"","default_memory_mb_per_cpu":"","max_cpus_per_node":"","priority_tier":"","preemption_mode":"","oversubscribe":"","allows_node_sharing":"false","total_nodes":"","total_cpus":"","observed_max_cores_per_node":"","observed_max_memory_mb":"","observed_max_gpus_per_node":"","is_heterogeneous":"false","limits_complete":"false","unknown_limits":"max_cores_per_node;max_memory_mb"}],"accelerator_catalogue":[{"slurm_gres_name":"a100","vendor":"NVIDIA","display_name":"A100","memory_mb":"81920","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"2039","precision":"BF16","peak_tflops_dense":"312.0"},{"slurm_gres_name":"a100","vendor":"NVIDIA","display_name":"A100","memory_mb":"81920","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"2039","precision":"FP16","peak_tflops_dense":"312.0"},{"slurm_gres_name":"a100","vendor":"NVIDIA","display_name":"A100","memory_mb":"81920","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"2039","precision":"FP32","peak_tflops_dense":"19.5"},{"slurm_gres_name":"a100","vendor":"NVIDIA","display_name":"A100","memory_mb":"81920","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"2039","precision":"FP64","peak_tflops_dense":"9.7"},{"slurm_gres_name":"a100","vendor":"NVIDIA","display_name":"A100","memory_mb":"81920","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"2039","precision":"INT8","peak_tflops_dense":"624.0"},{"slurm_gres_name":"a100","vendor":"NVIDIA","display_name":"A100","memory_mb":"81920","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"2039","precision":"TF32","peak_tflops_dense":"156.0"},{"slurm_gres_name":"a30","vendor":"NVIDIA","display_name":"A30","memory_mb":"24576","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"933","precision":"BF16","peak_tflops_dense":"165.0"},{"slurm_gres_name":"a30","vendor":"NVIDIA","display_name":"A30","memory_mb":"24576","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"933","precision":"FP16","peak_tflops_dense":"165.0"},{"slurm_gres_name":"a30","vendor":"NVIDIA","display_name":"A30","memory_mb":"24576","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"933","precision":"FP32","peak_tflops_dense":"10.3"},{"slurm_gres_name":"a30","vendor":"NVIDIA","display_name":"A30","memory_mb":"24576","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"933","precision":"FP64","peak_tflops_dense":"5.2"},{"slurm_gres_name":"a30","vendor":"NVIDIA","display_name":"A30","memory_mb":"24576","architecture":"Ampere","compute_capability":"sm_80","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"933","precision":"TF32","peak_tflops_dense":"82.0"},{"slurm_gres_name":"gh200","vendor":"NVIDIA","display_name":"GH200","memory_mb":"98304","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"4000","precision":"BF16","peak_tflops_dense":"990.0"},{"slurm_gres_name":"gh200","vendor":"NVIDIA","display_name":"GH200","memory_mb":"98304","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"4000","precision":"FP32","peak_tflops_dense":"67.0"},{"slurm_gres_name":"gh200","vendor":"NVIDIA","display_name":"GH200","memory_mb":"98304","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"4000","precision":"FP8","peak_tflops_dense":"1979.0"},{"slurm_gres_name":"gh200","vendor":"NVIDIA","display_name":"GH200","memory_mb":"98304","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"4000","precision":"TF32","peak_tflops_dense":"495.0"},{"slurm_gres_name":"h100","vendor":"NVIDIA","display_name":"H100","memory_mb":"81920","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"3350","precision":"BF16","peak_tflops_dense":"990.0"},{"slurm_gres_name":"h100","vendor":"NVIDIA","display_name":"H100","memory_mb":"81920","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"3350","precision":"FP16","peak_tflops_dense":"990.0"},{"slurm_gres_name":"h100","vendor":"NVIDIA","display_name":"H100","memory_mb":"81920","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"3350","precision":"FP32","peak_tflops_dense":"67.0"},{"slurm_gres_name":"h100","vendor":"NVIDIA","display_name":"H100","memory_mb":"81920","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"3350","precision":"FP64","peak_tflops_dense":"34.0"},{"slurm_gres_name":"h100","vendor":"NVIDIA","display_name":"H100","memory_mb":"81920","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"3350","precision":"FP8","peak_tflops_dense":"1979.0"},{"slurm_gres_name":"h100","vendor":"NVIDIA","display_name":"H100","memory_mb":"81920","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"3350","precision":"INT8","peak_tflops_dense":"1979.0"},{"slurm_gres_name":"h100","vendor":"NVIDIA","display_name":"H100","memory_mb":"81920","architecture":"Hopper","compute_capability":"sm_90","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"3350","precision":"TF32","peak_tflops_dense":"495.0"},{"slurm_gres_name":"l40s","vendor":"NVIDIA","display_name":"L40S","memory_mb":"49152","architecture":"Ada","compute_capability":"sm_89","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"864","precision":"BF16","peak_tflops_dense":"362.0"},{"slurm_gres_name":"l40s","vendor":"NVIDIA","display_name":"L40S","memory_mb":"49152","architecture":"Ada","compute_capability":"sm_89","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"864","precision":"FP16","peak_tflops_dense":"362.0"},{"slurm_gres_name":"l40s","vendor":"NVIDIA","display_name":"L40S","memory_mb":"49152","architecture":"Ada","compute_capability":"sm_89","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"864","precision":"FP32","peak_tflops_dense":"91.6"},{"slurm_gres_name":"l40s","vendor":"NVIDIA","display_name":"L40S","memory_mb":"49152","architecture":"Ada","compute_capability":"sm_89","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"864","precision":"FP8","peak_tflops_dense":"733.0"},{"slurm_gres_name":"l40s","vendor":"NVIDIA","display_name":"L40S","memory_mb":"49152","architecture":"Ada","compute_capability":"sm_89","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"864","precision":"TF32","peak_tflops_dense":"183.0"},{"slurm_gres_name":"p100","vendor":"NVIDIA","display_name":"Tesla P100","memory_mb":"16384","architecture":"Pascal","compute_capability":"sm_60","xla_device_kind":"CUDA","has_tensor_cores":"false","memory_bandwidth_gbps":"732","precision":"FP16","peak_tflops_dense":"18.7"},{"slurm_gres_name":"p100","vendor":"NVIDIA","display_name":"Tesla P100","memory_mb":"16384","architecture":"Pascal","compute_capability":"sm_60","xla_device_kind":"CUDA","has_tensor_cores":"false","memory_bandwidth_gbps":"732","precision":"FP32","peak_tflops_dense":"9.3"},{"slurm_gres_name":"p100","vendor":"NVIDIA","display_name":"Tesla P100","memory_mb":"16384","architecture":"Pascal","compute_capability":"sm_60","xla_device_kind":"CUDA","has_tensor_cores":"false","memory_bandwidth_gbps":"732","precision":"FP64","peak_tflops_dense":"4.7"},{"slurm_gres_name":"rtx6000","vendor":"NVIDIA","display_name":"Quadro RTX 6000","memory_mb":"24576","architecture":"Turing","compute_capability":"sm_75","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"672","precision":"FP16","peak_tflops_dense":"130.5"},{"slurm_gres_name":"rtx6000","vendor":"NVIDIA","display_name":"Quadro RTX 6000","memory_mb":"24576","architecture":"Turing","compute_capability":"sm_75","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"672","precision":"FP32","peak_tflops_dense":"16.3"},{"slurm_gres_name":"rtx6000","vendor":"NVIDIA","display_name":"Quadro RTX 6000","memory_mb":"24576","architecture":"Turing","compute_capability":"sm_75","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"672","precision":"INT8","peak_tflops_dense":"261.0"},{"slurm_gres_name":"v100","vendor":"NVIDIA","display_name":"Tesla V100","memory_mb":"32768","architecture":"Volta","compute_capability":"sm_70","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"900","precision":"FP16","peak_tflops_dense":"125.0"},{"slurm_gres_name":"v100","vendor":"NVIDIA","display_name":"Tesla V100","memory_mb":"32768","architecture":"Volta","compute_capability":"sm_70","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"900","precision":"FP32","peak_tflops_dense":"15.7"},{"slurm_gres_name":"v100","vendor":"NVIDIA","display_name":"Tesla V100","memory_mb":"32768","architecture":"Volta","compute_capability":"sm_70","xla_device_kind":"CUDA","has_tensor_cores":"true","memory_bandwidth_gbps":"900","precision":"FP64","peak_tflops_dense":"7.8"}],"collection_warnings":[{"center_code":"OSC","system_code":"cardinal","collected_at":"2026-07-22T09:17:23.543112+00:00","severity":"WARN","object_kind":"queue","object_name":"broken","field_name":"MaxTime","message":"not collected; consumers must treat as blocking"},{"center_code":"OSC","system_code":"cardinal","collected_at":"2026-07-22T09:17:23.543112+00:00","severity":"WARN","object_kind":"queue","object_name":"broken","field_name":"MaxNodes","message":"not collected; consumers must treat as blocking"},{"center_code":"OSC","system_code":"cardinal","collected_at":"2026-07-22T09:17:23.543112+00:00","severity":"INFO","object_kind":"queue","object_name":"gpu","field_name":"node_types","message":"spans 2 hardware configurations; ceilings are the maximum, not an average"},{"center_code":"OSC","system_code":"cardinal","collected_at":"2026-07-22T09:17:23.543112+00:00","severity":"WARN","object_kind":"queue","object_name":"broken","field_name":"node_types","message":"no nodes resolved; capacity ceilings unknown"},{"center_code":"OSC","system_code":"cardinal","collected_at":"2026-07-22T09:17:23.543112+00:00","severity":"WARN","object_kind":"queue","object_name":"maint","field_name":"node_types","message":"no nodes resolved; capacity ceilings unknown"},{"center_code":"OSC","system_code":"cardinal","collected_at":"2026-07-22T09:17:23.543112+00:00","severity":"WARN","object_kind":"node_type","object_name":"gpu-h100-x4-96c","field_name":"cpu_model","message":"CPU taken from the login node; compute nodes may differ. Re-run with --probe-cpu for ground truth."},{"center_code":"OSC","system_code":"cardinal","collected_at":"2026-07-22T09:17:23.543112+00:00","severity":"WARN","object_kind":"node_type","object_name":"gpu-a100-x2-48c","field_name":"cpu_model","message":"CPU taken from the login node; compute nodes may differ. Re-run with --probe-cpu for ground truth."},{"center_code":"TACC","system_code":"frontera","collected_at":"2026-07-22T09:17:23.710015+00:00","severity":"WARN","object_kind":"queue","object_name":"broken","field_name":"MaxTime","message":"not collected; consumers must treat as blocking"},{"center_code":"TACC","system_code":"frontera","collected_at":"2026-07-22T09:17:23.710015+00:00","severity":"WARN","object_kind":"queue","object_name":"broken","field_name":"MaxNodes","message":"not collected; consumers must treat as blocking"},{"center_code":"TACC","system_code":"frontera","collected_at":"2026-07-22T09:17:23.710015+00:00","severity":"INFO","object_kind":"queue","object_name":"gpu","field_name":"node_types","message":"spans 2 hardware configurations; ceilings are the maximum, not an average"},{"center_code":"TACC","system_code":"frontera","collected_at":"2026-07-22T09:17:23.710015+00:00","severity":"WARN","object_kind":"queue","object_name":"broken","field_name":"node_types","message":"no nodes resolved; capacity ceilings unknown"},{"center_code":"TACC","system_code":"frontera","collected_at":"2026-07-22T09:17:23.710015+00:00","severity":"WARN","object_kind":"queue","object_name":"maint","field_name":"node_types","message":"no nodes resolved; capacity ceilings unknown"},{"center_code":"TACC","system_code":"frontera","collected_at":"2026-07-22T09:17:23.710015+00:00","severity":"WARN","object_kind":"node_type","object_name":"gpu-h100-x4-96c","field_name":"cpu_model","message":"CPU taken from the login node; compute nodes may differ. Re-run with --probe-cpu for ground truth."},{"center_code":"TACC","system_code":"frontera","collected_at":"2026-07-22T09:17:23.710015+00:00","severity":"WARN","object_kind":"node_type","object_name":"gpu-a100-x2-48c","field_name":"cpu_model","message":"CPU taken from the login node; compute nodes may differ. Re-run with --probe-cpu for ground truth."}]};
-</script>
 <style>
 .demo-bar{background:var(--orange-50);color:var(--orange-700);font-size:13px;text-align:center;
   padding:8px 16px;border-bottom:1px solid #F1DCC2}
@@ -534,8 +536,67 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
       ['test_data', {model:['yolo11s'], epochs:[3], imgsz:[640], batch:[8], device:['auto']}]], 1, yoloTime, ['pitzer','cardinal'], {runningFrom:19, hoursAgo:2})
   ];
 
+  // ---- TAPIS execution systems -------------------------------------------------
+  const SYSTEMS = [
+    {id:'pitzer', host:'pitzer.osc.edu', can_exec:true, queues:[
+      {name:'serial', max_cores:40, max_minutes:10080, max_jobs_per_user:4},
+      {name:'gpuserial', max_cores:48, max_minutes:4320, max_jobs_per_user:2}]},
+    {id:'cardinal', host:'cardinal.osc.edu', can_exec:true, queues:[
+      {name:'cpu', max_cores:96, max_minutes:10080, max_jobs_per_user:4},
+      {name:'gpu', max_cores:96, max_minutes:4320, max_jobs_per_user:2}]}];
+  const HWOF = id => HW[id] || HW.pitzer;
+
+  // A sweep launched from the page: jobs move through TAPIS states over ~a minute.
+  function launched(spec, created = Date.now()){
+    const name = spec.name, appId = spec.targets[0].app_id;
+    const jobs = [], plan = [];
+    const combos = cartesian(spec.run_sets[0].parameters);
+    let i = 0;
+    for (const p of combos) for (const t of spec.targets) {
+      jobs.push({name:`${name}-${spec.run_sets[0].run_type}-${String(i).padStart(4,'0')}`, system_id:t.system_id,
+        target:`${t.system_id}|${t.queue}`, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
+        uuid:null, error:null, submitted_at:null, ended_at:null});
+      plan.push({p, t, at: 1500 + i * 1200, run: 6000 + i * 1500, end: 14000 + i * 2500}); i++;
+    }
+    const view = {id:name, name, application:spec.application, app_ids:[appId], created_at:new Date(created).toISOString(),
+      repetitions:spec.repetitions, storage:spec.storage, campaign_dir:`${spec.storage.path}/${name}`,
+      hardware: spec.targets.map(t => ({key:`${t.system_id}|${t.queue}`, system_id:t.system_id, queue:t.queue, app_id:appId,
+        cores_per_node:t.cores_per_node, memory_mb:t.memory_mb, gpu:!!t.container_args})),
+      events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
+    const sw = {view, jobs, rows:[], live:{created, plan, reps:spec.repetitions}};
+    recount(sw); return sw;
+  }
+  function advance(sw){
+    if (!sw.live || sw.view.status === 'CANCELLED') return;
+    const t = Date.now() - sw.live.created;
+    sw.jobs.forEach((j, k) => {
+      const pl = sw.live.plan[k];
+      if (['FINISHED','CANCELLED','FAILED'].includes(j.status)) return;
+      if (t >= pl.end) {
+        j.status = 'FINISHED'; j.ended_at = new Date().toISOString();
+        const host = pl.t.system_id, gpu = !!pl.t.container_args;
+        for (let r = 0; r < sw.live.reps; r++) {
+          const row = {campaign:sw.view.name, system:host, run_config:`${j.name}.run-${k}.iteration-${r}`, run_type:j.run_type, ...HWOF(host)};
+          for (const [key, v] of Object.entries(pl.p)) row['run_' + key] = v;
+          const base = sw.view.app_ids[0].includes('yolo') ? yoloTime(pl.p, gpu ? 'cardinal' : 'pitzer')
+                     : eulerTime({method:'pow', n:1000, precision:64, ...pl.p});
+          row.walltime = +(base * jitter()).toFixed(5); sw.rows.push(row);
+        }
+        sw.view.events.push({at:j.ended_at, message:`${j.name} FINISHED on ${host}`});
+      } else if (t >= pl.run) j.status = 'RUNNING';
+      else if (t >= pl.at) { if (!j.uuid) { j.uuid = `${(uuidN++).toString(16)}a7c-0d1e-4b2f-8c3a-${String(k).padStart(12,'0')}-007`; j.submitted_at = new Date().toISOString(); } j.status = t >= pl.at + 2000 ? 'QUEUED' : 'PENDING'; }
+    });
+    recount(sw);
+    if (sw.view.status !== 'RUNNING' && !sw.live.closed) {
+      sw.live.closed = true;
+      sw.view.events.push({at:new Date().toISOString(), message:`${sw.view.status}: ${sw.rows.length} profiling rows -> ${sw.view.campaign_dir}`});
+    }
+  }
+
   // ---- the fake /api ----------------------------------------------------------
-  const KEY = 'harp-demo-user';
+  const KEY = 'harp-demo-user', LKEY = 'harp-demo-launched';
+  // Sweeps launched earlier in this browser session (each page has its own copy of this demo).
+  try { for (const l of JSON.parse(sessionStorage.getItem(LKEY) || '[]')) SWEEPS.unshift(launched(l.spec, l.created)); } catch (e) {}
   const getMe = () => { try { return JSON.parse(sessionStorage.getItem(KEY)); } catch (e) { return window.__harpMe || null; } };
   const setMe = v => { window.__harpMe = v; try { v ? sessionStorage.setItem(KEY, JSON.stringify(v)) : sessionStorage.removeItem(KEY); } catch (e) {} };
   const json = (status, body) => new Response(JSON.stringify(body), {status, headers:{'Content-Type':'application/json'}});
@@ -565,6 +626,17 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
     if (!me) return Promise.resolve(json(401, {detail:'log in to TAPIS first'}));
     if (path === '/api/me') return Promise.resolve(json(200, me));
     if (path === '/api/tapis/apps') return later(json(200, APPS));
+    SWEEPS.forEach(advance);
+    if (path === '/api/tapis/systems') return later(json(200, SYSTEMS.map(({queues, ...x}) => x)));
+    let sy = path.match(/^\/api\/tapis\/systems\/([^/]+)$/);
+    if (sy) { const x = SYSTEMS.find(y => y.id === sy[1]); return later(x ? json(200, x) : json(404, {detail:'no such system'})); }
+    if (path === '/api/campaigns' && (opts.method || 'GET') === 'POST') {
+      if (!body.storage || !body.storage.path) return later(json(400, {detail:'storage.path is required'}));
+      const sw = launched(body); SWEEPS.unshift(sw);
+      try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]');
+            saved.push({spec: body, created: sw.live.created}); sessionStorage.setItem(LKEY, JSON.stringify(saved)); } catch (e) {}
+      return later(json(200, {...sw.view, jobs:sw.jobs}));
+    }
     if (path === '/api/campaigns') return Promise.resolve(json(200, SWEEPS.map(s => s.view)));
     let c = path.match(/^\/api\/campaigns\/([^/]+)(\/(cancel|resubmit))?$/);
     if (c) {
@@ -710,28 +782,43 @@ const EMBEDDED = {"hardware_targets":[{"center_code":"OSC","system_code":"cardin
       <h4 style="margin-top:22px">Hardware</h4>
       <div id="hwpick"></div>
 
-      <div class="field" style="margin-top:14px">
-        <label class="lbl">Repetitions</label>
-        <input class="ti" id="reps" type="number" min="1" value="1">
+      <div class="two" style="margin-top:14px">
+        <div class="field">
+          <label class="lbl" for="reps">Repetitions</label>
+          <input class="ti" id="reps" type="number" min="1" value="1">
+        </div>
+        <div class="field">
+          <label class="lbl" for="timeout">Timeout (min)</label>
+          <input class="ti" id="timeout" type="number" min="1" value="20">
+        </div>
+        <div class="field">
+          <label class="lbl" for="runType">Run type</label>
+          <select id="runType">
+            <option value="SD">SD &middot; scaled-down</option>
+            <option value="FS">FS &middot; full-scale</option>
+            <option value="test_data">test_data</option>
+          </select>
+        </div>
+        <div class="field">
+          <label class="lbl" for="cores">Cores per job</label>
+          <input class="ti" id="cores" type="number" min="1" value="4">
+        </div>
       </div>
       <div class="field">
-        <label class="lbl">Per-run timeout (min)</label>
-        <input class="ti" id="timeout" type="number" min="1" value="20">
+        <label class="lbl" for="alloc">Allocation</label>
+        <input class="ti" id="alloc" placeholder="-A PAS0000" autocomplete="off">
+      </div>
+      <div class="field">
+        <label class="lbl" for="store">Save results to</label>
+        <select id="storeSys"></select>
+        <input class="ti" id="store" placeholder="/fs/scratch/PAS0000/you/harp_runs" style="margin-top:6px" autocomplete="off">
       </div>
 
-      <button class="btnx" id="genBtn">Generate campaign</button>
+      <button class="btnx" id="genBtn">Launch sweep</button>
+      <p class="launchmsg" id="launchMsg" role="status"></p>
     </div>
   </div>
 
-  <div id="specWrap" style="display:none;margin-top:20px">
-    <div class="card2">
-      <h3>Cheetah campaign</h3>
-      <p class="sub">One campaign per hardware target &mdash; node layout is
-        machine-specific.</p>
-      <pre class="spec" id="spec" style="background:var(--panel);border-radius:10px;
-        padding:18px;color:#CBD8E4;font-family:'JetBrains Mono',monospace;font-size:12px;
-        line-height:1.6;overflow-x:auto"></pre>
-    </div>
   </div>
   </div>
 </div></section>
@@ -783,6 +870,7 @@ function toApp(a, runsByApp) {
     id: a.id, version: a.version, label: h.label || a.id,
     runtime: a.runtime || 'SINGULARITY', image: a.image || '',
     entrypoint: h.entrypoint || h.command || 'container entrypoint',
+    command: h.command || '', workdir: h.workdir || '',
     profiled: runs > 0, runs,
     appArgs: params.map(p => ({name: p.name, arg: p.arg || '', kind: p.kind || 'string',
                                values: [String(p.default ?? '')]})),
@@ -803,30 +891,27 @@ async function loadApps() {
 
 const HINT = { single:'one fixed value', list:'comma-separated values' };
 
-let TARGETS = [], chosen = new Set();
+let TARGETS = [], chosen = new Set();   // TAPIS system|queue keys
 let tab = 'profiled', currentApp = null;
 let SWEEP = {};   // arg name -> {mode, raw}
 
-/* ---- data ---------------------------------------------------------- */
-function parseCSV(t){
-  const rows=[];let row=[],f='',q=false;
-  for(let i=0;i<t.length;i++){const c=t[i];
-    if(q){if(c==='"'&&t[i+1]==='"'){f+='"';i++;}else if(c==='"')q=false;else f+=c;}
-    else if(c==='"')q=true;else if(c===','){row.push(f);f='';}
-    else if(c==='\n'){row.push(f);rows.push(row);row=[];f='';}else if(c!=='\r')f+=c;}
-  if(f||row.length){row.push(f);rows.push(row);}
-  if(!rows.length)return[];const h=rows.shift();
-  return rows.filter(r=>r.length>1).map(r=>Object.fromEntries(h.map((k,i)=>[k,(r[i]??'').trim()])));
-}
+/* ---- hardware: your TAPIS execution systems and their queues ------- */
 async function loadTargets(){
-  try{const r=await fetch('hardware_targets.csv');if(!r.ok)throw 0;
-    TARGETS=parseCSV(await r.text());}
-  catch(e){if(typeof EMBEDDED!=='undefined')TARGETS=EMBEDDED.hardware_targets||[];}
-  TARGETS=TARGETS.filter(t=>t.queue_state==='UP'&&t.limits_complete==='true'&&t.gpu_model);
-  const seen=new Set();
-  for(const t of TARGETS){const g=t.gpu_model;if(!seen.has(g)){seen.add(g);chosen.add(tkey(t));}}
+  const systems = (await api('/api/tapis/systems')).filter(x => x.can_exec);
+  const details = await Promise.all(systems.map(x =>
+    api('/api/tapis/systems/' + encodeURIComponent(x.id)).catch(() => ({id:x.id, queues:[]}))));
+  TARGETS = details.flatMap(d => (d.queues && d.queues.length ? d.queues : [{name:''}]).map(q => ({
+    key: d.id + '|' + (q.name || ''), system_id: d.id, queue: q.name || null,
+    max_cores: q.max_cores, max_minutes: q.max_minutes, max_jobs: q.max_jobs_per_user,
+    gpu: /gpu/i.test(q.name || '')})));
+  chosen = new Set(TARGETS.slice(0, 1).map(t => t.key));
+  const sel = document.getElementById('storeSys');
+  sel.innerHTML = [...new Set(TARGETS.map(t => t.system_id))]
+    .map(id => `<option value="${esc(id)}">${esc(id)}</option>`).join('');
+  try { const saved = JSON.parse(localStorage.getItem('harp-launch') || '{}');
+        if (saved.storeSys) sel.value = saved.storeSys;
+        for (const k of ['store', 'alloc']) if (saved[k]) document.getElementById(k).value = saved[k]; } catch (e) {}
 }
-const tkey=t=>[t.center_code,t.system_code,t.queue_name,t.node_type_fingerprint].join('|');
 
 /* ---- sweep expansion ---------------------------------------------- */
 function expand(mode, raw){
@@ -984,17 +1069,14 @@ function updateCounts(){
 
 /* ---- hardware ------------------------------------------------------ */
 function renderHw(){
-  document.getElementById('hwpick').innerHTML=TARGETS.map(t=>{
-    const k=tkey(t);
-    return `<label class="hwt"><input type="checkbox" data-k="${k}" ${
-      chosen.has(k)?'checked':''}>
-      <span class="n">${t.system_code}/${t.queue_name}</span>
-      <span class="g">${t.gpu_model.toUpperCase()}&times;${t.gpus_per_node}</span></label>`;
-  }).join('');
-  document.querySelectorAll('.hwt input').forEach(c=>
-    c.addEventListener('change',()=>{
-      c.checked?chosen.add(c.dataset.k):chosen.delete(c.dataset.k); recompute();
-    }));
+  const box = document.getElementById('hwpick');
+  if (!TARGETS.length) { box.innerHTML = '<div class="blab">No TAPIS execution systems found.</div>'; return; }
+  box.innerHTML = TARGETS.map(t => `<label class="hwt"><input type="checkbox" data-k="${esc(t.key)}" ${
+      chosen.has(t.key) ? 'checked' : ''}>
+      <span class="n">${esc(t.system_id)}${t.queue ? '/' + esc(t.queue) : ''}</span>
+      <span class="g">${t.gpu ? 'GPU' : 'CPU'}${t.max_cores ? ' &middot; &le;' + t.max_cores + 'c' : ''}</span></label>`).join('');
+  box.querySelectorAll('.hwt input').forEach(c =>
+    c.addEventListener('change', () => { c.checked ? chosen.add(c.dataset.k) : chosen.delete(c.dataset.k); recompute(); }));
 }
 
 /* ---- budget -------------------------------------------------------- */
@@ -1029,57 +1111,60 @@ function recompute(){
   else if(per>500) alarm='A full sweep of '+per.toLocaleString()
     +' per target is large. Screen on one machine first.';
   document.getElementById('alarm').innerHTML=alarm?`<div class="alarm">${alarm}</div>`:'';
-  document.getElementById('genBtn').disabled=!targets||total===0;
+  const ready = !!currentApp.command;
+  if (!ready) alarm = alarm || 'This app has no HARP command yet. Register it with the HARP app notebook to profile it.';
+  document.getElementById('alarm').innerHTML=alarm?`<div class="alarm">${alarm}</div>`:'';
+  document.getElementById('genBtn').disabled=!targets||total===0||!ready;
 }
 
-/* ---- generate the campaign ---------------------------------------- */
-function pyList(vals,kind){
-  const q = kind==='string';
-  return '['+vals.map(v=>q?`'${v}'`:v).join(', ')+']';
+/* ---- launch: the HARP server builds the jobs and submits them to TAPIS */
+function sweepSpec(){
+  const v = id => document.getElementById(id).value.trim();
+  const reps = Math.max(1, +v('reps') || 1), timeoutMin = Math.max(1, +v('timeout') || 20);
+  const cores = Math.max(1, +v('cores') || 1);
+  const stamp = new Date().toISOString().slice(0, 16).replace(/[-:T]/g, '');
+  const slug = currentApp.label.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 40) || 'app';
+  const parameters = {};
+  for (const a of currentApp.appArgs) {
+    const vals = sweptValues(a);
+    if (!vals.length) throw new Error(`Give "${a.name}" a value.`);
+    parameters[a.name] = vals.map(x => a.kind === 'int' || a.kind === 'float' ? Number(x) : x);
+    if (parameters[a.name].some(x => typeof x === 'number' && Number.isNaN(x))) throw new Error(`"${a.name}" needs numbers.`);
+  }
+  if (!v('store')) throw new Error('Choose a folder to save the results in.');
+  return {
+    name: `${slug}-${stamp}`, application: slug,
+    command: currentApp.command, workdir: currentApp.workdir,
+    repetitions: reps, run_timeout_sec: timeoutMin * 60, combos_per_job: 1,
+    distribution: 'replicate',            // every combination on every chosen machine
+    run_sets: [{run_type: v('runType'), parameters}],
+    targets: TARGETS.filter(t => chosen.has(t.key)).map(t => ({
+      system_id: t.system_id, queue: t.queue, app_id: currentApp.id, app_version: currentApp.version,
+      scheduler_options: v('alloc') || null, container_args: t.gpu ? '--nv' : null,
+      node_count: 1, cores_per_node: t.max_cores ? Math.min(cores, t.max_cores) : cores,
+      memory_mb: Math.max(4000, cores * 4000),
+      max_minutes: Math.min(timeoutMin * reps + 10, t.max_minutes > 0 ? t.max_minutes : Infinity),
+      max_concurrent_jobs: t.max_jobs > 0 ? Math.min(t.max_jobs, 10) : 4})),
+    storage: {system_id: v('storeSys'), path: v('store')}
+  };
 }
-function generate(){
-  const t=TARGETS.find(x=>chosen.has(tkey(x)));
-  const timeout=+document.getElementById('timeout').value||20;
-  const reps=+document.getElementById('reps').value||1;
-  const per=designSize();
-
-  const lines=currentApp.appArgs.map(a=>{
-    const vals=sweptValues(a);
-    const use=vals.length?vals:[a.values[0]];
-    return `    ParamCmdLineOption('app', '${a.name}', '${a.arg}', ${pyList(use,a.kind)}),`;
-  }).join('\n');
-
-  const spec=
-`# Generated from the profiling design.
-# App:     ${currentApp.label}  (${currentApp.id} v${currentApp.version})
-# Runtime: ${currentApp.runtime}  image ${currentApp.image}
-# Target:  ${t?t.center_code+' '+t.system_code+'/'+t.queue_name:'(none)'}  ${
-   t?(t.gpu_model.toUpperCase()+' x'+t.gpus_per_node):''}
-# ${per} experiments per target, ${chosen.size} target(s), ${reps} rep(s)
-
-from codar.cheetah import Campaign
-from codar.cheetah.parameters import ParamRunner, ParamCmdLineOption
-
-class Profile(Campaign):
-    name = 'harp_${currentApp.id.replace(/[^a-z0-9]/gi,'_')}'
-    codes = [('app', dict(exe='${currentApp.entrypoint}'))]
-    sweep_params = [
-        ParamRunner('app', 'nprocs', [1]),
-${lines}
-    ]
-    sweep1 = Sweep(sweep_params)
-    sweep1.node_layout = {'app': ${t?t.cores_per_node:1}}
-    sg = SweepGroup(name='harp', per_run_timeout=${timeout},
-                    parameter_groups=[sweep1], run_repetitions=${reps-1},
-                    component_subdirs=True)
-    sweeps = [sg]
-
-# cheetah create-campaign -e . -a <app dir> -m ${t?t.system_code:'machine'} -o campaign/
-# cheetah run-campaign -id campaign/$USER`;
-
-  document.getElementById('spec').textContent=spec;
-  document.getElementById('specWrap').style.display='block';
-  const sw=document.getElementById('specWrap'); if(sw.scrollIntoView) sw.scrollIntoView({behavior:'smooth',block:'start'});
+async function launch(){
+  const btn = document.getElementById('genBtn'), msg = document.getElementById('launchMsg');
+  msg.className = 'launchmsg'; msg.textContent = '';
+  let spec;
+  try { spec = sweepSpec(); } catch (e) { msg.textContent = e.message; return; }
+  btn.disabled = true; btn.textContent = 'Launching…';
+  try {
+    const c = await api('/api/campaigns', {method:'POST', body:spec});
+    try { localStorage.setItem('harp-launch', JSON.stringify({storeSys: spec.storage.system_id,
+          store: spec.storage.path, alloc: spec.targets[0].scheduler_options || ''})); } catch (e) {}
+    msg.className = 'launchmsg ok';
+    msg.textContent = `Launched ${c.jobs_total} TAPIS jobs. Opening Runs…`;
+    setTimeout(() => { location.href = 'runs.html#' + encodeURIComponent(c.id); }, 900);
+  } catch (e) {
+    msg.textContent = e.status === 401 ? 'Session expired. Log in again.' : e.message;
+    btn.disabled = false; btn.textContent = 'Launch sweep';
+  }
 }
 
 /* ---- wiring -------------------------------------------------------- */
@@ -1092,12 +1177,13 @@ document.querySelectorAll('.tabx').forEach(b=>
     document.getElementById('designPanel').style.display='none';
     document.getElementById('jobPanel').style.display='none';
     document.getElementById('budget').style.display='none';
-    document.getElementById('specWrap').style.display='none';
     renderList();
   }));
 ['reps','timeout'].forEach(id=>
   document.getElementById(id).addEventListener('input',recompute));
-document.getElementById('genBtn').addEventListener('click',generate);
+document.getElementById('genBtn').addEventListener('click',launch);
+['cores','alloc','store'].forEach(id=>
+  document.getElementById(id).addEventListener('input',()=>{document.getElementById('launchMsg').textContent='';}));
 
 /* ---- TAPIS login (the HARP server holds the token) ------------------ */
 function showLogin(msg){
@@ -1113,7 +1199,7 @@ async function showApps(me){
   document.getElementById('whoName').textContent=
     me.username+' @ '+me.base_url.replace('https://','');
   document.getElementById('applist').innerHTML='<div class="empty" style="border:none">Loading apps&hellip;</div>';
-  try{ await loadApps(); }
+  try{ await Promise.all([loadApps(), loadTargets()]); }
   catch(e){
     if(e.status===401) return showLogin('Session expired. Log in again.');
     document.getElementById('applist').innerHTML=
@@ -1143,7 +1229,6 @@ document.getElementById('logoutBtn').addEventListener('click',async()=>{
 });
 
 (async function init(){
-  await loadTargets();
   try{ showApps(await api('/api/me')); }
   catch(e){ showLogin(); }
 })();

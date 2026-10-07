@@ -103,8 +103,67 @@
       ['test_data', {model:['yolo11s'], epochs:[3], imgsz:[640], batch:[8], device:['auto']}]], 1, yoloTime, ['pitzer','cardinal'], {runningFrom:19, hoursAgo:2})
   ];
 
+  // ---- TAPIS execution systems -------------------------------------------------
+  const SYSTEMS = [
+    {id:'pitzer', host:'pitzer.osc.edu', can_exec:true, queues:[
+      {name:'serial', max_cores:40, max_minutes:10080, max_jobs_per_user:4},
+      {name:'gpuserial', max_cores:48, max_minutes:4320, max_jobs_per_user:2}]},
+    {id:'cardinal', host:'cardinal.osc.edu', can_exec:true, queues:[
+      {name:'cpu', max_cores:96, max_minutes:10080, max_jobs_per_user:4},
+      {name:'gpu', max_cores:96, max_minutes:4320, max_jobs_per_user:2}]}];
+  const HWOF = id => HW[id] || HW.pitzer;
+
+  // A sweep launched from the page: jobs move through TAPIS states over ~a minute.
+  function launched(spec, created = Date.now()){
+    const name = spec.name, appId = spec.targets[0].app_id;
+    const jobs = [], plan = [];
+    const combos = cartesian(spec.run_sets[0].parameters);
+    let i = 0;
+    for (const p of combos) for (const t of spec.targets) {
+      jobs.push({name:`${name}-${spec.run_sets[0].run_type}-${String(i).padStart(4,'0')}`, system_id:t.system_id,
+        target:`${t.system_id}|${t.queue}`, run_type:spec.run_sets[0].run_type, combinations:1, status:'NOT_SUBMITTED',
+        uuid:null, error:null, submitted_at:null, ended_at:null});
+      plan.push({p, t, at: 1500 + i * 1200, run: 6000 + i * 1500, end: 14000 + i * 2500}); i++;
+    }
+    const view = {id:name, name, application:spec.application, app_ids:[appId], created_at:new Date(created).toISOString(),
+      repetitions:spec.repetitions, storage:spec.storage, campaign_dir:`${spec.storage.path}/${name}`,
+      hardware: spec.targets.map(t => ({key:`${t.system_id}|${t.queue}`, system_id:t.system_id, queue:t.queue, app_id:appId,
+        cores_per_node:t.cores_per_node, memory_mb:t.memory_mb, gpu:!!t.container_args})),
+      events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
+    const sw = {view, jobs, rows:[], live:{created, plan, reps:spec.repetitions}};
+    recount(sw); return sw;
+  }
+  function advance(sw){
+    if (!sw.live || sw.view.status === 'CANCELLED') return;
+    const t = Date.now() - sw.live.created;
+    sw.jobs.forEach((j, k) => {
+      const pl = sw.live.plan[k];
+      if (['FINISHED','CANCELLED','FAILED'].includes(j.status)) return;
+      if (t >= pl.end) {
+        j.status = 'FINISHED'; j.ended_at = new Date().toISOString();
+        const host = pl.t.system_id, gpu = !!pl.t.container_args;
+        for (let r = 0; r < sw.live.reps; r++) {
+          const row = {campaign:sw.view.name, system:host, run_config:`${j.name}.run-${k}.iteration-${r}`, run_type:j.run_type, ...HWOF(host)};
+          for (const [key, v] of Object.entries(pl.p)) row['run_' + key] = v;
+          const base = sw.view.app_ids[0].includes('yolo') ? yoloTime(pl.p, gpu ? 'cardinal' : 'pitzer')
+                     : eulerTime({method:'pow', n:1000, precision:64, ...pl.p});
+          row.walltime = +(base * jitter()).toFixed(5); sw.rows.push(row);
+        }
+        sw.view.events.push({at:j.ended_at, message:`${j.name} FINISHED on ${host}`});
+      } else if (t >= pl.run) j.status = 'RUNNING';
+      else if (t >= pl.at) { if (!j.uuid) { j.uuid = `${(uuidN++).toString(16)}a7c-0d1e-4b2f-8c3a-${String(k).padStart(12,'0')}-007`; j.submitted_at = new Date().toISOString(); } j.status = t >= pl.at + 2000 ? 'QUEUED' : 'PENDING'; }
+    });
+    recount(sw);
+    if (sw.view.status !== 'RUNNING' && !sw.live.closed) {
+      sw.live.closed = true;
+      sw.view.events.push({at:new Date().toISOString(), message:`${sw.view.status}: ${sw.rows.length} profiling rows -> ${sw.view.campaign_dir}`});
+    }
+  }
+
   // ---- the fake /api ----------------------------------------------------------
-  const KEY = 'harp-demo-user';
+  const KEY = 'harp-demo-user', LKEY = 'harp-demo-launched';
+  // Sweeps launched earlier in this browser session (each page has its own copy of this demo).
+  try { for (const l of JSON.parse(sessionStorage.getItem(LKEY) || '[]')) SWEEPS.unshift(launched(l.spec, l.created)); } catch (e) {}
   const getMe = () => { try { return JSON.parse(sessionStorage.getItem(KEY)); } catch (e) { return window.__harpMe || null; } };
   const setMe = v => { window.__harpMe = v; try { v ? sessionStorage.setItem(KEY, JSON.stringify(v)) : sessionStorage.removeItem(KEY); } catch (e) {} };
   const json = (status, body) => new Response(JSON.stringify(body), {status, headers:{'Content-Type':'application/json'}});
@@ -134,6 +193,17 @@
     if (!me) return Promise.resolve(json(401, {detail:'log in to TAPIS first'}));
     if (path === '/api/me') return Promise.resolve(json(200, me));
     if (path === '/api/tapis/apps') return later(json(200, APPS));
+    SWEEPS.forEach(advance);
+    if (path === '/api/tapis/systems') return later(json(200, SYSTEMS.map(({queues, ...x}) => x)));
+    let sy = path.match(/^\/api\/tapis\/systems\/([^/]+)$/);
+    if (sy) { const x = SYSTEMS.find(y => y.id === sy[1]); return later(x ? json(200, x) : json(404, {detail:'no such system'})); }
+    if (path === '/api/campaigns' && (opts.method || 'GET') === 'POST') {
+      if (!body.storage || !body.storage.path) return later(json(400, {detail:'storage.path is required'}));
+      const sw = launched(body); SWEEPS.unshift(sw);
+      try { const saved = JSON.parse(sessionStorage.getItem(LKEY) || '[]');
+            saved.push({spec: body, created: sw.live.created}); sessionStorage.setItem(LKEY, JSON.stringify(saved)); } catch (e) {}
+      return later(json(200, {...sw.view, jobs:sw.jobs}));
+    }
     if (path === '/api/campaigns') return Promise.resolve(json(200, SWEEPS.map(s => s.view)));
     let c = path.match(/^\/api\/campaigns\/([^/]+)(\/(cancel|resubmit))?$/);
     if (c) {
