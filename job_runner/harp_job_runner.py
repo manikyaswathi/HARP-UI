@@ -164,7 +164,10 @@ def main(argv):
     if len(argv) < 2:
         print("usage: harp_job_runner.py <base64-spec | spec.json>", file=sys.stderr)
         return 2
-    summary = run_job(decode_spec(argv[1]), output_dir())
+    out_dir = output_dir()
+    print(f"[HARP] writing results to {out_dir} (TAPIS output dir on host: "
+          f"{os.environ.get('_tapisExecSystemOutputDir', 'not set')})", flush=True)
+    summary = run_job(decode_spec(argv[1]), out_dir)
     # Fail the TAPIS job only when nothing could be profiled.
     return 0 if summary["succeeded_runs"] > 0 else 1
 
