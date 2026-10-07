@@ -1,0 +1,6 @@
+# For "Build an estimator" (the HARP pipeline's build phase, run by the server).
+# pandas 3 changes in-place replace, which the pipeline's preprocessor relies on.
+pandas>=2,<3
+scikit-learn
+tensorflow
+h5py

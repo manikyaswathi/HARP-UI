@@ -13,7 +13,10 @@ from sklearn import metrics #Import scikit-learn metrics module for accuracy cal
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.layers.experimental import preprocessing
+try:  # removed in TensorFlow 2.16+; not needed by the models here
+    from tensorflow.keras.layers.experimental import preprocessing
+except ImportError:
+    preprocessing = None
 
 
 def MAPE(gold, predict):

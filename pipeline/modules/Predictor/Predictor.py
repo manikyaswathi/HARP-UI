@@ -9,7 +9,10 @@ from datetime import datetime
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.layers.experimental import preprocessing
+try:  # removed in TensorFlow 2.16+; not needed by the models here
+    from tensorflow.keras.layers.experimental import preprocessing
+except ImportError:
+    preprocessing = None
 
 from sklearn.metrics import mean_squared_error, mean_absolute_error, mean_absolute_percentage_error
 from sklearn.model_selection import train_test_split 

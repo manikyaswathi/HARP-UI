@@ -363,6 +363,7 @@ def campaign_view(c, include_jobs=True):
                                "memory_mb": t.get("memory_mb"), "gpu": bool(t.get("container_args"))}
                               for t in c["spec"]["targets"]],
                  "repetitions": c["spec"]["repetitions"],
+                 "run_types": sorted({rs["run_type"] for rs in c["spec"]["run_sets"]}),
                  "events": c["events"][-30:]})
     if include_jobs:
         view["jobs"] = [{k: j[k] for k in ("name", "system_id", "run_type", "status", "uuid",

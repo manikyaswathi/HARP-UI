@@ -90,7 +90,7 @@ Open `https://<server-hostname>:8443/`. The whole UI is one page, `profiling.htm
 | 1 Configure | Pick a TAPIS app from the dropdown, set up a sweep (run type, repetitions, timeout, single or list values per parameter), tick TAPIS systems and queues and open each one to set its hardware configurations: cores per job, memory and max minutes, with the queue's TAPIS limits shown. Add several configurations to profile one queue with different hardware. Add the sweep to the plan; repeat for more sweeps or apps. The plan is kept in the browser until it is submitted. |
 | 2 Review & submit | The server checks every sweep against TAPIS and shows exactly what each job will ask for. Pick the results folder (any TAPIS system) and an allocation per system, confirm, submit. Nothing is submitted unless every sweep is valid. |
 | 3 Jobs | All sweeps with progress and cancel; every TAPIS job with its runs done (e.g. `2 / 5`), sortable and filterable. Refreshes while jobs run. |
-| 4 Profiled data | Pick an app from the dropdown: every execution with its parameters, hardware and time; median time by run type, hardware and parameter value; CSV export. |
+| 4 Profiled data | Pick an app from the dropdown: every execution with its parameters, hardware and time; median time by run type, hardware and parameter value; CSV export. **Build an estimator** runs the build phase from here (below). |
 
 Log in with your TAPIS tenant (for example `https://icicle.tapis.io`) and your TAPIS username and password. The
 page sends them over HTTPS to this server, which gets a token with `tapipy`, drops the password straight away and
@@ -102,6 +102,26 @@ current run) in the job's output folder after every run. While a job is RUNNING,
 job's `execSystemOutputDir` (`getJob`) and reads that file through TAPIS Files on the execution system. When the
 job ends it reads the archived `harp_job_summary.json` for the final count. The runner also rewrites
 `harp_profile.csv` after every run, so runs that finished are kept even if the job hits its time limit.
+
+### Build an estimator (the build phase, from the Profiled data tab)
+
+1. **Pool sweeps.** Tick the app's sweeps to learn from. Training needs SD, FS and test_data runs (at least 2, 4
+   and 1), so one sweep of each run type, or sweeps that mix them.
+2. **Standardize.** The server reads those sweeps' profiling rows through TAPIS and writes them in the format the
+   pipeline reads (`run_config, run_type, sys_*, run_<param>, walltime`). It adds what each job was given
+   (`sys_alloc_cores`, `sys_alloc_mem_mb`) so the models can learn from the hardware configurations, turns
+   true/false into 1/0, and leaves out runs without a time and columns that are not filled in every run (the
+   pipeline cannot handle gaps). The page shows the run counts per type, what the models will learn from, and
+   what was left out; **Download training CSV** gives you the file.
+3. **Build.** The server runs the pipeline's own build modules on this machine (`pipeline/modules/pipeline.py`:
+   `data_preprocessor`, which removes outliers, scales and runs PCA, then `model_trainer`, which trains LR, NN and DTR
+   on SD, SD+25FS, SD+50FS and SD+75FS, with and without padding). The dataset, the PCA dataset, `model_commons.csv` and
+   every model (`.pkl`, `.h5`) are copied through TAPIS to `<folder>/builds/<app>_<timestamp>/`. The page shows
+   each model's average error and how often it predicts too low, best first.
+
+The server runs the build with its own Python (`HARP_BUILD_PYTHON` to use another), which needs
+`requirements-build.txt` (pandas < 3, scikit-learn, TensorFlow); `scripts/run_local.sh` installs it. Builds run one
+at a time and are kept in `~/.harp_server/builds/`.
 
 ### API
 
@@ -116,6 +136,8 @@ job ends it reads the archived `harp_job_summary.json` for the final count. The 
 | `GET /api/campaigns`, `POST /api/campaigns/<id>/cancel` | Sweeps and cancelling one. |
 | `GET /api/jobs` | Every TAPIS job, with hardware and runs done. |
 | `GET /api/apps/<id>/profile`, `GET /api/apps/<id>/profile.csv` | An app's profiled data, merged across its sweeps. |
+| `POST /api/apps/<id>/training-data`, `GET /api/apps/<id>/training-data.csv?sweeps=a,b` | Pool and standardize sweeps for the build phase. |
+| `POST /api/apps/<id>/builds`, `GET /api/builds?app_id=` | Build models from those sweeps; builds with their steps and scores. |
 
 A plan looks like:
 

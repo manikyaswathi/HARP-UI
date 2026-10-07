@@ -15,7 +15,10 @@ from sklearn.utils import shuffle
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
-from tensorflow.keras.layers.experimental import preprocessing
+try:  # removed in TensorFlow 2.16+; not needed by the models here
+    from tensorflow.keras.layers.experimental import preprocessing
+except ImportError:
+    preprocessing = None
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3' 
 
 from .RegressionMetrics import get_scores
@@ -38,7 +41,7 @@ def get_adjust_factor(y_val_pca, y_pred_pca):
             under_p.append(p)
     adjustF = 1.0
     if len(under_p) > 0:
-        adjustF = 1.0 + mean_absolute_percentage_error(under_g, under_p).round(2)
+        adjustF = 1.0 + round(float(mean_absolute_percentage_error(under_g, under_p)), 2)
     print("** AD FACTOR **", adjustF)
     return adjustF
 

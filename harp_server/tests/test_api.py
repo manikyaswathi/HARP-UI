@@ -143,11 +143,11 @@ def test_app_profile_merges_all_campaigns_of_an_app(ctx):
 
     r = client.get("/api/apps/harp-sweep-euler/profile").json()
     assert len(r["campaigns"]) == 2 and all(c["status"] == "DONE" for c in r["campaigns"])
-    assert r["columns"] == ["campaign", "system", "hardware", "run_type", "run_n", "walltime"]
+    assert r["columns"] == ["campaign", "system", "hardware", "sys_alloc_cores", "sys_alloc_mem_mb", "run_type", "run_n", "walltime"]
     assert r["total_rows"] == 8 and {row["campaign"] for row in r["rows"]} == {"sweep-a", "sweep-b"}
 
     csv_text = client.get("/api/apps/harp-sweep-euler/profile.csv").text.splitlines()
-    assert csv_text[0] == "campaign,system,hardware,run_type,run_n,walltime" and len(csv_text) == 9
+    assert csv_text[0] == "campaign,system,hardware,sys_alloc_cores,sys_alloc_mem_mb,run_type,run_n,walltime" and len(csv_text) == 9
 
     assert client.get("/api/apps/other-app/profile").json()["total_rows"] == 0
     assert client.get("/api/apps/other-app/profile.csv").status_code == 404

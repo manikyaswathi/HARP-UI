@@ -15,6 +15,7 @@ from fastapi import Body, Depends, FastAPI, HTTPException, Request, Response
 from fastapi.responses import FileResponse
 
 from .campaign import ACTIVE_CAMPAIGN_STATUSES, PROFILE_FILE_NAME, CampaignManager, CampaignStore, campaign_view
+from .build import BuildManager, build_view, standardize, to_csv
 from .plan import build_plan, harp_app, is_gpu
 from .tapis_gateway import TapisError, TapisGateway
 
@@ -50,10 +51,11 @@ def is_local(request: Request) -> bool:
     return bool(request.client) and request.client.host in LOCAL_CLIENTS
 
 
-def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, start_poller=True):
+def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, start_poller=True, build_python=None):
     data_dir = data_dir or os.environ.get("HARP_SERVER_DATA", os.path.expanduser("~/.harp_server"))
     poll_interval = poll_interval or int(os.environ.get("HARP_POLL_SECONDS", "15"))
     manager = CampaignManager(CampaignStore(data_dir), poll_interval=poll_interval)
+    builds = BuildManager(data_dir, python=build_python)
     sessions = {}  # session token -> TapisGateway
 
     @asynccontextmanager
@@ -65,6 +67,7 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
 
     app = FastAPI(title="HARP sweep server", lifespan=lifespan)
     app.state.manager = manager
+    app.state.builds = builds
     allow_http = os.environ.get("HARP_ALLOW_HTTP") == "1"
 
     @app.middleware("http")
@@ -254,14 +257,18 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
             parts.append("GPU")
         return " · ".join(parts)
 
-    def app_rows(app_id, gw):
-        """Every profiling row collected for an app, across all its campaigns."""
-        columns, rows, missing = ["campaign", "system", "hardware"], [], []
+    def app_rows(app_id, gw, campaign_ids=None):
+        """Every profiling row collected for an app, across all its campaigns (or the ones given).
+        Each row also says what its job was given: sys_alloc_cores, sys_alloc_mem_mb."""
+        columns, rows, missing = ["campaign", "system", "hardware", "sys_alloc_cores", "sys_alloc_mem_mb"], [], []
         for c in app_campaigns(app_id, gw):
+            if campaign_ids is not None and c["id"] not in campaign_ids:
+                continue
             # run_config is "<job name>.run-<i>.iteration-<r>"; map it back to the job's system
             job_system = {j["name"]: j["system_id"] for j in c["jobs"]}
             targets = {t["key"]: t for t in c["spec"]["targets"]}
             job_hw = {j["name"]: hardware_label(targets[j["target"]]) for j in c["jobs"] if j["target"] in targets}
+            job_t = {j["name"]: targets.get(j["target"], {}) for j in c["jobs"]}
             system = c["spec"]["storage"]["system_id"]
             merged = (c.get("result") or {}).get("csv_path")
             # Once a sweep is merged read its one CSV; while it runs, read the CSV
@@ -282,8 +289,10 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
                         columns.append(name)
                 for r in reader:
                     job = (r.get("run_config") or "").split(".run-")[0]
+                    t = job_t.get(job, {})
                     rows.append({"campaign": c["spec"]["name"], "system": job_system.get(job, ""),
-                                 "hardware": job_hw.get(job, ""), **r})
+                                 "hardware": job_hw.get(job, ""), "sys_alloc_cores": t.get("cores_per_node", ""),
+                                 "sys_alloc_mem_mb": t.get("memory_mb", ""), **r})
         if "walltime" in columns:  # keep walltime last, like the CSVs
             columns.remove("walltime")
             columns.append("walltime")
@@ -309,6 +318,50 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
         safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in app_id)
         return Response(out.getvalue(), media_type="text/csv",
                         headers={"Content-Disposition": f'attachment; filename="{safe}_profile.csv"'})
+
+    # ------------------------------------------------------------- build phase
+    def training_data(app_id, sweeps, gw):
+        if not isinstance(sweeps, list) or not sweeps:
+            raise HTTPException(400, "pick at least one sweep")
+        mine = {c["id"] for c in app_campaigns(app_id, gw)}
+        unknown = [x for x in sweeps if x not in mine]
+        if unknown:
+            raise HTTPException(404, f"no sweep {unknown[0]!r} for this app")
+        columns, rows, missing = app_rows(app_id, gw, set(sweeps))
+        header, table, report = standardize(columns, rows)
+        report["unreadable"] = missing
+        return header, table, report
+
+    @app.post("/api/apps/{app_id}/training-data")
+    def training_data_preview(app_id: str, body: dict = Body(...), gw: TapisGateway = Depends(gateway)):
+        """Pool the chosen sweeps and standardize them for the build phase: what it would train on."""
+        header, table, report = training_data(app_id, body.get("sweeps"), gw)
+        return {"columns": header, "sample": table[:8], **report}
+
+    @app.get("/api/apps/{app_id}/training-data.csv")
+    def training_data_csv(app_id: str, sweeps: str = "", gw: TapisGateway = Depends(gateway)):
+        header, table, _ = training_data(app_id, [x for x in sweeps.split(",") if x], gw)
+        safe = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in app_id)
+        return Response(to_csv(header, table), media_type="text/csv",
+                        headers={"Content-Disposition": f'attachment; filename="{safe}_training.csv"'})
+
+    @app.post("/api/apps/{app_id}/builds")
+    def start_build(app_id: str, body: dict = Body(...), gw: TapisGateway = Depends(gateway)):
+        """Standardize the chosen sweeps and build models with the HARP pipeline; results go to TAPIS."""
+        storage = body.get("storage") or {}
+        if not storage.get("system_id") or not str(storage.get("path", "")).startswith("/"):
+            raise HTTPException(400, "pick a TAPIS system and an absolute folder for the models")
+        header, table, report = training_data(app_id, body.get("sweeps"), gw)
+        if not report["ready"]:
+            raise HTTPException(400, "not enough data to build: " + "; ".join(report["problems"]))
+        label = next((a["label"] for a in map(harp_app, tapis(gw.list_apps)) if a["id"] == app_id), app_id)
+        b = builds.start(gw.username, app_id, label, body["sweeps"], header, table, report,
+                         {"system_id": storage["system_id"], "path": storage["path"].strip()}, gw)
+        return build_view(b)
+
+    @app.get("/api/builds")
+    def list_builds(app_id: str = "", gw: TapisGateway = Depends(gateway)):
+        return [build_view(b) for b in builds.list(gw.username, app_id or None)]
 
     # ------------------------------------------------------------------ page
     @app.get("/")
