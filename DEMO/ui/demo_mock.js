@@ -61,7 +61,8 @@
       }
       if (job.status === 'FINISHED' || job.status === 'FAILED') job.ended_at = at(8 + idx * 3);
       if (job.status === 'FINISHED') for (let r = 0; r < reps; r++) {
-        const row = {campaign:name, system:host, hardware:HWLABEL(host), run_config:`${job.name}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
+        const row = {campaign:name, system:host, hardware:HWLABEL(host), sys_alloc_cores: host === 'cardinal' ? 8 : 4,
+                     sys_alloc_mem_mb: host === 'cardinal' ? 32000 : 16000, run_config:`${job.name}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
         for (const [k, v] of Object.entries(p)) row['run_' + k] = v;
         row.walltime = +(timeFn(p, host) * jitter()).toFixed(5);
         rows.push(row);
@@ -69,7 +70,7 @@
       jobs.push(job); idx++;
     }
     const view = {id:name, name, application:appId, app_ids:[appId], created_at:new Date(created).toISOString(),
-      repetitions:reps, storage:{system_id:'pitzer'}, campaign_dir:`/fs/scratch/PAS2271/swathi/harp_runs/${name}`,
+      repetitions:reps, run_types:[...new Set(sets.map(x => x[0]))], storage:{system_id:'pitzer'}, campaign_dir:`/fs/scratch/PAS2271/swathi/harp_runs/${name}`,
       hardware: hosts.map(h => ({key:h, system_id:h, queue:QUEUE[h], app_id:appId,
         cores_per_node: h === 'cardinal' ? 8 : 4, memory_mb: h === 'cardinal' ? 32000 : 16000, gpu: h === 'cardinal'})),
       events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
@@ -142,7 +143,7 @@
       plan.push({p, t, at: 1500 + i * 1200, run: 6000 + i * 1500, end: 14000 + i * 2500}); i++;
     }
     const view = {id:name, name, application:spec.application, app_ids:[appId], created_at:new Date(created).toISOString(),
-      repetitions:spec.repetitions, storage:spec.storage, campaign_dir:`${spec.storage.path}/${name}`,
+      repetitions:spec.repetitions, run_types:[spec.run_sets[0].run_type], storage:spec.storage, campaign_dir:`${spec.storage.path}/${name}`,
       hardware: spec.targets.map((t, ti) => ({key:'t' + ti, system_id:t.system_id, queue:t.queue, app_id:appId,
         cores_per_node:t.cores_per_node, memory_mb:t.memory_mb, gpu:!!t.container_args})),
       events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
@@ -159,7 +160,8 @@
         j.status = 'FINISHED'; j.ended_at = new Date().toISOString();
         const host = pl.t.system_id, gpu = !!pl.t.container_args;
         for (let r = 0; r < sw.live.reps; r++) {
-          const row = {campaign:sw.view.name, system:host, hardware:tLabel(pl.t), run_config:`${j.name}.run-${k}.iteration-${r}`, run_type:j.run_type, ...HWOF(host)};
+          const row = {campaign:sw.view.name, system:host, hardware:tLabel(pl.t), sys_alloc_cores:pl.t.cores_per_node,
+                       sys_alloc_mem_mb:pl.t.memory_mb, run_config:`${j.name}.run-${k}.iteration-${r}`, run_type:j.run_type, ...HWOF(host)};
           for (const [key, v] of Object.entries(pl.p)) row['run_' + key] = v;
           const base = sw.view.app_ids[0].includes('yolo') ? yoloTime(pl.p, gpu ? 'cardinal' : 'pitzer')
                      : eulerTime({method:'pow', n:1000, precision:64, ...pl.p});
@@ -188,7 +190,7 @@
   function profileOf(appId){
     const mine = SWEEPS.filter(s => s.view.app_ids.includes(appId));
     const rows = mine.flatMap(s => s.rows);  // running sweeps show their finished jobs
-    const cols = ['campaign', 'system', 'hardware'];
+    const cols = ['campaign', 'system', 'hardware', 'sys_alloc_cores', 'sys_alloc_mem_mb'];
     for (const r of rows) for (const k of Object.keys(r)) if (!cols.includes(k)) cols.push(k);
     if (cols.includes('walltime')) { cols.splice(cols.indexOf('walltime'), 1); cols.push('walltime'); }
     return {app_id:appId, campaigns:mine.map(s => s.view), columns:cols, rows, total_rows:rows.length, missing:[]};
@@ -271,6 +273,49 @@
     });
     return {ok: !storage_error && sweeps.every(x => x.ok), storage_error, sweeps};
   }
+  // ---- build phase (harp_server/build.py), mirrored; the models are made up ----
+  const MIN_ROWS = {SD:2, FS:4, test_data:1};
+  function standardizeRows(appId, ids){
+    const p = profileOf(appId), names = new Set(SWEEPS.filter(x => ids.includes(x.view.id)).map(x => x.view.name));
+    const rows = p.rows.filter(r => names.has(r.campaign));
+    const rep = {rows_in:rows.length, dropped_rows:{}, dropped_columns:{}, constant_columns:[], by_run_type:{SD:0, FS:0, test_data:0}, problems:[], minimum:MIN_ROWS};
+    const kept = rows.filter(r => { const ok = r.run_type in rep.by_run_type && +r.walltime > 0;
+      if (!ok) { const why = r.run_type in rep.by_run_type ? 'no walltime' : 'run type is not SD, FS or test_data'; rep.dropped_rows[why] = (rep.dropped_rows[why] || 0) + 1; } return ok; });
+    const feats = p.columns.filter(c => !['campaign','system','hardware','run_config','run_type','walltime'].includes(c) && /^(run|sys)_/.test(c));
+    const usable = feats.filter(c => { const miss = kept.filter(r => r[c] === undefined || r[c] === '').length;
+      if (kept.length && miss) { rep.dropped_columns[c] = miss === kept.length ? "not recorded by these sweeps" : `missing in ${miss} of ${kept.length} rows`; return false; } return true; });
+    for (const r of kept) rep.by_run_type[r.run_type]++;
+    rep.constant_columns = usable.filter(c => !['sys_name','sys_processor'].includes(c) && new Set(kept.map(r => String(r[c]))).size <= 1);
+    rep.features = usable.filter(c => !['sys_name','sys_processor'].includes(c));
+    rep.varied_features = rep.features.filter(c => !rep.constant_columns.includes(c));
+    for (const [t, n] of Object.entries(MIN_ROWS)) if (rep.by_run_type[t] < n) rep.problems.push(`needs at least ${n} ${t} row${n > 1 ? 's' : ''}; has ${rep.by_run_type[t]}`);
+    if (!rep.varied_features.length) rep.problems.push('nothing varies between runs, so there is nothing to learn from');
+    rep.ready = !rep.problems.length; rep.rows_out = kept.length; rep.unreadable = [];
+    const header = ['run_config', 'run_type', ...usable, 'walltime'];
+    return {header, table: kept.map(r => Object.fromEntries(header.map(c => [c, r[c]]))), rep};
+  }
+  const BUILDS = [];
+  function fakeMetrics(seedN){
+    let k = seedN; const rr = () => (k = (k * 16807) % 2147483647) / 2147483647, out = [];
+    for (const mod of ['LR', 'NN', 'DTR']) for (const ds of ['SD', 'SD+25FS', 'SD+50FS', 'SD+75FS']) {
+      const base = {LR:38, NN:22, DTR:14}[mod] * {SD:1.6, 'SD+25FS':1.15, 'SD+50FS':1, 'SD+75FS':0.9}[ds] * (0.85 + rr() * 0.3);
+      const adj = 1 + Math.round(base * 0.8) / 100, upp = 35 + rr() * 25;
+      out.push({DataSet:ds, RegModel:mod, ADJ_FACTOR:1, MAPE:+base.toFixed(2), UPP:+upp.toFixed(1), MAE:+(base / 30).toFixed(3), MODEL_NAME:`${mod}_${ds}_no`});
+      out.push({DataSet:ds, RegModel:mod, ADJ_FACTOR:adj, MAPE:+(base * 1.25).toFixed(2), UPP:+(upp / 4).toFixed(1), MAE:+(base / 24).toFixed(3), MODEL_NAME:`${mod}_${ds}_yes`});
+    }
+    return out;
+  }
+  function buildNow(b){
+    const t = Date.now() - b.t0, steps = [['preprocess', 2500], ['train', 9000], ['upload', 11000]];
+    let prev = 0;
+    for (const [k, end] of steps) { b.steps[k] = t >= end ? 'done' : t >= prev ? 'running' : 'waiting'; if (t >= prev && t < end) b.step = k; prev = end; }
+    if (t >= 11000 && b.status !== 'DONE') {
+      b.status = 'DONE'; b.ended_at = new Date().toISOString(); b.metrics = fakeMetrics(b.seed);
+      b.best = [...b.metrics].sort((x, y) => x.MAPE - y.MAPE)[0];
+      b.files = [b.dataset_file, 'pipeline_config.json', 'full_dataset_pca.csv', 'model_commons.csv', ...b.metrics.map(m => 'models/' + m.MODEL_NAME + (m.RegModel === 'NN' ? '.h5' : '.pkl'))];
+    } else if (b.status !== 'DONE') b.status = 'RUNNING';
+    return b;
+  }
   const realFetch = window.fetch.bind(window);
   window.fetch = function(url, opts = {}){
     const path = decodeURIComponent(String(url));
@@ -317,6 +362,29 @@
       sw.view.status = 'CANCELLED'; sw.view.events.push({at:now, message:'cancelled by user'}); recount(sw);
       return later(json(200, sw.view));
     }
+    let td = path.match(/^\/api\/apps\/(.+)\/training-data(\.csv\?sweeps=(.*))?$/);
+    if (td) {
+      const ids = td[2] ? td[3].split(',').filter(Boolean) : (body.sweeps || []);
+      if (!ids.length) return later(json(400, {detail:'pick at least one sweep'}));
+      const {header, table, rep} = standardizeRows(td[1], ids);
+      if (td[2]) return Promise.resolve(new Response(toCSV(header, table), {status:200, headers:{'Content-Type':'text/csv'}}));
+      return later(json(200, {columns:header, sample:table.slice(0, 8), ...rep}));
+    }
+    let bm = path.match(/^\/api\/apps\/(.+)\/builds$/);
+    if (bm) {
+      const {rep} = standardizeRows(bm[1], body.sweeps || []);
+      if (!rep.ready) return later(json(400, {detail:'not enough data to build: ' + rep.problems.join('; ')}));
+      const app = APPS.map(harpApp).find(a => a.id === bm[1]) || {label:bm[1]};
+      const name = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '_');
+      const b = {id:'b' + (BUILDS.length + 1), t0:Date.now(), seed:7 + BUILDS.length * 13, app_id:bm[1], name, created_at:new Date().toISOString(), ended_at:null,
+        sweeps:body.sweeps, storage:body.storage, dest:`${body.storage.path.replace(/\/$/, '')}/builds/${name}_${stamp}`, dataset_file:`${name}_${stamp}.csv`,
+        status:'QUEUED', step:'preprocess', steps:{pool:'done', standardize:'done', preprocess:'waiting', train:'waiting', upload:'waiting'},
+        metrics:[], best:null, error:null, report:rep, files:[], log:[]};
+      BUILDS.unshift(b); return later(json(200, buildNow(b)));
+    }
+    if (path.startsWith('/api/builds')) { const q = new URLSearchParams(path.split('?')[1] || '').get('app_id');
+      return later(json(200, BUILDS.filter(b => !q || b.app_id === q).map(buildNow))); }
     let m = path.match(/^\/api\/apps\/(.+)\/profile\.csv$/);
     if (m) { const p = profileOf(m[1]);
       return Promise.resolve(p.rows.length ? new Response(toCSV(p.columns, p.rows), {status:200, headers:{'Content-Type':'text/csv'}})

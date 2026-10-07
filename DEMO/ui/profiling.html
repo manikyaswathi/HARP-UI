@@ -583,6 +583,36 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 .ptables h4{font-family:"JetBrains Mono",monospace;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--teal-700);margin:0 0 6px}
 .toast{z-index:60}
 .pgrid>*{min-width:0}
+.bsteps{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:14px}
+@media(max-width:980px){.bsteps{grid-template-columns:1fr}}
+.bstep{border:1px solid var(--line);border-radius:10px;padding:14px 16px;min-width:0;background:#fff}
+.bstep h4{display:flex;align-items:center;gap:9px;margin:0 0 8px;font-family:"Space Grotesk",sans-serif;font-size:15px;color:var(--navy)}
+.bn{width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;display:inline-flex;align-items:center;justify-content:center;
+  font-family:"JetBrains Mono",monospace;font-size:11px}
+.bhelp{font-size:12.5px;color:var(--muted);margin:0 0 10px;line-height:1.5}
+.bsw{display:grid;grid-template-columns:20px minmax(0,1fr) auto;gap:4px 10px;align-items:center;padding:8px 10px;border:1px solid var(--line);
+  border-radius:8px;margin-bottom:6px;cursor:pointer;font-size:13px}
+.bsw.on{border-color:var(--teal);background:var(--teal-50)}
+.bsw input{width:16px;height:16px;margin:0;accent-color:var(--teal)}
+.bsw b{color:var(--navy);font-weight:600;overflow-wrap:anywhere}
+.bsw .am{grid-column:2 / -1;font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--muted);overflow-wrap:anywhere}
+.cov{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.cov>div{border:1px solid var(--line);border-radius:8px;padding:8px 10px}
+.cov .v{font-family:"Space Grotesk",sans-serif;font-size:20px;font-weight:600;color:var(--navy)}
+.cov .l{font-family:"JetBrains Mono",monospace;font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.cov>.ok{border-color:#BFDCCB;background:var(--ok-50)}.cov>.no{border-color:#F0C9C4;background:#FBE9E9}
+.blist{font-size:12.5px;line-height:1.55;margin:6px 0;color:var(--ink)}
+.blist code{font-family:"JetBrains Mono",monospace;font-size:11px;background:#F3F5F6;padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+.bprob{color:#A23A3A;font-size:12.5px;margin:6px 0}
+.bdest{display:grid;grid-template-columns:1fr;gap:8px;margin-bottom:10px}
+.brun{border-top:1px solid var(--line);margin-top:14px;padding-top:12px;font-size:12.5px}
+.brun .scroll{margin-top:8px}
+.brun .bt{display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center}
+.bsteprow{display:flex;flex-wrap:wrap;gap:4px;margin:8px 0}
+.bsteprow span{font-family:"JetBrains Mono",monospace;font-size:10px;padding:2px 7px;border-radius:9px;background:#EFF1F2;color:var(--muted)}
+.bsteprow .done{background:var(--ok-50);color:var(--ok)}.bsteprow .running{background:var(--teal-50);color:var(--teal-700)}
+.bsteprow .failed{background:#FBE9E9;color:#A23A3A}
+.best{border:1px solid #BFDCCB;background:var(--ok-50);border-radius:8px;padding:8px 10px;margin:8px 0;line-height:1.5}
 #sweepTable td:first-child{white-space:normal;word-break:break-word;min-width:170px;max-width:240px}
 #sweepTable td:nth-child(5){white-space:normal;min-width:110px;max-width:180px}
 #jobsTable td:nth-child(2){white-space:normal;word-break:break-word;max-width:190px}
@@ -666,7 +696,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
       }
       if (job.status === 'FINISHED' || job.status === 'FAILED') job.ended_at = at(8 + idx * 3);
       if (job.status === 'FINISHED') for (let r = 0; r < reps; r++) {
-        const row = {campaign:name, system:host, hardware:HWLABEL(host), run_config:`${job.name}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
+        const row = {campaign:name, system:host, hardware:HWLABEL(host), sys_alloc_cores: host === 'cardinal' ? 8 : 4,
+                     sys_alloc_mem_mb: host === 'cardinal' ? 32000 : 16000, run_config:`${job.name}.run-${idx}.iteration-${r}`, run_type:runType, ...HW[host]};
         for (const [k, v] of Object.entries(p)) row['run_' + k] = v;
         row.walltime = +(timeFn(p, host) * jitter()).toFixed(5);
         rows.push(row);
@@ -674,7 +705,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
       jobs.push(job); idx++;
     }
     const view = {id:name, name, application:appId, app_ids:[appId], created_at:new Date(created).toISOString(),
-      repetitions:reps, storage:{system_id:'pitzer'}, campaign_dir:`/fs/scratch/PAS2271/swathi/harp_runs/${name}`,
+      repetitions:reps, run_types:[...new Set(sets.map(x => x[0]))], storage:{system_id:'pitzer'}, campaign_dir:`/fs/scratch/PAS2271/swathi/harp_runs/${name}`,
       hardware: hosts.map(h => ({key:h, system_id:h, queue:QUEUE[h], app_id:appId,
         cores_per_node: h === 'cardinal' ? 8 : 4, memory_mb: h === 'cardinal' ? 32000 : 16000, gpu: h === 'cardinal'})),
       events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
@@ -747,7 +778,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
       plan.push({p, t, at: 1500 + i * 1200, run: 6000 + i * 1500, end: 14000 + i * 2500}); i++;
     }
     const view = {id:name, name, application:spec.application, app_ids:[appId], created_at:new Date(created).toISOString(),
-      repetitions:spec.repetitions, storage:spec.storage, campaign_dir:`${spec.storage.path}/${name}`,
+      repetitions:spec.repetitions, run_types:[spec.run_sets[0].run_type], storage:spec.storage, campaign_dir:`${spec.storage.path}/${name}`,
       hardware: spec.targets.map((t, ti) => ({key:'t' + ti, system_id:t.system_id, queue:t.queue, app_id:appId,
         cores_per_node:t.cores_per_node, memory_mb:t.memory_mb, gpu:!!t.container_args})),
       events:[{at:new Date(created).toISOString(), message:`created with ${jobs.length} jobs`}]};
@@ -764,7 +795,8 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
         j.status = 'FINISHED'; j.ended_at = new Date().toISOString();
         const host = pl.t.system_id, gpu = !!pl.t.container_args;
         for (let r = 0; r < sw.live.reps; r++) {
-          const row = {campaign:sw.view.name, system:host, hardware:tLabel(pl.t), run_config:`${j.name}.run-${k}.iteration-${r}`, run_type:j.run_type, ...HWOF(host)};
+          const row = {campaign:sw.view.name, system:host, hardware:tLabel(pl.t), sys_alloc_cores:pl.t.cores_per_node,
+                       sys_alloc_mem_mb:pl.t.memory_mb, run_config:`${j.name}.run-${k}.iteration-${r}`, run_type:j.run_type, ...HWOF(host)};
           for (const [key, v] of Object.entries(pl.p)) row['run_' + key] = v;
           const base = sw.view.app_ids[0].includes('yolo') ? yoloTime(pl.p, gpu ? 'cardinal' : 'pitzer')
                      : eulerTime({method:'pow', n:1000, precision:64, ...pl.p});
@@ -793,7 +825,7 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
   function profileOf(appId){
     const mine = SWEEPS.filter(s => s.view.app_ids.includes(appId));
     const rows = mine.flatMap(s => s.rows);  // running sweeps show their finished jobs
-    const cols = ['campaign', 'system', 'hardware'];
+    const cols = ['campaign', 'system', 'hardware', 'sys_alloc_cores', 'sys_alloc_mem_mb'];
     for (const r of rows) for (const k of Object.keys(r)) if (!cols.includes(k)) cols.push(k);
     if (cols.includes('walltime')) { cols.splice(cols.indexOf('walltime'), 1); cols.push('walltime'); }
     return {app_id:appId, campaigns:mine.map(s => s.view), columns:cols, rows, total_rows:rows.length, missing:[]};
@@ -876,6 +908,49 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
     });
     return {ok: !storage_error && sweeps.every(x => x.ok), storage_error, sweeps};
   }
+  // ---- build phase (harp_server/build.py), mirrored; the models are made up ----
+  const MIN_ROWS = {SD:2, FS:4, test_data:1};
+  function standardizeRows(appId, ids){
+    const p = profileOf(appId), names = new Set(SWEEPS.filter(x => ids.includes(x.view.id)).map(x => x.view.name));
+    const rows = p.rows.filter(r => names.has(r.campaign));
+    const rep = {rows_in:rows.length, dropped_rows:{}, dropped_columns:{}, constant_columns:[], by_run_type:{SD:0, FS:0, test_data:0}, problems:[], minimum:MIN_ROWS};
+    const kept = rows.filter(r => { const ok = r.run_type in rep.by_run_type && +r.walltime > 0;
+      if (!ok) { const why = r.run_type in rep.by_run_type ? 'no walltime' : 'run type is not SD, FS or test_data'; rep.dropped_rows[why] = (rep.dropped_rows[why] || 0) + 1; } return ok; });
+    const feats = p.columns.filter(c => !['campaign','system','hardware','run_config','run_type','walltime'].includes(c) && /^(run|sys)_/.test(c));
+    const usable = feats.filter(c => { const miss = kept.filter(r => r[c] === undefined || r[c] === '').length;
+      if (kept.length && miss) { rep.dropped_columns[c] = miss === kept.length ? "not recorded by these sweeps" : `missing in ${miss} of ${kept.length} rows`; return false; } return true; });
+    for (const r of kept) rep.by_run_type[r.run_type]++;
+    rep.constant_columns = usable.filter(c => !['sys_name','sys_processor'].includes(c) && new Set(kept.map(r => String(r[c]))).size <= 1);
+    rep.features = usable.filter(c => !['sys_name','sys_processor'].includes(c));
+    rep.varied_features = rep.features.filter(c => !rep.constant_columns.includes(c));
+    for (const [t, n] of Object.entries(MIN_ROWS)) if (rep.by_run_type[t] < n) rep.problems.push(`needs at least ${n} ${t} row${n > 1 ? 's' : ''}; has ${rep.by_run_type[t]}`);
+    if (!rep.varied_features.length) rep.problems.push('nothing varies between runs, so there is nothing to learn from');
+    rep.ready = !rep.problems.length; rep.rows_out = kept.length; rep.unreadable = [];
+    const header = ['run_config', 'run_type', ...usable, 'walltime'];
+    return {header, table: kept.map(r => Object.fromEntries(header.map(c => [c, r[c]]))), rep};
+  }
+  const BUILDS = [];
+  function fakeMetrics(seedN){
+    let k = seedN; const rr = () => (k = (k * 16807) % 2147483647) / 2147483647, out = [];
+    for (const mod of ['LR', 'NN', 'DTR']) for (const ds of ['SD', 'SD+25FS', 'SD+50FS', 'SD+75FS']) {
+      const base = {LR:38, NN:22, DTR:14}[mod] * {SD:1.6, 'SD+25FS':1.15, 'SD+50FS':1, 'SD+75FS':0.9}[ds] * (0.85 + rr() * 0.3);
+      const adj = 1 + Math.round(base * 0.8) / 100, upp = 35 + rr() * 25;
+      out.push({DataSet:ds, RegModel:mod, ADJ_FACTOR:1, MAPE:+base.toFixed(2), UPP:+upp.toFixed(1), MAE:+(base / 30).toFixed(3), MODEL_NAME:`${mod}_${ds}_no`});
+      out.push({DataSet:ds, RegModel:mod, ADJ_FACTOR:adj, MAPE:+(base * 1.25).toFixed(2), UPP:+(upp / 4).toFixed(1), MAE:+(base / 24).toFixed(3), MODEL_NAME:`${mod}_${ds}_yes`});
+    }
+    return out;
+  }
+  function buildNow(b){
+    const t = Date.now() - b.t0, steps = [['preprocess', 2500], ['train', 9000], ['upload', 11000]];
+    let prev = 0;
+    for (const [k, end] of steps) { b.steps[k] = t >= end ? 'done' : t >= prev ? 'running' : 'waiting'; if (t >= prev && t < end) b.step = k; prev = end; }
+    if (t >= 11000 && b.status !== 'DONE') {
+      b.status = 'DONE'; b.ended_at = new Date().toISOString(); b.metrics = fakeMetrics(b.seed);
+      b.best = [...b.metrics].sort((x, y) => x.MAPE - y.MAPE)[0];
+      b.files = [b.dataset_file, 'pipeline_config.json', 'full_dataset_pca.csv', 'model_commons.csv', ...b.metrics.map(m => 'models/' + m.MODEL_NAME + (m.RegModel === 'NN' ? '.h5' : '.pkl'))];
+    } else if (b.status !== 'DONE') b.status = 'RUNNING';
+    return b;
+  }
   const realFetch = window.fetch.bind(window);
   window.fetch = function(url, opts = {}){
     const path = decodeURIComponent(String(url));
@@ -922,6 +997,29 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
       sw.view.status = 'CANCELLED'; sw.view.events.push({at:now, message:'cancelled by user'}); recount(sw);
       return later(json(200, sw.view));
     }
+    let td = path.match(/^\/api\/apps\/(.+)\/training-data(\.csv\?sweeps=(.*))?$/);
+    if (td) {
+      const ids = td[2] ? td[3].split(',').filter(Boolean) : (body.sweeps || []);
+      if (!ids.length) return later(json(400, {detail:'pick at least one sweep'}));
+      const {header, table, rep} = standardizeRows(td[1], ids);
+      if (td[2]) return Promise.resolve(new Response(toCSV(header, table), {status:200, headers:{'Content-Type':'text/csv'}}));
+      return later(json(200, {columns:header, sample:table.slice(0, 8), ...rep}));
+    }
+    let bm = path.match(/^\/api\/apps\/(.+)\/builds$/);
+    if (bm) {
+      const {rep} = standardizeRows(bm[1], body.sweeps || []);
+      if (!rep.ready) return later(json(400, {detail:'not enough data to build: ' + rep.problems.join('; ')}));
+      const app = APPS.map(harpApp).find(a => a.id === bm[1]) || {label:bm[1]};
+      const name = app.label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '');
+      const stamp = new Date().toISOString().slice(0, 19).replace(/[-T:]/g, '_');
+      const b = {id:'b' + (BUILDS.length + 1), t0:Date.now(), seed:7 + BUILDS.length * 13, app_id:bm[1], name, created_at:new Date().toISOString(), ended_at:null,
+        sweeps:body.sweeps, storage:body.storage, dest:`${body.storage.path.replace(/\/$/, '')}/builds/${name}_${stamp}`, dataset_file:`${name}_${stamp}.csv`,
+        status:'QUEUED', step:'preprocess', steps:{pool:'done', standardize:'done', preprocess:'waiting', train:'waiting', upload:'waiting'},
+        metrics:[], best:null, error:null, report:rep, files:[], log:[]};
+      BUILDS.unshift(b); return later(json(200, buildNow(b)));
+    }
+    if (path.startsWith('/api/builds')) { const q = new URLSearchParams(path.split('?')[1] || '').get('app_id');
+      return later(json(200, BUILDS.filter(b => !q || b.app_id === q).map(buildNow))); }
     let m = path.match(/^\/api\/apps\/(.+)\/profile\.csv$/);
     if (m) { const p = profileOf(m[1]);
       return Promise.resolve(p.rows.length ? new Response(toCSV(p.columns, p.rows), {status:200, headers:{'Content-Type':'text/csv'}})
@@ -1114,6 +1212,26 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
           <div class="mt"><div class="v" id="dSys">0</div><div class="l">Systems</div></div>
           <div class="mt"><div class="v" id="dParams">0</div><div class="l">Parameters varied</div></div>
           <div class="mt"><div class="v" id="dWall">&ndash;</div><div class="l">Median time</div></div>
+        </div>
+        <div class="card2" id="buildCard">
+          <div class="chead"><h3>Build an estimator</h3><span class="am">HARP build phase</span></div>
+          <p class="sub">Pool the sweeps to learn from, standardize them into the build phase's format, then train
+            linear regression, neural network and decision tree models with the HARP pipeline.</p>
+          <div class="bsteps">
+            <section class="bstep"><h4><span class="bn">1</span>Pool sweeps</h4>
+              <p class="bhelp">Training needs SD runs, FS runs and test_data runs of this app: one sweep of each run type, or more.</p>
+              <div id="bSweeps"></div></section>
+            <section class="bstep"><h4><span class="bn">2</span>Standardize</h4>
+              <div id="bStd"><p class="updated">Pick sweeps to see the training data.</p></div></section>
+            <section class="bstep"><h4><span class="bn">3</span>Build</h4>
+              <div class="bdest">
+                <div class="field"><label class="lbl" for="bSys">Save models on</label><select id="bSys" class="ti"></select></div>
+                <div class="field"><label class="lbl" for="bPath">Folder</label><input id="bPath" class="ti" placeholder="/fs/scratch/PAS0000/harp_runs" autocomplete="off"></div>
+              </div>
+              <div class="actions"><button class="btn btn-navy" id="buildBtn" type="button" disabled>Build models</button>
+                <span class="updated" id="buildMsg"></span></div></section>
+          </div>
+          <div id="bRuns"></div>
         </div>
         <div class="dgrid">
           <div class="card2"><h3>Time by run type</h3><p class="sub">SD scaled-down, FS full-scale, test_data held out.</p>
@@ -1656,6 +1774,104 @@ async function loadProfile(){
   $('dataBody').hidden = false; renderProfile();
   $('dUpdated').textContent = 'updated ' + new Date().toLocaleTimeString([], {hour: '2-digit', minute: '2-digit'});
 }
+/* ---- build phase: pool sweeps -> standardize -> HARP pipeline build -------- */
+const BSEL = {};                 // app id -> ids of the sweeps picked for training
+let bCheck = null, bTimer = null, bPoll = null, BUILDS = [];
+const RT_ORDER = ['SD', 'FS', 'test_data'];
+function renderBuild(){
+  const camps = prof.campaigns || [];
+  const counts = {}; for (const r of prof.rows) counts[r.campaign] = (counts[r.campaign] || 0) + 1;
+  if (!BSEL[dApp]) BSEL[dApp] = new Set(camps.filter(c => !ACTIVE.includes(c.status) && (c.result ? c.result.rows : counts[c.name])).map(c => c.id));
+  const sel = BSEL[dApp];
+  $('bSweeps').innerHTML = camps.length ? camps.map(c => { const on = sel.has(c.id), n = c.result ? c.result.rows : (counts[c.name] || 0);
+    const hw = [...new Set((c.hardware || []).map(h => h.system_id + (h.queue ? '/' + h.queue : '')))].join(', ');
+    return `<label class="bsw${on ? ' on' : ''}"><input type="checkbox" data-bs="${esc(c.id)}" ${on ? 'checked' : ''}>
+      <b>${esc(c.name)}</b>${pill(SWEEP_ST, c.status)}
+      <span class="am">${esc((c.run_types || []).join(', ') || '?')} · ${n.toLocaleString()} runs · ${esc(hw)}</span></label>`; }).join('')
+    : '<p class="updated">No sweeps for this app yet.</p>';
+  $('bSweeps').querySelectorAll('[data-bs]').forEach(el => el.addEventListener('change', () => {
+    el.checked ? sel.add(el.dataset.bs) : sel.delete(el.dataset.bs);
+    el.closest('.bsw').classList.toggle('on', el.checked); checkTraining(); }));
+  if (!$('bSys').options.length || $('bSys').dataset.src !== $('storeSys').innerHTML.length + '') {
+    $('bSys').innerHTML = $('storeSys').innerHTML; $('bSys').dataset.src = $('storeSys').innerHTML.length + '';
+    const saved = store.get('harp-build-dest', null) || store.get('harp-launch', {});
+    if (saved.storeSys) $('bSys').value = saved.storeSys;
+    if (!$('bPath').value && saved.store) $('bPath').value = saved.store;
+  }
+  checkTraining(); loadBuilds();
+}
+function checkTraining(){
+  clearTimeout(bTimer); bTimer = setTimeout(async () => {
+    const app = dApp, ids = [...(BSEL[app] || [])];
+    bCheck = null; buildReady();
+    if (!ids.length) { $('bStd').innerHTML = '<p class="updated">Pick at least one sweep.</p>'; return; }
+    $('bStd').innerHTML = '<p class="updated">Standardizing&hellip;</p>';
+    try {
+      const r = await api('/api/apps/' + encodeURIComponent(app) + '/training-data', {method: 'POST', body: {sweeps: ids}});
+      if (app !== dApp) return;
+      bCheck = r; renderStd(r, ids);
+    } catch (e) { $('bStd').innerHTML = `<p class="bprob">Could not standardize: ${esc(e.message)}</p>`; }
+    buildReady();
+  }, 250);
+}
+function renderStd(r, ids){
+  const cov = RT_ORDER.map(t => { const n = r.by_run_type[t] || 0, ok = n >= r.minimum[t];
+    return `<div class="${ok ? 'ok' : 'no'}"><div class="v">${n.toLocaleString()}</div><div class="l">${esc(t)} · need ${r.minimum[t]}+</div></div>`; }).join('');
+  const code = xs => xs.map(x => `<code>${esc(x)}</code>`).join(' ');
+  const dropC = Object.entries(r.dropped_columns || {}), dropR = Object.entries(r.dropped_rows || {});
+  $('bStd').innerHTML = `<div class="cov">${cov}</div>
+    <p class="blist"><b>${r.rows_out.toLocaleString()}</b> runs · learns from ${r.varied_features.length ? code(r.varied_features) : 'nothing yet'}</p>
+    ${r.constant_columns.length ? `<p class="blist am">Same in every run (kept, no signal): ${code(r.constant_columns)}</p>` : ''}
+    ${dropC.length ? `<p class="blist am">Left out (the pipeline needs every column filled): ${dropC.map(([c, why]) => `<code>${esc(c)}</code> (${esc(why)})`).join(', ')}</p>` : ''}
+    ${dropR.length ? `<p class="blist am">Runs left out: ${dropR.map(([why, n]) => `${n} (${esc(why)})`).join(', ')}</p>` : ''}
+    ${(r.unreadable || []).length ? `<p class="bprob">Could not read: ${esc(r.unreadable.map(m => m.campaign).join(', '))}</p>` : ''}
+    ${r.problems.map(p => `<p class="bprob">${esc(p)}</p>`).join('')}
+    <button class="dlbtn" type="button" id="bCsv">Download training CSV</button>`;
+  $('bCsv').addEventListener('click', () => downloadFile('/api/apps/' + encodeURIComponent(dApp) + '/training-data.csv?sweeps=' +
+    encodeURIComponent(ids.join(',')), dApp + '_training.csv').catch(e => toast('Download failed: ' + e.message)));
+}
+function buildReady(){
+  const path = $('bPath').value.trim(), busy = BUILDS.some(b => ['QUEUED', 'RUNNING'].includes(b.status));
+  const prob = !bCheck ? 'Waiting for the training data.' : !bCheck.ready ? 'Not enough data yet (step 2).'
+    : !$('bSys').value ? 'Pick where to save the models.' : !path.startsWith('/') ? 'Give an absolute folder, starting with /.'
+    : busy ? 'A build is running.' : '';
+  $('buildBtn').disabled = !!prob; $('buildMsg').textContent = prob;
+}
+['bPath', 'bSys'].forEach(id => $(id).addEventListener('input', buildReady));
+$('buildBtn').addEventListener('click', async () => {
+  const body = {sweeps: [...BSEL[dApp]], storage: {system_id: $('bSys').value, path: $('bPath').value.trim()}};
+  store.set('harp-build-dest', {storeSys: body.storage.system_id, store: body.storage.path});
+  $('buildBtn').disabled = true; $('buildMsg').textContent = 'Starting…';
+  try { await api('/api/apps/' + encodeURIComponent(dApp) + '/builds', {method: 'POST', body}); toast('Build started.'); await loadBuilds(); }
+  catch (e) { $('buildMsg').textContent = e.message; $('buildBtn').disabled = false; }
+});
+async function loadBuilds(){
+  clearTimeout(bPoll);
+  const app = dApp;
+  try { BUILDS = await api('/api/builds?app_id=' + encodeURIComponent(app)); } catch (e) { return; }
+  if (app !== dApp) return;
+  renderBuilds(); buildReady();
+  if (panel === 'data' && BUILDS.some(b => ['QUEUED', 'RUNNING'].includes(b.status))) bPoll = setTimeout(loadBuilds, 3000);
+}
+const fmtP = v => v == null ? '–' : (+v).toFixed(v < 10 ? 1 : 0) + '%';
+function renderBuilds(){
+  const STEP = {pool: 'pool', standardize: 'standardize', preprocess: 'scale + PCA', train: 'train', upload: 'save to TAPIS'};
+  const BST = {QUEUED: ['wait', 'queued'], RUNNING: ['run', 'building'], DONE: ['done', 'done'], FAILED: ['bad', 'failed']};
+  $('bRuns').innerHTML = BUILDS.slice(0, 5).map((b, i) => {
+    const steps = Object.entries(b.steps).map(([k, v]) => `<span class="${esc(v)}">${esc(STEP[k] || k)}</span>`).join('');
+    const top = [...b.metrics].filter(m => m.MAPE != null).sort((x, y) => x.MAPE - y.MAPE).slice(0, 6);
+    const best = b.best ? `<div class="best"><b>Best: ${esc(b.best.RegModel)}</b> trained on ${esc(b.best.DataSet)}${b.best.ADJ_FACTOR > 1 ? `, padded ×${(+b.best.ADJ_FACTOR).toFixed(2)}` : ''}
+        · off by <b>${fmtP(b.best.MAPE)}</b> on average on test_data · too low for ${fmtP(b.best.UPP)} of runs</div>` : '';
+    const table = top.length && i === 0 ? `<div class="scroll"><table class="dt"><tr><th>Model</th><th>Trained on</th><th class="num">Padding</th>
+        <th class="num">Avg error</th><th class="num">Too low</th><th class="num">MAE (s)</th></tr>` +
+      top.map(m => `<tr${m === top[0] ? ' class="sel"' : ''}><td><b>${esc(m.RegModel)}</b></td><td>${esc(m.DataSet)}</td>
+        <td class="num">${m.ADJ_FACTOR > 1 ? '×' + (+m.ADJ_FACTOR).toFixed(2) : '–'}</td><td class="num">${fmtP(m.MAPE)}</td>
+        <td class="num">${fmtP(m.UPP)}</td><td class="num">${m.MAE == null ? '–' : (+m.MAE).toPrecision(3)}</td></tr>`).join('') + '</table></div>' : '';
+    return `<div class="brun"><div class="bt"><b>${esc(b.name)}</b>${pill(BST, b.status)}<span class="updated">${esc(ago(b.created_at))} · ${b.sweeps.length} sweep${b.sweeps.length === 1 ? '' : 's'} · ${(b.report || {}).rows_out || 0} runs</span></div>
+      <div class="bsteprow">${steps}</div>${b.error ? `<p class="bprob">${esc(b.error)}</p>` : ''}${best}${table}
+      ${b.status === 'DONE' ? `<p class="blist am">Saved to <code>${esc(b.storage.system_id)}:${esc(b.dest)}</code> (${b.files.length} files: dataset, models, model_commons.csv)</p>` : ''}</div>`; }).join('');
+}
+
 function renderProfile(){
   const P = prof, walls = P.rows.map(r => parseFloat(r.walltime)).filter(Number.isFinite);
   const varied = P.columns.filter(c => /^run_/.test(c) && c !== 'run_config' && c !== 'run_type' && new Set(P.rows.map(r => r[c])).size > 1);
@@ -1684,7 +1900,7 @@ function renderProfile(){
   $('dFilters').innerHTML = ['all', ...order].map(t => `<button class="fchip" data-f="${esc(t)}" aria-pressed="${dFilter === t}" type="button">${t === 'all' ? 'All' : esc(t)}<b>${counts[t] || 0}</b></button>`).join('');
   $('dFilters').querySelectorAll('.fchip').forEach(b => b.addEventListener('click', () => { dFilter = b.dataset.f; dShown = 200; renderProfile(); }));
   $('dMissing').textContent = P.missing.length ? 'Could not read data for: ' + P.missing.map(m => m.campaign).join(', ') : '';
-  renderExec();
+  renderExec(); renderBuild();
 }
 function renderExec(){
   const P = prof;
@@ -1712,14 +1928,17 @@ function renderExec(){
 }
 $('colsBtn').addEventListener('click', () => { allCols = !allCols; $('colsBtn').setAttribute('aria-pressed', allCols);
   $('colsBtn').textContent = allCols ? 'Show key columns' : 'Show all columns'; renderExec(); });
+async function downloadFile(path, name){
+  const res = await fetch(path);
+  if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
+  const url = URL.createObjectURL(await res.blob());
+  const a = Object.assign(document.createElement('a'), {href: url, download: name});
+  document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
 $('dlBtn').addEventListener('click', async () => {
   if (!dApp) return; const btn = $('dlBtn'); btn.disabled = true;
-  try { const res = await fetch('/api/apps/' + encodeURIComponent(dApp) + '/profile.csv');
-    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).detail || res.statusText);
-    const url = URL.createObjectURL(await res.blob());
-    const a = Object.assign(document.createElement('a'), {href: url, download: dApp + '_profile.csv'});
-    document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
-  } catch (e) { $('dMissing').textContent = 'Download failed: ' + e.message; } finally { btn.disabled = false; }
+  try { await downloadFile('/api/apps/' + encodeURIComponent(dApp) + '/profile.csv', dApp + '_profile.csv'); }
+  catch (e) { $('dMissing').textContent = 'Download failed: ' + e.message; } finally { btn.disabled = false; }
 });
 
 /* ================================================================== tabs */
