@@ -7,24 +7,32 @@ from fake_tapis import FakeGateway
 from specs import euler_spec
 
 
+class Ctx(tuple):
+    """(client, manager, gateways), plus .app for building extra clients."""
+
+
 @pytest.fixture
 def ctx(tmp_path):
     gateways = {}
 
-    def login(base_url, access_token):
-        # fake tokens look like "token-<username>"
-        if not access_token.startswith("token-"):
-            raise TapisError("bad token")
-        username = access_token[len("token-"):]
+    def login(base_url, username=None, password=None, access_token=None):
+        if access_token:  # fake tokens look like "token-<username>"
+            if not access_token.startswith("token-"):
+                raise TapisError("bad token")
+            username = access_token[len("token-"):]
+        elif password != "secret":
+            raise TapisError("bad credentials")
         return gateways.setdefault(username, FakeGateway(username))
 
     app = create_app(data_dir=str(tmp_path), login=login, start_poller=False)
-    client = TestClient(app)
-    return client, app.state.manager, gateways
+    client = TestClient(app, base_url="https://testserver")
+    c = Ctx((client, app.state.manager, gateways))
+    c.app = app
+    return c
 
 
 def _login(client, user="alice"):
-    r = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "access_token": f"token-{user}"})
+    r = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "username": user, "password": "secret"})
     assert r.status_code == 200, r.text
 
 
@@ -33,13 +41,40 @@ def test_requires_login(ctx):
     assert client.get("/api/campaigns").status_code == 401
     r = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "access_token": "forged"})
     assert r.status_code == 401
+    assert client.post("/api/login", json={"base_url": "https://fake.tapis.io", "access_token": "token-a"}).status_code == 200
     assert client.post("/api/login", json={"base_url": "http://insecure", "access_token": "token-a"}).status_code == 400
 
 
-def test_passwords_are_never_accepted_by_the_server(ctx):
+def test_login_with_credentials_sets_a_secure_session_cookie_only(ctx):
     client, _, _ = ctx
-    r = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "username": "a", "password": "x"})
-    assert r.status_code == 400 and "token" in r.json()["detail"]
+    r = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "username": "alice", "password": "secret"})
+    assert r.status_code == 200
+    assert set(r.json()) == {"username", "base_url", "expires_at"}  # no token, no password
+    cookie = r.headers["set-cookie"].lower()
+    assert "httponly" in cookie and "secure" in cookie and "samesite=strict" in cookie
+    bad = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "username": "alice", "password": "nope"})
+    assert bad.status_code == 401
+    assert client.post("/api/login", json={"base_url": "https://fake.tapis.io"}).status_code == 400
+
+
+def test_credentials_are_refused_over_plain_http_from_other_hosts(ctx):
+    creds = {"base_url": "https://fake.tapis.io", "username": "alice", "password": "secret"}
+    remote = TestClient(ctx.app, base_url="http://harp.example.org", client=("203.0.113.7", 50000))
+    r = remote.post("/api/login", json=creds)
+    assert r.status_code == 403 and "https" in r.json()["detail"]
+    local = TestClient(ctx.app, base_url="http://localhost", client=("127.0.0.1", 50000))
+    r = local.post("/api/login", json=creds)
+    assert r.status_code == 200
+    assert "secure" not in r.headers["set-cookie"].lower()  # dev on localhost
+
+
+def test_security_headers(ctx):
+    client, _, _ = ctx
+    r = client.get("/")
+    assert r.headers["strict-transport-security"].startswith("max-age=")
+    assert "frame-ancestors 'none'" in r.headers["content-security-policy"]
+    assert r.headers["x-frame-options"] == "DENY"
+    assert client.get("/api/campaigns").headers["cache-control"] == "no-store"
 
 
 def test_expired_token_logs_out_and_pauses_campaigns(ctx):

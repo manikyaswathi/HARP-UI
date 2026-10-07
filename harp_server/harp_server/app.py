@@ -2,7 +2,7 @@
 HARP sweep server: a web UI + REST API for running the generate phase as
 many TAPIS jobs across several systems.
 
-Run with:  uvicorn harp_server.app:app --host 0.0.0.0 --port 8000
+Run with HTTPS:  python3 -m harp_server.serve   (see README for certificates)
 """
 
 import os
@@ -19,6 +19,25 @@ from .tapis_gateway import TapisError, TapisGateway
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 SESSION_COOKIE = "harp_session"
+LOCAL_CLIENTS = {"127.0.0.1", "::1", "localhost"}
+SECURITY_HEADERS = {
+    "X-Content-Type-Options": "nosniff",
+    "X-Frame-Options": "DENY",
+    "Referrer-Policy": "no-referrer",
+    "Content-Security-Policy": ("default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; "
+                                "img-src 'self' data:; connect-src 'self'; frame-ancestors 'none'; "
+                                "form-action 'self'; base-uri 'none'"),
+}
+
+
+def is_https(request: Request) -> bool:
+    # Behind a reverse proxy, run uvicorn with --proxy-headers so the
+    # X-Forwarded-Proto header sets the scheme.
+    return request.url.scheme == "https"
+
+
+def is_local(request: Request) -> bool:
+    return bool(request.client) and request.client.host in LOCAL_CLIENTS
 
 
 def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, start_poller=True):
@@ -36,6 +55,17 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
 
     app = FastAPI(title="HARP sweep server", lifespan=lifespan)
     app.state.manager = manager
+    allow_http = os.environ.get("HARP_ALLOW_HTTP") == "1"
+
+    @app.middleware("http")
+    async def security_headers(request: Request, call_next):
+        response = await call_next(request)
+        response.headers.update(SECURITY_HEADERS)
+        if is_https(request):
+            response.headers["Strict-Transport-Security"] = "max-age=31536000"
+        if request.url.path.startswith("/api/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     def gateway(request: Request) -> TapisGateway:
         key = request.cookies.get(SESSION_COOKIE, "")
@@ -61,24 +91,27 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
 
     # ------------------------------------------------------------ auth
     @app.post("/api/login")
-    def login_route(response: Response, body: dict = Body(...)):
-        """The browser gets the token from the TAPIS tenant itself and hands
-        over only the token; passwords are refused so they never reach us."""
-        base_url = (body.get("base_url") or "").rstrip("/")
+    def login_route(request: Request, response: Response, body: dict = Body(...)):
+        """The page sends the TAPIS credentials; the server gets the token
+        with tapipy and keeps it. The browser only receives a session cookie."""
+        if not (is_https(request) or is_local(request) or allow_http):
+            raise HTTPException(403, "log in over https:// - credentials are never accepted over plain http")
+        base_url = (body.get("base_url") or "").strip().rstrip("/")
         if not base_url.startswith("https://"):
             raise HTTPException(400, "base_url must be an https TAPIS tenant URL, e.g. https://icicle.tapis.io")
-        if "password" in body:
-            raise HTTPException(400, "send a TAPIS access token, not a password")
-        if not body.get("access_token"):
-            raise HTTPException(400, "access_token is required")
+        username, password = (body.get("username") or "").strip(), body.get("password") or ""
+        access_token = (body.get("access_token") or "").strip()
+        if not access_token and not (username and password):
+            raise HTTPException(400, "enter your TAPIS username and password (or an access token)")
         try:
-            gw = login(base_url, body["access_token"])
+            gw = login(base_url, username=username or None, password=password or None,
+                       access_token=access_token or None)
         except TapisError as e:
             raise HTTPException(401, str(e))
         token = secrets.token_urlsafe(32)
         sessions[token] = gw
         manager.register_gateway(gw)
-        response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="strict")
+        response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="strict", secure=is_https(request))
         return {"username": gw.username, "base_url": gw.base_url, "expires_at": gw.expires_at}
 
     @app.post("/api/logout")

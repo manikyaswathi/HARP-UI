@@ -45,24 +45,41 @@ which is the name the existing **build** phase looks for. Runs that fail go to
    `containerImage`. Register it **on each tenant you use**, for example
    `client.apps.createAppVersion(**app_def)`.
 3. **Register the systems and credentials** as in `Notebooks/Executing_HARP_using_TAPIS*.ipynb`.
-4. **Run the server**:
+4. **Run the server over HTTPS** (it receives TAPIS passwords, so it must use HTTPS):
    ```bash
    pip install -r harp_server/requirements.txt
-   cd harp_server && uvicorn harp_server.app:app --host 0.0.0.0 --port 8000
+   cd harp_server
+   # testing only: a self-signed certificate (browsers will show a warning)
+   ./scripts/make_dev_cert.sh certs <server-hostname>
+   HARP_SSL_CERT=certs/cert.pem HARP_SSL_KEY=certs/key.pem python3 -m harp_server.serve
    ```
+   Open `https://<server-hostname>:8443`. For a server other people use, get a real
+   certificate (from your institution or Let's Encrypt) and point `HARP_SSL_CERT` / `HARP_SSL_KEY`
+   at it. If HTTPS is handled by nginx, Caddy or Apache in front of the server, run
+   `HARP_BEHIND_PROXY=1 HARP_PORT=8000 python3 -m harp_server.serve` and have the proxy forward
+   to port 8000 with an `X-Forwarded-Proto` header.
+
+   The server refuses logins over plain `http://` except from `localhost` (for development).
+   Responses carry HSTS, a strict Content-Security-Policy and no-store caching for the API.
+
    Environment variables:
+   - `HARP_SSL_CERT`, `HARP_SSL_KEY`: certificate and key (PEM).
+   - `HARP_HOST`, `HARP_PORT`: address to listen on. Default `0.0.0.0:8443`.
+   - `HARP_ALLOW_HTTP=1`: accept logins over plain HTTP. Never use this on a shared server.
    - `HARP_SERVER_DATA`: where campaign state is kept. Default `~/.harp_server`.
    - `HARP_POLL_SECONDS`: how often the server polls TAPIS. Default `15`.
 
 ## Using the UI
 
-1. Log in with your TAPIS tenant, for example `https://icicle.tapis.io`. The browser gets an
-   access token **directly from the tenant** (`POST <tenant>/v3/oauth2/tokens`, the same call tapipy's
-   `get_tokens()` makes) and sends only that token to the HARP server, so your password never
-   reaches it. The server verifies the token with TAPIS (`get_userinfo`) before trusting it. The
-   header shows how long the token stays valid, with a **Renew token** button in its last 30 minutes.
-   When a token expires, running campaigns pause (`WAITING_FOR_LOGIN`) and resume as soon as you
-   log in again.
+1. Log in with your TAPIS tenant (for example `https://icicle.tapis.io`) and your TAPIS username
+   and password. The page sends them over HTTPS to the HARP server. The server gets a token with
+   `tapipy` (`get_tokens()`), drops the password from memory straight away, and keeps the token on
+   the server. The browser gets only a session cookie that JavaScript cannot read, and never sees
+   the token. You can paste an existing access token instead; the server checks it with TAPIS
+   (`get_userinfo`) before trusting it.
+   The header shows how long the session stays valid, with a **Renew token** button in its last
+   30 minutes. When it expires, running campaigns pause (`WAITING_FOR_LOGIN`) and resume as soon as
+   you log in again.
 2. **Application:** fill in the command template, e.g. `python3 calc_e.py {method} {n} {precision}`,
    and the work folder inside the container.
 3. **Sweep parameters:** add one block per run type, with one `name = v1, v2` line per parameter.

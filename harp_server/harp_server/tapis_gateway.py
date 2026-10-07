@@ -27,33 +27,58 @@ class TapisGateway:
         self.client = client
         self.username = username
         self.base_url = base_url
-        self.expires_at = expires_at  # epoch seconds; None = unknown
+        self._fixed_expiry = expires_at  # only used when there is no client (tests)
         self._lock = threading.Lock()
 
+    @property
+    def expires_at(self):
+        """When this session stops working, in epoch seconds (None = unknown).
+
+        If TAPIS issued a refresh token, tapipy renews the access token by
+        itself, so the session lasts until the refresh token expires.
+        """
+        if self.client is None:
+            return self._fixed_expiry
+        for token in (getattr(self.client, "refresh_token", None), getattr(self.client, "access_token", None)):
+            exp = _get(_get(token, "claims", {}), "exp") if token else None
+            if exp:
+                return float(exp)
+        return None
+
     def expired(self, margin=60):
-        return self.expires_at is not None and time.time() > self.expires_at - margin
+        exp = self.expires_at
+        return exp is not None and time.time() > exp - margin
 
     @classmethod
-    def login(cls, base_url, access_token):
-        """Wrap a TAPIS access token that the browser obtained from the tenant.
+    def login(cls, base_url, username=None, password=None, access_token=None):
+        """Log in to TAPIS on the server side with tapipy.
 
-        The user's password never reaches the HARP server. The token is
-        verified by asking TAPIS who it belongs to, so a forged token (or a
-        made-up username) is rejected.
+        Either a username/password (exchanged for a token with get_tokens())
+        or an existing access token. Any token is checked with TAPIS
+        (get_userinfo), so a forged one is rejected. The password is dropped
+        from memory as soon as the token is issued; the token stays on the
+        server and is never sent to the browser.
         """
         try:
             from tapipy.tapis import Tapis
         except ImportError as e:
             raise TapisError("tapipy is not installed on the HARP server") from e
         try:
-            client = Tapis(base_url=base_url, access_token=access_token)
-            username = _get(client.authenticator.get_userinfo(), "username")
+            if access_token:
+                client = Tapis(base_url=base_url, access_token=access_token)
+                username = _get(client.authenticator.get_userinfo(), "username")
+            else:
+                client = Tapis(base_url=base_url, username=username, password=password)
+                client.get_tokens()
         except Exception as e:
-            raise TapisError(f"TAPIS rejected the token: {e}") from e
+            msg = str(e).replace(password, "***") if password else str(e)
+            raise TapisError(f"TAPIS login failed: {msg}") from None
+        finally:
+            password = None
+        client.password = None
         if not username:
             raise TapisError("TAPIS did not return a username for this token")
-        exp = _get(_get(client.access_token, "claims", {}), "exp")
-        return cls(client, username, base_url, expires_at=float(exp) if exp else None)
+        return cls(client, username, base_url)
 
     def _call(self, fn, *args, **kwargs):
         # tapipy refreshes expiring tokens itself; we only serialize calls and

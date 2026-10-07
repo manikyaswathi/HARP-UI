@@ -35,23 +35,10 @@ function toast(msg, ms = 4000) {
 }
 
 // ------------------------------------------------------------------ auth
-// The browser asks the TAPIS tenant for a token (the same call tapipy's
-// get_tokens() makes) and hands only the token to the HARP server.
-async function getTapisToken(baseUrl, username, password) {
-  let res;
-  try {
-    res = await fetch(`${baseUrl}/v3/oauth2/tokens`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ username, password, grant_type: "password" }),
-    });
-  } catch {
-    throw new Error(`Could not reach ${baseUrl}. Check the tenant URL and your network.`);
-  }
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.message || `TAPIS login failed (${res.status})`);
-  return data.result.access_token.access_token;
-}
+// The page sends the TAPIS credentials to the HARP backend (over HTTPS),
+// which gets the token with tapipy and keeps it. The page never sees the
+// token; it only holds an httpOnly session cookie.
+const insecure = location.protocol !== "https:" && !["localhost", "127.0.0.1", "[::1]"].includes(location.hostname);
 
 function showLogin(reason = "") {
   $("#login-view").hidden = false; $("#app-view").hidden = true; $("#whoami").hidden = true;
@@ -90,19 +77,19 @@ $("#login-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   $("#login-error").textContent = "";
   const f = Object.fromEntries(new FormData(ev.target));
-  const base_url = f.base_url.trim().replace(/\/+$/, "");
+  const body = { base_url: f.base_url.trim().replace(/\/+$/, "") };
+  if (f.access_token.trim()) body.access_token = f.access_token.trim();
+  else if (f.username && f.password) Object.assign(body, { username: f.username.trim(), password: f.password });
+  else { $("#login-error").textContent = "Enter your username and password, or paste a token."; return; }
   const btn = ev.submitter; btn.disabled = true;
-  try {
-    let access_token = f.access_token.trim();
-    if (!access_token) {
-      if (!f.username || !f.password) throw new Error("Enter your username and password, or paste a token.");
-      access_token = await getTapisToken(base_url, f.username.trim(), f.password);
-    }
-    ev.target.password.value = "";
-    showApp(await api("/api/login", { method: "POST", body: { base_url, access_token } }));
-  } catch (e) { $("#login-error").textContent = e.message; }
-  finally { btn.disabled = false; }
+  try { showApp(await api("/api/login", { method: "POST", body })); }
+  catch (e) { $("#login-error").textContent = e.message; }
+  finally { btn.disabled = false; ev.target.password.value = ""; }
 });
+if (insecure) {
+  $("#login-error").textContent = "This page is not using https://. Open it over https before logging in.";
+  $("#login-form button[type=submit]").disabled = true;
+}
 $("#renew").onclick = () => showLogin("Renew your TAPIS token.");
 $("#logout").onclick = async () => {
   await api("/api/logout", { method: "POST" });

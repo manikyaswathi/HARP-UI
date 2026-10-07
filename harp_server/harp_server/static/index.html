@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>HARP Sweeps</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -30,8 +31,8 @@
         <label>Access token (JWT) <textarea name="access_token" rows="3"></textarea></label>
       </details>
       <button type="submit">Log in</button>
-      <p class="hint">Your browser gets a token directly from the TAPIS tenant.
-        Your password is never sent to the HARP server — only the token is.</p>
+      <p class="hint">Sent over HTTPS to the HARP server, which logs in to TAPIS for you.
+        Your password is used once to get a token and is not stored.</p>
       <p class="error" id="login-error"></p>
     </form>
   </section>

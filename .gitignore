@@ -130,3 +130,7 @@ dmypy.json
 
 # Mac
 .DS_Store
+
+# HARP server TLS material
+harp_server/certs/
+*.pem
