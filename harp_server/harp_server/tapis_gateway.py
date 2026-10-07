@@ -31,6 +31,14 @@ def _get(obj, name, default=None):
     return getattr(obj, name, default)
 
 
+UNLIMITED = 2147483647   # what TAPIS stores for "no limit"
+
+
+def _limit(v):
+    """A queue maximum, or None when TAPIS has none (unset, 0, negative or the unlimited sentinel)."""
+    return v if isinstance(v, (int, float)) and 0 < v < UNLIMITED else None
+
+
 class TapisGateway:
     """Thin, thread-safe wrapper around a logged-in tapipy client."""
 
@@ -108,16 +116,17 @@ class TapisGateway:
                 for s in systems]
 
     def get_system(self, system_id):
-        """A system and its batch queues, as TAPIS defines them (LogicalQueue)."""
+        """A system and its batch queues, as TAPIS defines them (LogicalQueue).
+        A max of 0 or below (not set) or 2147483647 (TAPIS's 'unlimited') becomes None: no limit."""
         s = self._call(self.client.systems.getSystem, systemId=system_id)
         default = _get(s, "batchDefaultLogicalQueue")
         queues = [{"name": _get(q, "name"), "hpc_queue": _get(q, "hpcQueueName"),
                    "description": _get(q, "description"), "default": _get(q, "name") == default,
-                   "max_jobs": _get(q, "maxJobs"), "max_jobs_per_user": _get(q, "maxJobsPerUser"),
-                   "min_nodes": _get(q, "minNodeCount"), "max_nodes": _get(q, "maxNodeCount"),
-                   "min_cores": _get(q, "minCoresPerNode"), "max_cores": _get(q, "maxCoresPerNode"),
-                   "min_memory_mb": _get(q, "minMemoryMB"), "max_memory_mb": _get(q, "maxMemoryMB"),
-                   "min_minutes": _get(q, "minMinutes"), "max_minutes": _get(q, "maxMinutes")}
+                   "max_jobs": _limit(_get(q, "maxJobs")), "max_jobs_per_user": _limit(_get(q, "maxJobsPerUser")),
+                   "min_nodes": _get(q, "minNodeCount"), "max_nodes": _limit(_get(q, "maxNodeCount")),
+                   "min_cores": _get(q, "minCoresPerNode"), "max_cores": _limit(_get(q, "maxCoresPerNode")),
+                   "min_memory_mb": _get(q, "minMemoryMB"), "max_memory_mb": _limit(_get(q, "maxMemoryMB")),
+                   "min_minutes": _get(q, "minMinutes"), "max_minutes": _limit(_get(q, "maxMinutes"))}
                   for q in (_get(s, "batchLogicalQueues") or [])]
         return {"id": _get(s, "id"), "host": _get(s, "host"), "description": _get(s, "description") or "",
                 "system_type": _get(s, "systemType"), "enabled": _get(s, "enabled", True) is not False,

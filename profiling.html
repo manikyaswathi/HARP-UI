@@ -1177,7 +1177,7 @@ function renderSystems(){
       ${(s.runtimes || []).map(r => `<span class="rt dock">${esc(r)}</span>`).join(' ')}
       ${s.error ? `<span class="loginerr">queues unavailable: ${esc(s.error)}</span>` : ''}
       <span class="acct"><label for="acct-${esc(s.id)}">Account</label><input id="acct-${esc(s.id)}" class="alloc" data-sys="${esc(s.id)}"
-        value="${esc(ALLOC[s.id] || '')}" placeholder="${/tacc/i.test(s.host || '') ? '-A TACC-project' : '-A PAS0000'}" autocomplete="off"
+        value="${esc(ALLOC[s.id] || '')}" placeholder="${(((s.job_working_dir || '').match(/\/(P[A-Z]{2}\d{3,5})\b/) || [])[1] && '-A ' + s.job_working_dir.match(/\/(P[A-Z]{2}\d{3,5})\b/)[1]) || (/tacc/i.test(s.host || '') ? '-A TACC-project' : '-A PAS0000')}" autocomplete="off"
         title="The allocation this system's jobs are charged to (a scheduler option). Leave empty if the system needs none."></span></div>
     ${qlist(s).map(q => { const k = qkey(s, q), on = SW.queues.includes(k), open = on && OPEN.has(k), id = 'q-' + k.replace(/[^A-Za-z0-9_-]/g, '_');
       return `<div class="qrow cfgrow${on ? ' on' : ''}" data-row="${esc(k)}">
@@ -1293,11 +1293,15 @@ function planBody(){
             memory_mb: c.mem_gb ? c.mem_gb * 1024 : null, max_minutes: c.minutes || null})); })}; })};
 }
 let CHECK = null;
-// A default results folder: the last one used, or on OSC /fs/scratch/<project>/<user>/harp_runs from the account.
+// A default results folder: the last one used, else <system's TAPIS job folder>/<user>/harp_runs,
+// else on OSC /fs/scratch/<project>/<user>/harp_runs from the account.
 function defaultStore(){
   if ($('store').value.trim() || !PLAN.length) return;
   for (const id of [...new Set(PLAN.flatMap(p => p.sweep.queues.map(k => k.split('|')[0])))]) {
     const s = SYSTEMS.find(x => x.id === id) || {}, proj = (ALLOC[id] || '').match(/-A\s*(\S+)/);
+    const jwd = s.job_working_dir || '';
+    // the system's own job folder in TAPIS (e.g. /fs/scratch/PAS2271), when it is a plain path
+    if (jwd.startsWith('/') && !jwd.includes('$')) { $('storeSys').value = id; $('store').value = `${jwd.replace(/\/$/, '')}/${ME_USER}/harp_runs`; return; }
     if (proj && /osc\.edu/i.test(s.host || '')) { $('storeSys').value = id; $('store').value = `/fs/scratch/${proj[1]}/${ME_USER}/harp_runs`; return; }
   }
 }

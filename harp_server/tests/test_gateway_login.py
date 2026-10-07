@@ -89,3 +89,20 @@ def test_list_apps_flattens_tapis_results():
     [out] = gw.list_apps()
     assert out["notes"] == {"harp": {"command": "python3 t.py {m}"}}
     assert out["app_args"] == [{"name": "spec", "arg": "x"}]
+
+
+def test_queue_limits_treat_unset_and_unlimited_as_no_limit():
+    from types import SimpleNamespace as NS
+    from harp_server.tapis_gateway import TapisGateway
+    q = NS(name="batch", hpcQueueName="batch", description=None, maxJobs=0, maxJobsPerUser=2147483647,
+           minNodeCount=0, maxNodeCount=0, minCoresPerNode=1, maxCoresPerNode=96, minMemoryMB=0,
+           maxMemoryMB=2147483647, minMinutes=0, maxMinutes=10080)
+    sysdef = NS(id="ascend", host="ascend.osc.edu", description="", systemType="LINUX", enabled=True, canExec=True,
+                canRunBatch=True, batchScheduler="SLURM", jobRuntimes=[], batchDefaultLogicalQueue="batch",
+                batchLogicalQueues=[q], jobWorkingDir="/fs/scratch/PAS2271", rootDir="/")
+    gw = TapisGateway.__new__(TapisGateway)
+    gw._call = lambda fn, **kw: sysdef
+    gw.client = NS(systems=NS(getSystem=None))
+    [out] = gw.get_system("ascend")["queues"]
+    assert (out["max_jobs"], out["max_jobs_per_user"], out["max_nodes"], out["max_memory_mb"]) == (None, None, None, None)
+    assert (out["max_cores"], out["max_minutes"]) == (96, 10080)

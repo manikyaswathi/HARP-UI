@@ -1,0 +1,884 @@
+{
+  "generated": "2026-10-07T18:39:23",
+  "tenant": "icicleai",
+  "unlimited_sentinel": 2147483647,
+  "mergePolicy": "Same host -> one system. Identical queue across definitions appears once with sourceSystems listing origins. Differing limits -> variants named <queue>@<sourceId>; hpcQueueName keeps the real SLURM name.",
+  "note": "maxNodeCount:0 / maxMinutes:0 = not collected, not zero. maxMemoryMB:2147483647 = unlimited sentinel.",
+  "system_count": 3,
+  "systems": [
+    {
+      "tenant": "icicleai",
+      "id": "ascend",
+      "description": "System for running jobs on ascend",
+      "systemType": "LINUX",
+      "owner": "skhuvis",
+      "host": "ascend.osc.edu",
+      "enabled": true,
+      "effectiveUserId": "swathivm",
+      "defaultAuthnMethod": "PKI_KEYS",
+      "rootDir": "/",
+      "port": 22,
+      "useProxy": false,
+      "proxyPort": -1,
+      "canExec": true,
+      "canRunBatch": true,
+      "enableCmdPrefix": true,
+      "allowChildren": false,
+      "jobRuntimes": [
+        {
+          "runtimeType": "SINGULARITY"
+        }
+      ],
+      "jobWorkingDir": "/fs/scratch/PAS2271",
+      "jobMaxJobs": 2147483647,
+      "jobMaxJobsPerUser": 2147483647,
+      "batchScheduler": "SLURM",
+      "batchDefaultLogicalQueue": "batch",
+      "uuid": "0c7026c6-6ac6-4dd4-bf7b-82ffa5af8dcb",
+      "deleted": false,
+      "created": "2024-10-29T20:35:54.816240Z",
+      "updated": "2026-06-29T19:33:38.607753Z",
+      "hasCredentials": false,
+      "isPublic": true,
+      "isDynamicEffectiveUser": true,
+      "mergedFrom": [
+        "ascend-static",
+        "ascend-tapis"
+      ],
+      "batchLogicalQueues": [
+        {
+          "name": "batch",
+          "hpcQueueName": "batch",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 0,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 96,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 2147483647,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "cpuonly",
+          "hpcQueueName": "cpuonly",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 4,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 84,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 900816,
+          "minMinutes": 0,
+          "maxMinutes": 5760,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "debug",
+          "hpcQueueName": "debug",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 96,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 2147483647,
+          "minMinutes": 0,
+          "maxMinutes": 60,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "debug-nextgen",
+          "hpcQueueName": "debug-nextgen",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 120,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 483240,
+          "minMinutes": 0,
+          "maxMinutes": 60,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "debug-quad",
+          "hpcQueueName": "debug-quad",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 88,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 943712,
+          "minMinutes": 0,
+          "maxMinutes": 60,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "gpu",
+          "hpcQueueName": "gpu",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 4,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 88,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 943712,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "nextgen@ascend-static",
+          "hpcQueueName": "nextgen",
+          "maxJobs": 2147483647,
+          "maxJobsPerUser": 2147483647,
+          "minNodeCount": 0,
+          "maxNodeCount": 4,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 14,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 71994,
+          "minMinutes": 0,
+          "maxMinutes": 500,
+          "variantOf": "nextgen",
+          "sourceSystems": [
+            "ascend-static"
+          ]
+        },
+        {
+          "name": "nextgen@ascend-tapis",
+          "hpcQueueName": "nextgen",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 16,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 120,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 483240,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "variantOf": "nextgen",
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "preemptible",
+          "hpcQueueName": "preemptible",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 4,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 96,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 2147483647,
+          "minMinutes": 0,
+          "maxMinutes": 1440,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "preemptible-nextgen",
+          "hpcQueueName": "preemptible-nextgen",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 4,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 120,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 483240,
+          "minMinutes": 0,
+          "maxMinutes": 1440,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "preemptible-quad",
+          "hpcQueueName": "preemptible-quad",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 4,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 88,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 943712,
+          "minMinutes": 0,
+          "maxMinutes": 1440,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "quad",
+          "hpcQueueName": "quad",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 4,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 88,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 943712,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "quick",
+          "hpcQueueName": "quick",
+          "maxJobs": 0,
+          "maxJobsPerUser": 20,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 120,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 483240,
+          "minMinutes": 0,
+          "maxMinutes": 1440,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        },
+        {
+          "name": "systems",
+          "hpcQueueName": "systems",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 0,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 125,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 2147483647,
+          "minMinutes": 0,
+          "maxMinutes": 0,
+          "sourceSystems": [
+            "ascend-tapis"
+          ]
+        }
+      ]
+    },
+    {
+      "tenant": "icicleai",
+      "id": "cardinal",
+      "description": "System for running jobs on cardinal",
+      "systemType": "LINUX",
+      "owner": "skhuvis",
+      "host": "cardinal.osc.edu",
+      "enabled": true,
+      "effectiveUserId": "swathivm",
+      "defaultAuthnMethod": "PKI_KEYS",
+      "rootDir": "/",
+      "port": 22,
+      "useProxy": false,
+      "proxyPort": -1,
+      "canExec": true,
+      "canRunBatch": true,
+      "enableCmdPrefix": true,
+      "allowChildren": false,
+      "jobRuntimes": [
+        {
+          "runtimeType": "SINGULARITY"
+        }
+      ],
+      "jobWorkingDir": "/fs/scratch/PAS2271",
+      "jobMaxJobs": 2147483647,
+      "jobMaxJobsPerUser": 2147483647,
+      "batchScheduler": "SLURM",
+      "batchDefaultLogicalQueue": "batch",
+      "uuid": "9da4b44d-3886-4b25-b209-b0fd45e5082b",
+      "deleted": false,
+      "created": "2024-10-29T20:35:58.130377Z",
+      "updated": "2026-06-29T19:33:50.693244Z",
+      "hasCredentials": false,
+      "isPublic": true,
+      "isDynamicEffectiveUser": true,
+      "mergedFrom": [
+        "cardinal-tapis"
+      ],
+      "batchLogicalQueues": [
+        {
+          "name": "batch",
+          "hpcQueueName": "batch",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 0,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 104,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 2147483647,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "cardinal-tapis"
+          ]
+        },
+        {
+          "name": "cache",
+          "hpcQueueName": "cache",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 4,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 96,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 475776,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "cardinal-tapis"
+          ]
+        },
+        {
+          "name": "cpu",
+          "hpcQueueName": "cpu",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 12,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 96,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 589824,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "cardinal-tapis"
+          ]
+        },
+        {
+          "name": "debug",
+          "hpcQueueName": "debug",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 96,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 1029504,
+          "minMinutes": 0,
+          "maxMinutes": 60,
+          "sourceSystems": [
+            "cardinal-tapis"
+          ]
+        },
+        {
+          "name": "gpu",
+          "hpcQueueName": "gpu",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 12,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 96,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 884736,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "cardinal-tapis"
+          ]
+        },
+        {
+          "name": "hugemem",
+          "hpcQueueName": "hugemem",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 1,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 96,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 2025984,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "cardinal-tapis"
+          ]
+        },
+        {
+          "name": "quick",
+          "hpcQueueName": "quick",
+          "maxJobs": 0,
+          "maxJobsPerUser": 20,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 96,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 884736,
+          "minMinutes": 0,
+          "maxMinutes": 1440,
+          "sourceSystems": [
+            "cardinal-tapis"
+          ]
+        },
+        {
+          "name": "systems",
+          "hpcQueueName": "systems",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 0,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 104,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 2147483647,
+          "minMinutes": 0,
+          "maxMinutes": 0,
+          "sourceSystems": [
+            "cardinal-tapis"
+          ]
+        }
+      ]
+    },
+    {
+      "tenant": "icicleai",
+      "id": "pitzer",
+      "description": "System for running jobs on pitzer",
+      "systemType": "LINUX",
+      "owner": "skhuvis",
+      "host": "pitzer.osc.edu",
+      "enabled": true,
+      "effectiveUserId": "swathivm",
+      "defaultAuthnMethod": "PKI_KEYS",
+      "rootDir": "/",
+      "port": 22,
+      "useProxy": false,
+      "proxyPort": -1,
+      "canExec": true,
+      "canRunBatch": true,
+      "enableCmdPrefix": true,
+      "allowChildren": false,
+      "jobRuntimes": [
+        {
+          "runtimeType": "SINGULARITY"
+        }
+      ],
+      "jobWorkingDir": "/fs/ess/scratch/PZS0710",
+      "jobMaxJobs": 2147483647,
+      "jobMaxJobsPerUser": 2147483647,
+      "batchScheduler": "SLURM",
+      "batchDefaultLogicalQueue": "batch",
+      "uuid": "458358b0-fd59-43ce-8982-a0ac636db3b0",
+      "deleted": false,
+      "created": "2024-10-15T21:05:49.521039Z",
+      "updated": "2026-06-29T19:34:39.644077Z",
+      "hasCredentials": false,
+      "isPublic": true,
+      "isDynamicEffectiveUser": true,
+      "mergedFrom": [
+        "pitzer-tapis"
+      ],
+      "batchLogicalQueues": [
+        {
+          "name": "batch",
+          "hpcQueueName": "batch",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 0,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 45,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 2147483647,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "condo-peterson-olivucci",
+          "hpcQueueName": "condo-peterson-olivucci",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 0,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 40,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 182240,
+          "minMinutes": 0,
+          "maxMinutes": 20160,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "condo-peterson-olivucci-backfill",
+          "hpcQueueName": "condo-peterson-olivucci-backfill",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 0,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 40,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 182240,
+          "minMinutes": 0,
+          "maxMinutes": 240,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "cpu",
+          "hpcQueueName": "cpu",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 40,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 40,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 182240,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "cpu-exp",
+          "hpcQueueName": "cpu-exp",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 40,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 182256,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "debug",
+          "hpcQueueName": "debug",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 2147483647,
+          "minMinutes": 0,
+          "maxMinutes": 60,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "debug-cpu",
+          "hpcQueueName": "debug-cpu",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 218688,
+          "minMinutes": 0,
+          "maxMinutes": 60,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "debug-exp",
+          "hpcQueueName": "debug-exp",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 182256,
+          "minMinutes": 0,
+          "maxMinutes": 60,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "gpu",
+          "hpcQueueName": "gpu",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 10,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 40,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 371680,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "gpu-exp",
+          "hpcQueueName": "gpu-exp",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 10,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 371712,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "gpu-quad",
+          "hpcQueueName": "gpu-quad",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 761856,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "gpubackfill",
+          "hpcQueueName": "gpubackfill",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 10,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 40,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 371680,
+          "minMinutes": 0,
+          "maxMinutes": 240,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "gpubackfill-exp",
+          "hpcQueueName": "gpubackfill-exp",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 10,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 371712,
+          "minMinutes": 0,
+          "maxMinutes": 240,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "gpubackfill-quad",
+          "hpcQueueName": "gpubackfill-quad",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 761856,
+          "minMinutes": 0,
+          "maxMinutes": 240,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "gpudebug",
+          "hpcQueueName": "gpudebug",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 40,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 371680,
+          "minMinutes": 0,
+          "maxMinutes": 60,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "gpudebug-exp",
+          "hpcQueueName": "gpudebug-exp",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 371712,
+          "minMinutes": 0,
+          "maxMinutes": 60,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "gpudebug-quad",
+          "hpcQueueName": "gpudebug-quad",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 761856,
+          "minMinutes": 0,
+          "maxMinutes": 60,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "hugemem",
+          "hpcQueueName": "hugemem",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 1,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 80,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 3060720,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "largemem",
+          "hpcQueueName": "largemem",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 7,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 48,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 761856,
+          "minMinutes": 0,
+          "maxMinutes": 10080,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "longcpu",
+          "hpcQueueName": "longcpu",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 1,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 40,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 182240,
+          "minMinutes": 0,
+          "maxMinutes": 20160,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "quick",
+          "hpcQueueName": "quick",
+          "maxJobs": 0,
+          "maxJobsPerUser": 20,
+          "minNodeCount": 0,
+          "maxNodeCount": 2,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 40,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 371680,
+          "minMinutes": 0,
+          "maxMinutes": 1440,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        },
+        {
+          "name": "systems",
+          "hpcQueueName": "systems",
+          "maxJobs": 0,
+          "maxJobsPerUser": 0,
+          "minNodeCount": 0,
+          "maxNodeCount": 0,
+          "minCoresPerNode": 1,
+          "maxCoresPerNode": 45,
+          "minMemoryMB": 0,
+          "maxMemoryMB": 2147483647,
+          "minMinutes": 0,
+          "maxMinutes": 0,
+          "sourceSystems": [
+            "pitzer-tapis"
+          ]
+        }
+      ]
+    }
+  ]
+}

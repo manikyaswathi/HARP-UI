@@ -31,6 +31,10 @@ STYLE = '''<style>
 def build(name):
     page = open(os.path.join(ROOT, name)).read()
     mock = open(os.path.join(HERE, "demo_mock.js")).read()
+    # the TAPIS systems the demo shows: an export of real system definitions (replace the file to update them)
+    with open(os.path.join(HERE, "systems.json")) as f:
+        systems = f.read()
+    mock = "window.__HARP_SYSTEMS__ = " + systems.strip() + ";\n" + mock
     assert page.count("<body>") == 1 and page.count("</head>") == 1
     page = page.replace("</head>", STYLE + "<script>\n" + mock + "</script>\n</head>", 1)
     page = page.replace("<body>", "<body>\n" + BANNER, 1)

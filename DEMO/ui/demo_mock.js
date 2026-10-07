@@ -38,9 +38,9 @@
     return Object.entries(params).reduce((acc, [k, vs]) => acc.flatMap(a => vs.map(v => ({...a, [k]: v}))), [{}]);
   }
   // A sweep with its TAPIS jobs (one combination per job), spread over hardware.
-  const QUEUE = {pitzer:'serial', cardinal:'gpu'};
+  const QUEUE = {pitzer:'cpu', cardinal:'gpu'};
   let uuidN = 4100;
-  const HWLABEL = h => h === 'cardinal' ? 'cardinal/gpu · 8 cores · 31 GB · GPU' : `${h}/${QUEUE[h] || 'serial'} · 4 cores · 16 GB`;
+  const HWLABEL = h => h === 'cardinal' ? 'cardinal/gpu · 8 cores · 31 GB · GPU' : `${h}/${QUEUE[h] || 'cpu'} · 4 cores · 16 GB`;
   const tLabel = t => [t.system_id + (t.queue ? '/' + t.queue : ''), t.cores_per_node ? t.cores_per_node + ' cores' : '',
     t.memory_mb ? Math.round(t.memory_mb / 1024) + ' GB' : '', t.container_args ? 'GPU' : ''].filter(Boolean).join(' · ');
   function sweep(name, appId, sets, reps, timeFn, hosts, opts = {}){
@@ -117,23 +117,20 @@
   // As TAPIS describes them: system + batchLogicalQueues (LogicalQueue fields).
   const Q = (name, hpc, o) => ({name, hpc_queue:hpc, description:'', default:false, max_jobs:-1, min_nodes:1,
     min_cores:1, min_memory_mb:1, min_minutes:1, ...o});
-  const SYSTEMS = [
-    {id:'pitzer', host:'pitzer.osc.edu', description:'Pitzer cluster, Ohio Supercomputer Center', system_type:'LINUX',
-     enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'serial',
-     queues:[Q('serial','serial',{default:true, max_nodes:1, max_cores:40, max_memory_mb:160000, max_minutes:10080, max_jobs_per_user:4}),
-             Q('parallel','parallel',{min_nodes:2, max_nodes:81, max_cores:40, max_memory_mb:160000, max_minutes:5760, max_jobs_per_user:2}),
-             Q('gpuserial-40core','gpuserial-40core',{description:'2x V100 per node', max_nodes:1, max_cores:40, max_memory_mb:160000, max_minutes:5760, max_jobs_per_user:2})]},
-    {id:'cardinal', host:'cardinal.osc.edu', description:'Cardinal cluster, Ohio Supercomputer Center', system_type:'LINUX',
-     enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'cpu',
-     queues:[Q('cpu','cpu',{default:true, max_nodes:1, max_cores:96, max_memory_mb:515000, max_minutes:10080, max_jobs_per_user:4}),
-             Q('gpu','gpu',{description:'4x H100 per node', max_nodes:1, max_cores:96, max_memory_mb:1030000, max_minutes:4320, max_jobs_per_user:2})]},
-    {id:'stampede3', host:'stampede3.tacc.utexas.edu', description:'Stampede3, Texas Advanced Computing Center', system_type:'LINUX',
-     enabled:true, can_exec:true, can_run_batch:true, batch_scheduler:'SLURM', runtimes:['SINGULARITY'], default_queue:'skx',
-     queues:[Q('skx','skx',{default:true, description:'Skylake, 48 cores', max_nodes:256, max_cores:48, max_memory_mb:192000, max_minutes:2880, max_jobs_per_user:20}),
-             Q('icx','icx',{description:'Ice Lake, 80 cores', max_nodes:32, max_cores:80, max_memory_mb:256000, max_minutes:2880, max_jobs_per_user:20}),
-             Q('h100','h100',{description:'4x H100 per node', max_nodes:4, max_cores:96, max_memory_mb:1000000, max_minutes:2880, max_jobs_per_user:4})]}];
+  // Real TAPIS system definitions (DEMO/ui/systems.json, put in by build_demo.py), turned into what
+  // the server's /api/tapis/exec-systems returns. 0 / 2147483647 maxima mean "no limit".
+  const lim = v => (typeof v === 'number' && v > 0 && v < 2147483647) ? v : null;
+  const SYSTEMS = ((window.__HARP_SYSTEMS__ || {}).systems || []).map(s => ({
+    id: s.id, host: s.host, description: s.description || '', system_type: s.systemType, enabled: s.enabled !== false,
+    can_exec: !!s.canExec, can_run_batch: !!s.canRunBatch, batch_scheduler: s.batchScheduler,
+    runtimes: (s.jobRuntimes || []).map(r => r.runtimeType), default_queue: s.batchDefaultLogicalQueue,
+    job_working_dir: s.jobWorkingDir, root_dir: s.rootDir,
+    queues: (s.batchLogicalQueues || []).map(q => ({name: q.name, hpc_queue: q.hpcQueueName, description: q.description || '',
+      default: q.name === s.batchDefaultLogicalQueue, max_jobs: lim(q.maxJobs), max_jobs_per_user: lim(q.maxJobsPerUser),
+      min_nodes: q.minNodeCount, max_nodes: lim(q.maxNodeCount), min_cores: q.minCoresPerNode, max_cores: lim(q.maxCoresPerNode),
+      min_memory_mb: q.minMemoryMB, max_memory_mb: lim(q.maxMemoryMB), min_minutes: q.minMinutes, max_minutes: lim(q.maxMinutes)}))}));
   const STORAGE_ONLY = [{id:'osc-project-storage', host:'sftp.osc.edu', description:'OSC project space', system_type:'LINUX', enabled:true, can_exec:false}];
-  HW.stampede3 = {sys_name:'Linux', sys_tot_cores_count:48, sys_phy_mem_bytes:201326592000, sys_gpu_count:0, sys_gpu_name:'none'};
+  HW.ascend = {sys_name:'Linux', sys_tot_cores_count:96, sys_phy_mem_bytes:966361088000, sys_gpu_count:0, sys_gpu_name:'none'};
   const HWOF = id => HW[id] || HW.pitzer;
 
   // A sweep launched from the page: jobs move through TAPIS states over ~a minute.
@@ -349,7 +346,7 @@
   // one finished build, so HARP Estimate has models to pick from
   { const e = SWEEPS.find(x => x.view.app_ids.includes('harp-sweep-euler-swathi'));
     newBuild('harp-sweep-euler-swathi', {sweeps:[e.view.id], storage:{system_id:'pitzer', path:'/fs/scratch/PAS2271/swathi/harp_models'},
-      run_on:{mode:'tapis', system_id:'pitzer', queue:'serial'}}, standardizeRows('harp-sweep-euler-swathi', [e.view.id]).rep, Date.now() - 3 * 3600e3); }
+      run_on:{mode:'tapis', system_id:'pitzer', queue:'cpu'}}, standardizeRows('harp-sweep-euler-swathi', [e.view.id]).rep, Date.now() - 3 * 3600e3); }
   const realFetch = window.fetch.bind(window);
   window.fetch = function(url, opts = {}){
     const path = decodeURIComponent(String(url));
