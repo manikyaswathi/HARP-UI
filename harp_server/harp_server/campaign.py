@@ -231,7 +231,7 @@ class CampaignManager:
     def _advance(self, campaign):
         gateway = self.gateways.get(campaign["owner"])
         with self._lock:
-            if gateway is None:
+            if gateway is None or gateway.expired():
                 if campaign["status"] != WAITING_FOR_LOGIN:
                     campaign["status"] = WAITING_FOR_LOGIN
                     self._event(campaign, "paused: owner must log in to TAPIS again")

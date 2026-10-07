@@ -38,9 +38,13 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
     app.state.manager = manager
 
     def gateway(request: Request) -> TapisGateway:
-        gw = sessions.get(request.cookies.get(SESSION_COOKIE, ""))
+        key = request.cookies.get(SESSION_COOKIE, "")
+        gw = sessions.get(key)
         if gw is None:
             raise HTTPException(401, "log in to TAPIS first")
+        if gw.expired():
+            sessions.pop(key, None)
+            raise HTTPException(401, "your TAPIS token expired, log in again")
         return gw
 
     def tapis(fn, *args, **kwargs):
@@ -58,19 +62,24 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
     # ------------------------------------------------------------ auth
     @app.post("/api/login")
     def login_route(response: Response, body: dict = Body(...)):
+        """The browser gets the token from the TAPIS tenant itself and hands
+        over only the token; passwords are refused so they never reach us."""
         base_url = (body.get("base_url") or "").rstrip("/")
         if not base_url.startswith("https://"):
             raise HTTPException(400, "base_url must be an https TAPIS tenant URL, e.g. https://icicle.tapis.io")
+        if "password" in body:
+            raise HTTPException(400, "send a TAPIS access token, not a password")
+        if not body.get("access_token"):
+            raise HTTPException(400, "access_token is required")
         try:
-            gw = login(base_url, username=body.get("username"), password=body.get("password"),
-                       access_token=body.get("access_token"))
+            gw = login(base_url, body["access_token"])
         except TapisError as e:
             raise HTTPException(401, str(e))
         token = secrets.token_urlsafe(32)
         sessions[token] = gw
         manager.register_gateway(gw)
         response.set_cookie(SESSION_COOKIE, token, httponly=True, samesite="strict")
-        return {"username": gw.username, "base_url": gw.base_url}
+        return {"username": gw.username, "base_url": gw.base_url, "expires_at": gw.expires_at}
 
     @app.post("/api/logout")
     def logout(request: Request, response: Response):
@@ -80,7 +89,7 @@ def create_app(data_dir=None, poll_interval=None, login=TapisGateway.login, star
 
     @app.get("/api/me")
     def me(gw: TapisGateway = Depends(gateway)):
-        return {"username": gw.username, "base_url": gw.base_url}
+        return {"username": gw.username, "base_url": gw.base_url, "expires_at": gw.expires_at}
 
     # ----------------------------------------------------------- TAPIS browse
     @app.get("/api/tapis/systems")

@@ -56,7 +56,13 @@ which is the name the existing **build** phase looks for. Runs that fail go to
 
 ## Using the UI
 
-1. Log in with your TAPIS tenant, for example `https://icicle.tapis.io`.
+1. Log in with your TAPIS tenant, for example `https://icicle.tapis.io`. The browser gets an
+   access token **directly from the tenant** (`POST <tenant>/v3/oauth2/tokens`, the same call tapipy's
+   `get_tokens()` makes) and sends only that token to the HARP server, so your password never
+   reaches it. The server verifies the token with TAPIS (`get_userinfo`) before trusting it. The
+   header shows how long the token stays valid, with a **Renew token** button in its last 30 minutes.
+   When a token expires, running campaigns pause (`WAITING_FOR_LOGIN`) and resume as soon as you
+   log in again.
 2. **Application:** fill in the command template, e.g. `python3 calc_e.py {method} {n} {precision}`,
    and the work folder inside the container.
 3. **Sweep parameters:** add one block per run type, with one `name = v1, v2` line per parameter.
@@ -70,8 +76,8 @@ which is the name the existing **build** phase looks for. Runs that fail go to
    **DONE** and you get a notification and a **Download CSV** button. The file is already saved
    on the storage system.
 
-If the server restarts, a running campaign pauses as `WAITING_FOR_LOGIN` and resumes
-when you log in again.
+If the server restarts or your token expires, a running campaign pauses as
+`WAITING_FOR_LOGIN` and resumes when you log in again.
 
 ## Tests
 

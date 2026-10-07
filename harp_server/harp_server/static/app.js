@@ -4,7 +4,7 @@ const $ = (sel, root = document) => root.querySelector(sel);
 const esc = (v) => String(v ?? "").replace(/[&<>"']/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
-const state = { systems: [], apps: [], systemDetails: {}, selected: null, pollTimer: null, lastStatus: {} };
+const state = { loaded: false, expiresAt: null, expiryTimer: null, systems: [], apps: [], systemDetails: {}, selected: null, pollTimer: null, lastStatus: {} };
 const ACTIVE = ["RUNNING", "WAITING_FOR_LOGIN", "FINALIZING"];
 const STATUS_CLASS = {
   DONE: "s-ok", FINISHED: "s-ok", DONE_WITH_ERRORS: "s-warn", WAITING_FOR_LOGIN: "s-warn",
@@ -18,7 +18,11 @@ async function api(path, opts = {}) {
     headers: { "Content-Type": "application/json", ...(opts.headers || {}) },
     body: opts.body ? JSON.stringify(opts.body) : undefined,
   });
-  if (res.status === 401 && path !== "/api/login") { showLogin(); throw new Error("Please log in again"); }
+  if (res.status === 401 && path !== "/api/login") {
+    const msg = (await res.json().catch(() => ({}))).detail || "Please log in again";
+    if (path !== "/api/me") showLogin(msg);
+    throw new Error(msg);
+  }
   const data = res.headers.get("content-type")?.includes("json") ? await res.json() : await res.text();
   if (!res.ok) throw new Error(data.detail || data || res.statusText);
   return data;
@@ -31,13 +35,41 @@ function toast(msg, ms = 4000) {
 }
 
 // ------------------------------------------------------------------ auth
-function showLogin() { $("#login-view").hidden = false; $("#app-view").hidden = true; $("#whoami").hidden = true; }
+// The browser asks the TAPIS tenant for a token (the same call tapipy's
+// get_tokens() makes) and hands only the token to the HARP server.
+async function getTapisToken(baseUrl, username, password) {
+  let res;
+  try {
+    res = await fetch(`${baseUrl}/v3/oauth2/tokens`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, grant_type: "password" }),
+    });
+  } catch {
+    throw new Error(`Could not reach ${baseUrl}. Check the tenant URL and your network.`);
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.message || `TAPIS login failed (${res.status})`);
+  return data.result.access_token.access_token;
+}
+
+function showLogin(reason = "") {
+  $("#login-view").hidden = false; $("#app-view").hidden = true; $("#whoami").hidden = true;
+  $("#login-reason").textContent = reason;
+  clearInterval(state.expiryTimer);
+}
 
 async function showApp(me) {
   $("#login-view").hidden = true; $("#app-view").hidden = false; $("#whoami").hidden = false;
   $("#who").textContent = `${me.username} @ ${me.base_url.replace("https://", "")}`;
+  state.expiresAt = me.expires_at;
+  clearInterval(state.expiryTimer);
+  updateExpiry(); state.expiryTimer = setInterval(updateExpiry, 30000);
+  // The form is only hidden while logging in again, so nothing typed is lost.
+  if (state.loaded) return;
   try {
     [state.systems, state.apps] = await Promise.all([api("/api/tapis/systems"), api("/api/tapis/apps")]);
+    state.loaded = true;
   } catch (e) { toast(`Could not load TAPIS systems/apps: ${e.message}`); }
   fillStorageSystems();
   if (!$("#run-sets").children.length) addRunSet();
@@ -45,14 +77,38 @@ async function showApp(me) {
   refreshCampaigns();
 }
 
+// Running campaigns pause when the token expires, so warn early.
+function updateExpiry() {
+  if (!state.expiresAt) { $("#token-expiry").textContent = ""; return; }
+  const mins = Math.round((state.expiresAt * 1000 - Date.now()) / 60000);
+  if (mins <= 1) return showLogin("Your TAPIS token expired. Log in again — running campaigns resume automatically.");
+  $("#token-expiry").textContent = mins >= 120 ? `token valid ${Math.floor(mins / 60)}h` : `token expires in ${mins} min`;
+  $("#renew").hidden = mins > 30;
+}
+
 $("#login-form").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   $("#login-error").textContent = "";
-  const body = Object.fromEntries(new FormData(ev.target));
-  try { showApp(await api("/api/login", { method: "POST", body })); }
-  catch (e) { $("#login-error").textContent = e.message; }
+  const f = Object.fromEntries(new FormData(ev.target));
+  const base_url = f.base_url.trim().replace(/\/+$/, "");
+  const btn = ev.submitter; btn.disabled = true;
+  try {
+    let access_token = f.access_token.trim();
+    if (!access_token) {
+      if (!f.username || !f.password) throw new Error("Enter your username and password, or paste a token.");
+      access_token = await getTapisToken(base_url, f.username.trim(), f.password);
+    }
+    ev.target.password.value = "";
+    showApp(await api("/api/login", { method: "POST", body: { base_url, access_token } }));
+  } catch (e) { $("#login-error").textContent = e.message; }
+  finally { btn.disabled = false; }
 });
-$("#logout").onclick = async () => { await api("/api/logout", { method: "POST" }); showLogin(); };
+$("#renew").onclick = () => showLogin("Renew your TAPIS token.");
+$("#logout").onclick = async () => {
+  await api("/api/logout", { method: "POST" });
+  state.loaded = false;
+  showLogin();
+};
 
 // ------------------------------------------------------------------ tabs
 document.querySelectorAll(".tabs button").forEach((b) => (b.onclick = () => {
@@ -355,4 +411,4 @@ async function renderCampaign(id) {
 }
 
 // ------------------------------------------------------------------ boot
-api("/api/me").then(showApp).catch(showLogin);
+api("/api/me").then(showApp).catch(() => showLogin());

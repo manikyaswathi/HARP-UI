@@ -14,6 +14,11 @@ class FakeGateway:
         self._ids = itertools.count(1)
         self.fail_submit_for = set()
         self.readonly_systems = set()
+        self.expires_at = None
+
+    def expired(self, margin=60):
+        import time
+        return self.expires_at is not None and time.time() > self.expires_at - margin
 
     # systems / apps
     def list_systems(self):

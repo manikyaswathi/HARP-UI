@@ -11,6 +11,8 @@
   <h1>HARP <span>· generate phase on TAPIS</span></h1>
   <div id="whoami" hidden>
     <span id="who"></span>
+    <span id="token-expiry" class="hint"></span>
+    <button class="ghost" id="renew" hidden>Renew token</button>
     <button class="ghost" id="logout">Log out</button>
   </div>
 </header>
@@ -19,14 +21,17 @@
 <main id="login-view" hidden>
   <section class="card narrow">
     <h2>Log in to TAPIS</h2>
+    <p class="hint" id="login-reason"></p>
     <form id="login-form">
       <label>Tenant URL <input name="base_url" value="https://icicle.tapis.io" required></label>
       <label>Username <input name="username" autocomplete="username"></label>
       <label>Password <input name="password" type="password" autocomplete="current-password"></label>
-      <details><summary>Use an access token instead</summary>
+      <details><summary>Paste an access token instead</summary>
         <label>Access token (JWT) <textarea name="access_token" rows="3"></textarea></label>
       </details>
       <button type="submit">Log in</button>
+      <p class="hint">Your browser gets a token directly from the TAPIS tenant.
+        Your password is never sent to the HARP server — only the token is.</p>
       <p class="error" id="login-error"></p>
     </form>
   </section>

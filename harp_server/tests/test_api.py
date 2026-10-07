@@ -11,9 +11,11 @@ from specs import euler_spec
 def ctx(tmp_path):
     gateways = {}
 
-    def login(base_url, username=None, password=None, access_token=None):
-        if password != "secret":
-            raise TapisError("bad credentials")
+    def login(base_url, access_token):
+        # fake tokens look like "token-<username>"
+        if not access_token.startswith("token-"):
+            raise TapisError("bad token")
+        username = access_token[len("token-"):]
         return gateways.setdefault(username, FakeGateway(username))
 
     app = create_app(data_dir=str(tmp_path), login=login, start_poller=False)
@@ -22,16 +24,40 @@ def ctx(tmp_path):
 
 
 def _login(client, user="alice"):
-    r = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "username": user, "password": "secret"})
+    r = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "access_token": f"token-{user}"})
     assert r.status_code == 200, r.text
 
 
 def test_requires_login(ctx):
     client, _, _ = ctx
     assert client.get("/api/campaigns").status_code == 401
-    r = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "username": "a", "password": "x"})
+    r = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "access_token": "forged"})
     assert r.status_code == 401
-    assert client.post("/api/login", json={"base_url": "http://insecure", "username": "a", "password": "secret"}).status_code == 400
+    assert client.post("/api/login", json={"base_url": "http://insecure", "access_token": "token-a"}).status_code == 400
+
+
+def test_passwords_are_never_accepted_by_the_server(ctx):
+    client, _, _ = ctx
+    r = client.post("/api/login", json={"base_url": "https://fake.tapis.io", "username": "a", "password": "x"})
+    assert r.status_code == 400 and "token" in r.json()["detail"]
+
+
+def test_expired_token_logs_out_and_pauses_campaigns(ctx):
+    client, manager, gateways = ctx
+    _login(client)
+    c = client.post("/api/campaigns", json=euler_spec()).json()
+    gateways["alice"].expires_at = 1  # long ago
+    r = client.get("/api/campaigns")
+    assert r.status_code == 401 and "expired" in r.json()["detail"]
+    manager.tick()
+    assert manager.campaigns[c["id"]]["status"] == "WAITING_FOR_LOGIN"
+    assert gateways["alice"].submitted == []
+
+    gateways["alice"].expires_at = None  # a fresh token
+    _login(client)
+    manager.tick()
+    assert manager.campaigns[c["id"]]["status"] == "RUNNING"
+    assert gateways["alice"].submitted
 
 
 def test_ui_is_served(ctx):

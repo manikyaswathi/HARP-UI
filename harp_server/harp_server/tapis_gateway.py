@@ -23,28 +23,37 @@ def _get(obj, name, default=None):
 class TapisGateway:
     """Thin, thread-safe wrapper around a logged-in tapipy client."""
 
-    def __init__(self, client, username, base_url):
+    def __init__(self, client, username, base_url, expires_at=None):
         self.client = client
         self.username = username
         self.base_url = base_url
+        self.expires_at = expires_at  # epoch seconds; None = unknown
         self._lock = threading.Lock()
 
+    def expired(self, margin=60):
+        return self.expires_at is not None and time.time() > self.expires_at - margin
+
     @classmethod
-    def login(cls, base_url, username=None, password=None, access_token=None):
+    def login(cls, base_url, access_token):
+        """Wrap a TAPIS access token that the browser obtained from the tenant.
+
+        The user's password never reaches the HARP server. The token is
+        verified by asking TAPIS who it belongs to, so a forged token (or a
+        made-up username) is rejected.
+        """
         try:
             from tapipy.tapis import Tapis
         except ImportError as e:
             raise TapisError("tapipy is not installed on the HARP server") from e
         try:
-            if access_token:
-                client = Tapis(base_url=base_url, access_token=access_token)
-                username = username or _get(client.access_token, "claims", {}).get("tapis/username")
-            else:
-                client = Tapis(base_url=base_url, username=username, password=password)
-                client.get_tokens()
+            client = Tapis(base_url=base_url, access_token=access_token)
+            username = _get(client.authenticator.get_userinfo(), "username")
         except Exception as e:
-            raise TapisError(f"TAPIS login failed: {e}") from e
-        return cls(client, username, base_url)
+            raise TapisError(f"TAPIS rejected the token: {e}") from e
+        if not username:
+            raise TapisError("TAPIS did not return a username for this token")
+        exp = _get(_get(client.access_token, "claims", {}), "exp")
+        return cls(client, username, base_url, expires_at=float(exp) if exp else None)
 
     def _call(self, fn, *args, **kwargs):
         # tapipy refreshes expiring tokens itself; we only serialize calls and
