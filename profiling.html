@@ -567,6 +567,10 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
 #jobsTable td:nth-child(2){white-space:normal;word-break:break-word;max-width:190px}
 #jobsTable td:nth-child(3){white-space:normal;word-break:break-all;max-width:190px}
 #doneTable td:first-child,#doneTable td:nth-child(3){white-space:normal;word-break:break-all}
+.appsel{width:100%;font-size:15px;font-weight:500;color:var(--navy);padding:11px 12px}
+.appmeta{display:flex;flex-wrap:wrap;gap:6px 18px;margin-top:10px;font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--muted)}
+.appmeta b{font-weight:500;text-transform:uppercase;letter-spacing:.05em;font-size:10px;color:var(--teal-700);margin-right:4px}
+.appmeta span{min-width:0;word-break:break-all}
 </style>
 
 </head>
@@ -619,8 +623,10 @@ select:focus,input.ti:focus{outline:none;border-color:var(--teal)}
       <div class="pgrid">
         <div>
           <div class="card2">
-            <div class="chead"><h3>App</h3><span class="am" id="appHint"></span></div>
-            <div class="applist compact" id="applist"></div>
+            <div class="chead"><h3>App</h3></div>
+            <label class="lbl" for="appSel">Select an app to profile</label>
+            <select id="appSel" class="appsel"></select>
+            <div class="appmeta" id="appMeta"></div>
           </div>
 
           <div class="card2" id="sweepCard" hidden>
@@ -807,7 +813,7 @@ async function loadApps(){
   CAMPS = camps;
   const runsByApp = {};
   for (const c of camps) for (const id of c.app_ids || []) runsByApp[id] = (runsByApp[id] || 0) + (c.result ? c.result.rows : 0);
-  APPS = apps.map(a => toApp(a, runsByApp)).sort((x, y) => (!y.command - !x.command) || x.label.localeCompare(y.label));
+  APPS = apps.map(a => toApp(a, runsByApp)).sort((x, y) => x.label.localeCompare(y.label));
 }
 const appName = id => (APPS.find(a => a.id === id) || {}).label || id;
 const qlist = s => s.queues && s.queues.length ? s.queues : [{name: '', default: true}];
@@ -842,7 +848,7 @@ function nextName(name){
   const base = name.replace(/-\d+$/, ''); let i = 2; while (used.has(`${base}-${i}`)) i++; return `${base}-${i}`;
 }
 function sweepProblem(a, sw){
-  if (!a.command) return 'This app has no HARP command yet. Register it with the HARP app notebook.';
+  if (!a.command) return "This app doesn't declare its sweep parameters yet.";
   if (!/^[A-Za-z0-9][A-Za-z0-9_.-]{0,30}$/.test(sw.name)) return 'Sweep name: letters, digits, - _ . (max 31).';
   if (PLAN.some(p => p.app.id === a.id && p.sweep.name === sw.name)) return `The plan already has a sweep "${sw.name}" for this app.`;
   for (const p of a.params) {
@@ -856,28 +862,28 @@ function sweepProblem(a, sw){
 }
 
 function renderApps(){
-  if (!APPS.length) { $('applist').innerHTML = '<div class="empty" style="border:none">No TAPIS apps found for your account.</div>'; return; }
-  $('appHint').textContent = `${APPS.filter(a => a.command).length} of ${APPS.length} ready for HARP`;
-  $('applist').innerHTML = APPS.map(a => `
-    <button class="appitem" data-id="${esc(a.id)}" aria-current="${!!(app && app.id === a.id)}" ${a.command ? '' : 'title="Needs a HARP command (app notebook)"'}>
-      <span class="ic">${esc(initials(a.label))}</span>
-      <span style="min-width:0"><span class="an">${esc(a.label)}</span>
-        <span class="am">${esc(a.id)} &middot; v${esc(a.version)} &middot; ${esc(a.params.map(p => p.name).join(', ') || 'no parameters')}</span></span>
-      <span class="ar"><span class="pill ${a.command ? (a.runs ? 'done' : 'none') : 'none'}">${
-        !a.command ? 'not HARP-ready' : a.runs ? a.runs.toLocaleString() + ' runs' : 'not profiled'}</span></span>
-    </button>`).join('');
-  $('applist').querySelectorAll('.appitem').forEach(b => b.addEventListener('click', () => pickApp(b.dataset.id)));
+  if (!APPS.length) { $('appSel').innerHTML = '<option>No TAPIS apps found for your account</option>'; $('appSel').disabled = true; return; }
+  $('appSel').disabled = false;
+  $('appSel').innerHTML = (app ? '' : '<option value="">Choose an app…</option>') +
+    APPS.map(a => `<option value="${esc(a.id)}" ${app && app.id === a.id ? 'selected' : ''}>${esc(a.label)} (${esc(a.id)} v${esc(a.version)})</option>`).join('');
+  if (!app) { $('appMeta').innerHTML = ''; return; }
+  const meta = [['Image', app.image], ['Parameters', app.params.map(p => p.name).join(', ') || 'none declared'],
+                ['Profiled', app.runs ? app.runs.toLocaleString() + ' runs so far' : 'not yet']];
+  $('appMeta').innerHTML = meta.map(([k, v]) => `<span><b>${k}</b> ${esc(v)}</span>`).join('');
 }
+$('appSel').addEventListener('change', () => { if ($('appSel').value) pickApp($('appSel').value); });
 function pickApp(id, sweep){
   app = APPS.find(a => a.id === id); if (!app) return;
   SW = sweep || freshSweep(app);
   renderApps();
-  $('sweepCard').hidden = $('sysCard').hidden = !app.command;
-  if (app.command) { renderSweepForm(); renderSystems(); }
+  $('sweepCard').hidden = $('sysCard').hidden = false;
+  renderSweepForm(); renderSystems();
   updateCurrent();
 }
 function renderSweepForm(){
   $('swName').value = SW.name; $('swType').value = SW.run_type; $('swReps').value = SW.reps; $('swTimeout').value = SW.timeout;
+  if (!app.command) { $('argTable').innerHTML = `<div class="empty">This app doesn't declare its sweep parameters in TAPIS yet.
+      Add a <code>harp</code> block (command and parameters) to the app's TAPIS notes; the app notebook does this.</div>`; return; }
   if (!app.params.length) { $('argTable').innerHTML = '<div class="empty">This app has no sweep parameters.</div>'; return; }
   $('argTable').innerHTML = `<div class="ahead"><div>Parameter</div><div>How to vary</div><div>Value(s)</div></div>` +
     app.params.map(p => { const st = SW.params[p.name], c = values(st).length;
@@ -931,7 +937,7 @@ function updateCurrent(){
   $('curJobs').textContent = (n * Math.max(q, 1)).toLocaleString();
   $('curJobsLbl').textContent = q ? `TAPIS jobs on ${q} queue${q === 1 ? '' : 's'}` : 'combinations · tick a queue';
   const swept = app.params.filter(p => values(SW.params[p.name]).length > 1);
-  $('curFormula').innerHTML = !app.command ? 'Register this app with the HARP app notebook first.'
+  $('curFormula').innerHTML = !app.command ? 'Declare this app\'s sweep parameters in TAPIS to profile it.'
     : (swept.length ? swept.map(p => `<b>${values(SW.params[p.name]).length}</b> ${esc(p.name)}`).join(' &times; ') : 'every parameter fixed')
       + ` &times; <b>${q}</b> queue${q === 1 ? '' : 's'} &times; <b>${SW.reps}</b> rep${SW.reps === 1 ? '' : 's'}`;
   const prob = sweepProblem(app, SW);
@@ -1273,12 +1279,12 @@ function showLogin(msg){
 async function showApp(me){
   $('loginPanel').hidden = true; $('appView').hidden = false; $('who').hidden = false;
   $('whoName').textContent = me.username + ' @ ' + me.base_url.replace('https://', '');
-  $('applist').innerHTML = '<div class="empty" style="border:none">Loading your TAPIS apps and systems&hellip;</div>';
+  $('appSel').innerHTML = '<option>Loading your TAPIS apps…</option>'; $('appSel').disabled = true;
   try { await Promise.all([loadApps(), loadSystems()]); }
   catch (e) { if (e.status === 401) return showLogin('Session expired. Log in again.');
-              $('applist').innerHTML = `<div class="empty" style="border:none">Could not load: ${esc(e.message)}</div>`; return; }
+              $('appMeta').textContent = 'Could not load your apps: ' + e.message; return; }
   renderApps(); renderPlan();
-  const ready = APPS.find(a => a.command); if (ready && !app) pickApp(ready.id);
+  const first = APPS.find(a => a.command) || APPS[0]; if (first && !app) pickApp(first.id);
   refreshBadge();
   const want = location.hash.slice(1);
   show(['configure', 'review', 'jobs', 'data'].includes(want) ? want : 'configure');
