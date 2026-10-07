@@ -1,0 +1,66 @@
+# Builds the HARP sweep job container for the Euler example and pushes it to
+# GitHub Container Registry (no secrets needed). Optionally also pushes to
+# Docker Hub when the DOCKERHUB_USERNAME / DOCKERHUB_TOKEN secrets exist.
+#
+# Image: ghcr.io/<owner>/harp-sweep-eulernumber:1.0.0
+# Use it in the TAPIS app as  containerImage: docker://ghcr.io/<owner>/harp-sweep-eulernumber:1.0.0
+# (make the package public once, so OSC/TACC can pull it without a login)
+name: Build HARP sweep image
+
+on:
+  push:
+    paths:
+      - "job_runner/**"
+      - "examples/01-eulers_number/**"
+      - "DockerFiles/Dockerfile_App_EulerNumber_Sweep"
+      - ".github/workflows/build-sweep-image.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE_NAME: harp-sweep-eulernumber
+  IMAGE_TAG: "1.0.0"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Image names
+        id: names
+        run: |
+          owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          echo "ghcr=ghcr.io/${owner}/${IMAGE_NAME}" >> "$GITHUB_OUTPUT"
+
+      - name: Build
+        run: docker build -f DockerFiles/Dockerfile_App_EulerNumber_Sweep -t "${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}" .
+
+      - name: Smoke test (run it like a TAPIS job)
+        run: |
+          mkdir -p out
+          spec=$(python3 -c "import base64,json; print(base64.urlsafe_b64encode(json.dumps({'job_name':'ci-test','command':'python3 calc_e.py {method} {n} {precision}','workdir':'/app/01-eulers_number','repetitions':1,'combinations':[{'index':0,'run_type':'SD','parameters':{'method':'pow','n':100,'precision':64}}]}).encode()).decode())")
+          docker run --rm -v "$PWD/out:/TapisOutput" "${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}" "$spec"
+          cat out/harp_profile.csv
+          test "$(wc -l < out/harp_profile.csv)" -eq 2
+
+      - name: Push to GitHub Container Registry
+        run: |
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker push "${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}"
+          echo "### Pushed \`${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "TAPIS containerImage: \`docker://${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Push to Docker Hub (only if secrets are set)
+        env:
+          DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+          DOCKERHUB_TOKEN: ${{ secrets.DOCKERHUB_TOKEN }}
+        if: env.DOCKERHUB_USERNAME != '' && env.DOCKERHUB_TOKEN != ''
+        run: |
+          echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+          docker tag "${{ steps.names.outputs.ghcr }}:${IMAGE_TAG}" "$DOCKERHUB_USERNAME/${IMAGE_NAME}:${IMAGE_TAG}"
+          docker push "$DOCKERHUB_USERNAME/${IMAGE_NAME}:${IMAGE_TAG}"
+          echo "Docker Hub: \`docker://$DOCKERHUB_USERNAME/${IMAGE_NAME}:${IMAGE_TAG}\`" >> "$GITHUB_STEP_SUMMARY"
